@@ -1,0 +1,72 @@
+name: Quality Pipeline
+
+on:
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  # -----------------------------------------------------------------
+  # BACKEND: Java Compilation & Testing
+  # -----------------------------------------------------------------
+  backend:
+    name: Java Backend (Build & Test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Compile Java Application
+        run: mvn clean test-compile
+
+      - name: Run Spring Boot Tests
+        run: mvn test
+
+  # -----------------------------------------------------------------
+  # FRONTEND: Vue Compilation & ESLint
+  # -----------------------------------------------------------------
+  frontend:
+    name: Next.js Frontend (Lint, Build & Test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Restore Next.js cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/frontend/.next/cache
+          # Generate a new cache key whenever source files or dependencies change
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('frontend/package-lock.json') }}-${{ hashFiles('frontend/src/**.[jt]s*', 'frontend/app/**.[jt]s*') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('frontend/package-lock.json') }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Build Next.js Bundle
+        run: npm run build
