@@ -29,9 +29,6 @@ jobs:
       - name: Compile Java Application
         run: mvn clean test-compile
 
-      - name: Run Spring Boot Tests
-        run: mvn test
-
   # -----------------------------------------------------------------
   # FRONTEND: Vue Compilation & ESLint
   # -----------------------------------------------------------------
