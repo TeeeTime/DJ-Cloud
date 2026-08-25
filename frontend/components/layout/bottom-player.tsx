@@ -185,7 +185,7 @@ export function BottomPlayer() {
             max={100} 
             step={1} 
             onValueChange={val => {
-              let nextVol = Array.isArray(val) ? val[0] : val;
+              const nextVol = Array.isArray(val) ? val[0] : val;
               if (typeof nextVol === 'number' && !isNaN(nextVol)) {
                 setVolume(nextVol);
               }
