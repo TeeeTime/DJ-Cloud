@@ -14,6 +14,8 @@ export type Track = {
   genre?: string;
   playlist?: string;
   audioUrl: string;
+  // May 404 — not every track has embedded artwork. Consumers should fall back gracefully.
+  coverUrl: string;
 };
 
 function formatDuration(totalSeconds: number): string {
@@ -34,6 +36,7 @@ export function mapTrackResponse(t: TrackResponse): Track {
     duration: formatDuration(t.durationSeconds),
     durationSeconds: t.durationSeconds,
     audioUrl: tracksApi.audioUrl(t.id),
+    coverUrl: tracksApi.coverUrl(t.id),
   };
 }
 

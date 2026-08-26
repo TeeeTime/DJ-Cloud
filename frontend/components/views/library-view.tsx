@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { Play, Pause, Download, Pencil, Trash, Settings2, CloudUpload, Search, MoreHorizontal, ArrowUpDown, ChevronUp, ChevronDown, Menu, Loader2, AlertCircle } from "lucide-react";
+import { Play, Pause, Download, Pencil, Trash, Settings2, CloudUpload, Search, MoreHorizontal, ArrowUpDown, ChevronUp, ChevronDown, Menu, Loader2, AlertCircle, Music2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -146,6 +146,27 @@ function StatusBadge({ status }: { status: Track["status"] }) {
   return <span className="text-zinc-600 border border-zinc-900 px-1.5 py-0.5 rounded line-through">Failed</span>;
 }
 
+function TrackThumbnail({ src }: { src: string }) {
+  const [error, setError] = useState(false);
+
+  if (error) {
+    return (
+      <div className="w-8 h-8 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
+        <Music2 className="w-3.5 h-3.5 text-zinc-700" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt=""
+      onError={() => setError(true)}
+      className="w-8 h-8 rounded object-cover border border-zinc-800 shrink-0"
+    />
+  );
+}
+
 export function LibraryView() {
   const {
     activeFilter,
@@ -276,9 +297,12 @@ export function LibraryView() {
                       </div>
                     </TableCell>
                     <TableCell className="font-medium">
-                      <span className={`text-sm ${currentTrack?.id === track.id ? 'text-white' : 'text-zinc-200'}`}>
-                        {track.title}
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <TrackThumbnail src={track.coverUrl} />
+                        <span className={`text-sm ${currentTrack?.id === track.id ? 'text-white' : 'text-zinc-200'}`}>
+                          {track.title}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell className="text-zinc-400 text-sm">{track.artist}</TableCell>
                     <TableCell className="text-zinc-400 text-sm font-mono">{track.bpm ?? "—"}</TableCell>

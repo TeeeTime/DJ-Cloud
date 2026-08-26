@@ -11,6 +11,27 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { usePlayer } from "@/components/providers/player-provider";
 import { usePathname } from "next/navigation";
 
+function TrackCover({ src, isPlaying, scratching }: { src: string; isPlaying: boolean; scratching: boolean }) {
+  const [error, setError] = useState(false);
+
+  if (error) {
+    return isPlaying ? (
+      <Disc3 className={`w-8 h-8 text-zinc-300 ${scratching ? 'animate-none rotate-45 text-white' : 'animate-[spin_2s_linear_infinite]'}`} />
+    ) : (
+      <Music2 className="w-5 h-5 text-zinc-600" />
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt=""
+      onError={() => setError(true)}
+      className="absolute inset-0 w-full h-full object-cover"
+    />
+  );
+}
+
 export function BottomPlayer() {
   const pathname = usePathname();
   const {
@@ -128,11 +149,7 @@ export function BottomPlayer() {
           {isPlaying && !scratching && (
             <div className="absolute inset-0 bg-white/5 animate-pulse"></div>
           )}
-          {isPlaying ? (
-            <Disc3 className={`w-8 h-8 text-zinc-300 ${scratching ? 'animate-none rotate-45 text-white' : 'animate-[spin_2s_linear_infinite]'}`} />
-          ) : (
-            <Music2 className="w-5 h-5 text-zinc-600" />
-          )}
+          <TrackCover key={currentTrack.id} src={currentTrack.coverUrl} isPlaying={isPlaying} scratching={scratching} />
         </div>
 
         <div className="flex flex-col truncate">

@@ -40,6 +40,7 @@ public class TrackController {
     private final TrackService trackService;
     private final TrackUploadService trackUploadService;
     private final TrackStorageService trackStorageService;
+    private final AudioMetadataReader audioMetadataReader;
 
     @GetMapping
     public Page<TrackResponse> getTracks(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "30") int size, @RequestParam(defaultValue = "title") String sortBy) {
@@ -99,6 +100,34 @@ public class TrackController {
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .contentType(mediaType)
                 .body(region);
+    }
+
+    /**
+     * Reads the embedded cover art directly out of the audio file's tag and streams it back — no
+     * separate cover image is ever stored; this just re-reads the source file on each request.
+     */
+    @GetMapping("/{id}/cover")
+    public ResponseEntity<byte[]> getCover(@PathVariable Long id) {
+        Track track = trackService.findEntity(id);
+        if (track.getFileName() == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No cover art available for this track");
+        }
+
+        File file = trackStorageService.resolve(track.getFileName());
+        if (!file.exists()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No cover art available for this track");
+        }
+
+        CoverArt cover = audioMetadataReader.readArtwork(file);
+        if (cover == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No cover art available for this track");
+        }
+
+        MediaType mediaType = cover.mimeType() != null ? MediaType.parseMediaType(cover.mimeType()) : MediaType.IMAGE_JPEG;
+
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .body(cover.data());
     }
 
     /** Reads title/artist/duration from the file's tags, with placeholders for anything not yet analyzed. */

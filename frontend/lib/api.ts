@@ -133,4 +133,6 @@ export const tracksApi = {
   },
 
   audioUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/audio`,
+
+  coverUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/cover`,
 };

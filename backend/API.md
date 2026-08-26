@@ -248,6 +248,19 @@ via `POST /api/tracks`, but existing pre-migration rows may lack one).
 
 ---
 
+## `GET /api/tracks/{id}/cover`
+
+**Public.** Reads the embedded cover art straight out of the track's audio file (ID3 `APIC`/similar tag)
+and streams it back. Nothing is cached, resized, or persisted separately — every call re-reads the tag
+from the file on disk. There's no fallback image; a frontend should show its own placeholder on `404`.
+
+Response `200`: the raw image bytes, `Content-Type` taken from the tag itself (typically `image/jpeg` or
+`image/png`).
+
+`404` if the track doesn't exist, has no file on disk, or the file has no embedded artwork.
+
+---
+
 ## `POST /api/tracks`
 
 **Requires a JWT with role `EDITOR` or `ADMIN`.** Uploads a track's audio file. This is the only way a
