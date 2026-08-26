@@ -1,0 +1,50 @@
+spring:
+  application:
+    name: Backend
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+  datasource:
+    url: jdbc:sqlite:./data/djcloud.db
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      maximum-pool-size: 1
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.community.dialect.SQLiteDialect
+        format_sql: true
+    show-sql: false
+    open-in-view: false
+  cache:
+    type: simple
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+jwt:
+  # Dev-only default. MUST be overridden via the JWT_SECRET env var for anything beyond local dev.
+  secret: ${JWT_SECRET:dev-only-secret-please-override-via-env-var-before-any-real-deployment}
+  # 7 days, in ms - logins are meant to persist without re-entering credentials.
+  expiration: 604800000
+
+app:
+  cors:
+    # Origin the frontend is served from. Override via env var for anything other than local dev.
+    allowed-origin: ${FRONTEND_ORIGIN:http://localhost:3000}
+  admin:
+    # Seeds the first admin account on startup if no admin exists yet. Override both via env vars.
+    username: ${ADMIN_USERNAME:admin}
+    password: ${ADMIN_PASSWORD:admin}
+  storage:
+    # Where uploaded track audio files are saved. Override via env var for non-local deployments.
+    tracks-dir: ${TRACKS_DIR:./data/tracks}
