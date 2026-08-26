@@ -1,26 +1,41 @@
+import { TrackResponse, TrackStatus, tracksApi } from "./api";
+
 export type Track = {
   id: number;
   title: string;
   artist: string;
-  bpm: number;
-  key: string;
-  uploadedBy: string;
+  bpm: number | null;
+  key: string | null;
   format: string;
-  stems: string;
+  status: TrackStatus;
   duration: string;
-  genre: string;
+  durationSeconds: number;
+  // Not modeled by the backend yet — kept optional so existing filter UI keeps compiling.
+  genre?: string;
   playlist?: string;
-  audioUrl?: string; // URL for actual audio playback
+  audioUrl: string;
 };
 
-export const mockTracks: Track[] = [
-  { id: 1, title: "Losing It", artist: "FISHER", bpm: 125, key: "Am", uploadedBy: "Tom", format: "MP3", stems: "Ready", duration: "4:08", genre: "Tech House", playlist: "Peak Time", audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
-  { id: 2, title: "Innerbloom", artist: "RÜFÜS DU SOL", bpm: 122, key: "Em", uploadedBy: "Carlos", format: "WAV", stems: "Processing", duration: "9:38", genre: "Deep House", playlist: "Warmup", audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' },
-  { id: 3, title: "Bangarang", artist: "Skrillex", bpm: 110, key: "Gm", uploadedBy: "Julius", format: "MP3", stems: "Ready", duration: "3:35", genre: "Dubstep", playlist: "Peak Time", audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
-  { id: 4, title: "Levels", artist: "Avicii", bpm: 126, key: "C#m", uploadedBy: "Carlos", format: "WAV", stems: "Ready", duration: "5:38", genre: "Progressive", playlist: "Classics", audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3' },
-  { id: 5, title: "Opus", artist: "Eric Prydz", bpm: 126, key: "Fm", uploadedBy: "Tom", format: "MP3", stems: "Failed", duration: "9:03", genre: "Progressive", playlist: "Peak Time", audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3' },
-  { id: 6, title: "Strobe", artist: "deadmau5", bpm: 128, key: "F#m", uploadedBy: "Julius", format: "WAV", stems: "Ready", duration: "10:37", genre: "Progressive", playlist: "Classics", audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
-];
+function formatDuration(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = Math.floor(totalSeconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+export function mapTrackResponse(t: TrackResponse): Track {
+  return {
+    id: t.id,
+    title: t.title,
+    artist: t.artists.length > 0 ? t.artists.join(", ") : "Unknown Artist",
+    bpm: t.bpm > 0 ? t.bpm : null,
+    key: t.key,
+    format: t.fileFormat.toUpperCase(),
+    status: t.status,
+    duration: formatDuration(t.durationSeconds),
+    durationSeconds: t.durationSeconds,
+    audioUrl: tracksApi.audioUrl(t.id),
+  };
+}
 
 export const playlists = ["Peak Time", "Warmup", "Classics"];
 export const genres = ["Tech House", "Deep House", "Progressive", "Dubstep"];

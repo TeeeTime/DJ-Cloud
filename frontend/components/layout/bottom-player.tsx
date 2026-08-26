@@ -88,6 +88,7 @@ export function BottomPlayer() {
   };
 
   const playNext = () => {
+    if (!currentTrack) return;
     const currentIndex = filteredTracks.findIndex(t => t.id === currentTrack.id);
     if (currentIndex >= 0 && currentIndex < filteredTracks.length - 1) {
       setCurrentTrack(filteredTracks[currentIndex + 1]);
@@ -96,6 +97,7 @@ export function BottomPlayer() {
   };
 
   const playPrev = () => {
+    if (!currentTrack) return;
     const currentIndex = filteredTracks.findIndex(t => t.id === currentTrack.id);
     if (currentIndex > 0) {
       setCurrentTrack(filteredTracks[currentIndex - 1]);
@@ -105,7 +107,7 @@ export function BottomPlayer() {
     }
   };
 
-  if (pathname === '/' || pathname === '/login') {
+  if (pathname === '/' || pathname === '/login' || pathname === '/register' || !currentTrack) {
     return null;
   }
 
@@ -145,7 +147,7 @@ export function BottomPlayer() {
           <button onClick={playPrev} className="text-zinc-500 hover:text-white transition-colors">
             <SkipBack className="w-4 h-4 fill-current" />
           </button>
-          <button 
+          <button
             onClick={() => setIsPlaying(!isPlaying)}
             className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-zinc-200 text-black transition-all active:scale-95"
           >
@@ -198,7 +200,7 @@ export function BottomPlayer() {
           <DialogTrigger render={
             <Button 
               variant="outline" 
-              className={`gap-2 h-9 px-3 rounded-md text-xs font-medium border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:text-white transition-all ${currentTrack.stems !== 'Ready' && 'opacity-50 pointer-events-none'}`}
+              className={`gap-2 h-9 px-3 rounded-md text-xs font-medium border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:text-white transition-all ${currentTrack.status !== 'READY' && 'opacity-50 pointer-events-none'}`}
             >
               <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
               Stems

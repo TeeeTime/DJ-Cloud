@@ -55,6 +55,16 @@ class TrackStorageService {
         }
     }
 
+    File resolve(String fileName) {
+        return Path.of(tracksDir, fileName).toFile();
+    }
+
+    void deleteByFileName(String fileName) {
+        if (fileName != null) {
+            delete(resolve(fileName));
+        }
+    }
+
     private String extensionOf(MultipartFile file) {
         String originalFilename = file.getOriginalFilename();
         int dotIndex = originalFilename == null ? -1 : originalFilename.lastIndexOf('.');

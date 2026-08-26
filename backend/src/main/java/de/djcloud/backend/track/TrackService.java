@@ -20,6 +20,7 @@ public class TrackService {
 
     private final TrackRepository trackRepository;
     private final ArtistRepository artistRepository;
+    private final TrackStorageService trackStorageService;
 
     @Transactional(readOnly = true)
     public Page<TrackResponse> findAll(Pageable pageable) {
@@ -56,6 +57,12 @@ public class TrackService {
     public void delete(Long id) {
         Track track = findOrThrow(id);
         trackRepository.delete(track);
+        trackStorageService.deleteByFileName(track.getFileName());
+    }
+
+    @Transactional(readOnly = true)
+    Track findEntity(Long id) {
+        return findOrThrow(id);
     }
 
     private Track findOrThrow(Long id) {

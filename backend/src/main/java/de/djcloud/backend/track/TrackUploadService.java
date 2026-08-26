@@ -39,6 +39,7 @@ public class TrackUploadService {
             track.setKey(null);
             track.setBpm(0);
             track.setFileFormat(storedFile.extension());
+            track.setFileName(storedFile.file().getName());
             track.setStatus(TrackStatus.QUEUED);
 
             if (metadata.artist() != null) {

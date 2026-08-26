@@ -231,6 +231,23 @@ Response `200`: same shape as one `content` entry above. `404` if no track has t
 
 ---
 
+## `GET /api/tracks/{id}/audio`
+
+**Public.** Streams the original uploaded audio file for a track — there's no compressed/analyzed
+preview yet (see "Not yet implemented" below), so this serves exactly the bytes that were uploaded.
+
+Supports HTTP range requests (`Range: bytes=...`), so a `<audio>`/`<video>` element can seek without
+downloading the whole file first.
+
+Response `206` (always partial content, even without a `Range` header — the first response is capped to
+a ~1MB chunk so the client naturally follows up with further range requests): the raw audio bytes,
+`Content-Type` of `audio/mpeg` or `audio/wav` matching the track's `fileFormat`.
+
+`404` if the track doesn't exist, or if it has no file on disk (shouldn't happen for any track created
+via `POST /api/tracks`, but existing pre-migration rows may lack one).
+
+---
+
 ## `POST /api/tracks`
 
 **Requires a JWT with role `EDITOR` or `ADMIN`.** Uploads a track's audio file. This is the only way a
@@ -296,8 +313,8 @@ Errors:
 
 ## `DELETE /api/tracks/{id}`
 
-**Requires a JWT with role `EDITOR` or `ADMIN`.** Response: `204 No Content`, or `404` if the track
-doesn't exist.
+**Requires a JWT with role `EDITOR` or `ADMIN`.** Also deletes the track's audio file from disk.
+Response: `204 No Content`, or `404` if the track doesn't exist.
 
 ---
 
