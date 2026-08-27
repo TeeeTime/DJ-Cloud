@@ -135,7 +135,7 @@ export function BottomPlayer() {
   const safeVolume = typeof volume === 'number' && !isNaN(volume) ? volume : 80;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 h-24 bg-black border-t border-zinc-900 z-50 flex items-center px-6 gap-8">
+    <div className="h-24 shrink-0 bg-black border-t border-zinc-900 z-50 flex items-center px-4 md:px-8 gap-4 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
       {/* Track Info */}
       <div className="flex items-center gap-4 w-1/4 min-w-[240px]">
         {/* Easter Egg 4: Vinyl Spinning & Scratching */}

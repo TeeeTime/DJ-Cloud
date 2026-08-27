@@ -28,38 +28,53 @@ function UploadDialog() {
   const { token } = useAuth();
   const { refreshTracks } = usePlayer();
   const [open, setOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resetState = () => {
-    setSelectedFile(null);
+    setSelectedFiles([]);
     setError(null);
     setIsDragging(false);
+    setProgress(0);
   };
 
-  const validateAndSetFile = (file: File) => {
-    const lowerName = file.name.toLowerCase();
-    if (!ACCEPTED_EXTENSIONS.some(ext => lowerName.endsWith(ext))) {
-      setError("Unsupported file type — only .mp3 and .wav are accepted");
-      return;
+  const validateAndAddFiles = (files: FileList | File[]) => {
+    const validFiles: File[] = [];
+    let hasError = false;
+    Array.from(files).forEach(file => {
+      const lowerName = file.name.toLowerCase();
+      if (!ACCEPTED_EXTENSIONS.some(ext => lowerName.endsWith(ext))) {
+        hasError = true;
+      } else if (file.size > MAX_FILE_SIZE) {
+        hasError = true;
+      } else {
+        validFiles.push(file);
+      }
+    });
+
+    if (hasError) {
+      setError("Some files were ignored (unsupported type or too large).");
+    } else {
+      setError(null);
     }
-    if (file.size > MAX_FILE_SIZE) {
-      setError("File exceeds the 200MB limit");
-      return;
-    }
-    setError(null);
-    setSelectedFile(file);
+    
+    setSelectedFiles(prev => [...prev, ...validFiles]);
   };
 
   const handleUpload = async () => {
-    if (!selectedFile || !token) return;
+    if (selectedFiles.length === 0 || !token) return;
     setIsUploading(true);
     setError(null);
+    setProgress(0);
     try {
-      await tracksApi.upload(selectedFile, token);
+      for (let i = 0; i < selectedFiles.length; i++) {
+        await tracksApi.upload(selectedFiles[i], token);
+        setProgress(i + 1);
+      }
       await refreshTracks();
       setOpen(false);
       resetState();
@@ -87,10 +102,10 @@ function UploadDialog() {
             ref={fileInputRef}
             type="file"
             accept=".mp3,.wav"
+            multiple
             className="hidden"
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) validateAndSetFile(file);
+              if (e.target.files) validateAndAddFiles(e.target.files);
               e.target.value = "";
             }}
           />
@@ -101,18 +116,17 @@ function UploadDialog() {
             onDrop={(e) => {
               e.preventDefault();
               setIsDragging(false);
-              const file = e.dataTransfer.files?.[0];
-              if (file) validateAndSetFile(file);
+              if (e.dataTransfer.files) validateAndAddFiles(e.dataTransfer.files);
             }}
             className={`border border-dashed rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4 transition-all cursor-pointer group bg-black/50 ${isDragging ? 'border-zinc-400 bg-zinc-900/80' : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-900/80'}`}
           >
             <div className="w-10 h-10 rounded-full bg-zinc-900 flex items-center justify-center border border-zinc-800 group-hover:bg-zinc-800 transition-colors">
               <CloudUpload className="w-5 h-5 text-zinc-400 group-hover:text-white" />
             </div>
-            {selectedFile ? (
+            {selectedFiles.length > 0 ? (
               <div>
-                <p className="text-sm font-medium text-zinc-200">{selectedFile.name}</p>
-                <p className="text-xs text-zinc-600 mt-1">{formatFileSize(selectedFile.size)} · Click to change</p>
+                <p className="text-sm font-medium text-zinc-200">{selectedFiles.length} file(s) selected</p>
+                <p className="text-xs text-zinc-600 mt-1">Total size: {formatFileSize(selectedFiles.reduce((acc, f) => acc + f.size, 0))} · Click to add more</p>
               </div>
             ) : (
               <div>
@@ -131,10 +145,14 @@ function UploadDialog() {
         <DialogFooter className="mt-8">
           <Button
             onClick={handleUpload}
-            disabled={!selectedFile || isUploading}
+            disabled={selectedFiles.length === 0 || isUploading}
             className="w-full bg-white hover:bg-zinc-200 text-black rounded-md h-12 text-sm font-bold tracking-widest uppercase disabled:opacity-50"
           >
-            {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Upload to Shared Library"}
+            {isUploading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin" /> Uploading ({progress}/{selectedFiles.length})
+              </span>
+            ) : "Upload to Shared Library"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -237,7 +255,7 @@ export function LibraryView() {
       </header>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto pb-32">
+      <div className="flex-1 overflow-y-auto pb-6">
         <div className="px-8 py-8">
           <h2 className="text-3xl font-bold text-white mb-8 tracking-tight">
             {activeFilter.value}

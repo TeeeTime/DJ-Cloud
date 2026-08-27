@@ -32,7 +32,7 @@ function PlayerLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div 
-      className={`flex flex-col min-h-screen transition-all duration-1000 ${raveMode ? 'rave-active' : ''}`}
+      className={`flex flex-col h-screen overflow-hidden transition-all duration-1000 ${raveMode ? 'rave-active' : ''}`}
       style={{ filter: !raveMode ? colorThemes[themeIndex].filter : undefined }}
     >
       {/* EASTER EGG CSS */}
