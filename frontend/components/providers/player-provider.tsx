@@ -12,8 +12,6 @@ interface PlayerContextType {
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   currentTrack: Track | null;
   setCurrentTrack: React.Dispatch<React.SetStateAction<Track | null>>;
-  stemsOpen: boolean;
-  setStemsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   scratching: boolean;
   setScratching: React.Dispatch<React.SetStateAction<boolean>>;
   activeFilter: FilterType;
@@ -39,7 +37,6 @@ const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
-  const [stemsOpen, setStemsOpen] = useState(false);
   const [scratching, setScratching] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterType>({ type: 'all', value: 'All Tracks' });
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
@@ -120,8 +117,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setIsPlaying,
       currentTrack,
       setCurrentTrack: setSelectedTrack,
-      stemsOpen,
-      setStemsOpen,
       scratching,
       setScratching,
       activeFilter,

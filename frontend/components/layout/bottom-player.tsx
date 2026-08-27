@@ -1,13 +1,11 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { 
-  Play, Pause, SkipForward, SkipBack, Volume2, 
-  Disc3, Music2, SlidersHorizontal
+import {
+  Play, Pause, SkipForward, SkipBack, Volume2,
+  Disc3, Music2
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { usePlayer } from "@/components/providers/player-provider";
 import { usePathname } from "next/navigation";
 
@@ -40,8 +38,6 @@ export function BottomPlayer() {
     setIsPlaying,
     scratching,
     setScratching,
-    stemsOpen,
-    setStemsOpen,
     audioRef,
     filteredTracks,
     setCurrentTrack
@@ -188,61 +184,23 @@ export function BottomPlayer() {
         </div>
       </div>
 
-      {/* Right Controls (Volume + Stems) */}
-      <div className="w-1/4 min-w-[240px] flex items-center justify-end gap-6">
+      {/* Right Controls (Volume) */}
+      <div className="w-1/4 min-w-[240px] flex items-center justify-start gap-6">
         <div className="flex items-center gap-3 w-32 group">
           <Volume2 className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 transition-colors shrink-0" />
-          <Slider 
-            value={[safeVolume]} 
-            max={100} 
-            step={1} 
+          <Slider
+            value={[safeVolume]}
+            max={100}
+            step={1}
             onValueChange={val => {
               const nextVol = Array.isArray(val) ? val[0] : val;
               if (typeof nextVol === 'number' && !isNaN(nextVol)) {
                 setVolume(nextVol);
               }
             }}
-            className="w-full" 
+            className="w-full"
           />
         </div>
-        
-        <Dialog open={stemsOpen} onOpenChange={setStemsOpen}>
-          <DialogTrigger render={
-            <Button 
-              variant="outline" 
-              className={`gap-2 h-9 px-3 rounded-md text-xs font-medium border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:text-white transition-all ${currentTrack.status !== 'READY' && 'opacity-50 pointer-events-none'}`}
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-              Stems
-            </Button>
-          } />
-          <DialogContent className="bg-black border-zinc-900 text-white sm:max-w-md rounded-xl p-6">
-            <DialogHeader className="mb-6">
-              <DialogTitle className="flex items-center gap-3 text-lg font-medium">
-                <div className="w-8 h-8 rounded-md bg-zinc-900 flex items-center justify-center border border-zinc-800">
-                  <SlidersHorizontal className="w-4 h-4 text-zinc-300" />
-                </div>
-                Stem Mixer
-              </DialogTitle>
-              <p className="text-sm text-zinc-500">Fine-tune elements for <span className="text-zinc-300">{currentTrack.title}</span></p>
-            </DialogHeader>
-            
-            <div className="space-y-4 py-2">
-              {["Vocals", "Drums", "Bass", "Melody"].map((stem) => (
-                <div key={stem} className="flex items-center gap-4 bg-zinc-950 p-3 rounded-lg border border-zinc-900">
-                  <div className="w-16 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                    {stem}
-                  </div>
-                  <Slider defaultValue={[100]} max={100} step={1} className="flex-1" />
-                  <div className="flex gap-1.5 shrink-0">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md text-[10px] font-bold bg-zinc-900 hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors border border-zinc-800">M</Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md text-[10px] font-bold bg-zinc-900 hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors border border-zinc-800">S</Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
     </div>
   );
