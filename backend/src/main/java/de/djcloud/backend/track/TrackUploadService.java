@@ -16,6 +16,7 @@ public class TrackUploadService {
     private final AudioMetadataReader audioMetadataReader;
     private final ArtistService artistService;
     private final TrackRepository trackRepository;
+    private final TrackAnalysisQueue trackAnalysisQueue;
 
     /**
      * Every failure path here reports a descriptive error and leaves nothing behind: no Track row
@@ -32,6 +33,7 @@ public class TrackUploadService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
         }
 
+        Track savedTrack;
         try {
             Track track = new Track();
             track.setTitle(resolveTitle(metadata.title(), file.getOriginalFilename()));
@@ -49,11 +51,18 @@ public class TrackUploadService {
                 track.getArtists().add(artistService.findOrCreateByName(metadata.artist()));
             }
 
-            return TrackResponse.fromEntity(trackRepository.save(track));
+            savedTrack = trackRepository.save(track);
         } catch (RuntimeException ex) {
             trackStorageService.delete(storedFile.file());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Track could not be saved", ex);
         }
+
+        // Outside the try/catch above on purpose: once the row is safely saved, a problem
+        // submitting it for analysis must never trigger the "delete the upload" cleanup meant for
+        // actual save failures.
+        trackAnalysisQueue.enqueue(savedTrack.getId());
+
+        return TrackResponse.fromEntity(savedTrack);
     }
 
     private String resolveTitle(String tagTitle, String originalFilename) {

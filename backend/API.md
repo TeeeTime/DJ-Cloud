@@ -233,18 +233,39 @@ Response `200`: same shape as one `content` entry above. `404` if no track has t
 
 ## `GET /api/tracks/{id}/audio`
 
-**Public.** Streams the original uploaded audio file for a track — there's no compressed/analyzed
-preview yet (see "Not yet implemented" below), so this serves exactly the bytes that were uploaded.
+**Public.** Streams the track's generated streaming preview — **never the original upload**. The preview
+is a lower-bitrate MP3 transcode produced by the analysis pipeline (see `POST /api/tracks` below); it only
+exists once analysis has finished successfully (`status == READY`).
 
 Supports HTTP range requests (`Range: bytes=...`), so a `<audio>`/`<video>` element can seek without
 downloading the whole file first.
 
 Response `206` (always partial content, even without a `Range` header — the first response is capped to
 a ~1MB chunk so the client naturally follows up with further range requests): the raw audio bytes,
-`Content-Type` of `audio/mpeg` or `audio/wav` matching the track's `fileFormat`.
+`Content-Type` always `audio/mpeg` (previews are always MP3, regardless of the original's `fileFormat`).
 
-`404` if the track doesn't exist, or if it has no file on disk (shouldn't happen for any track created
-via `POST /api/tracks`, but existing pre-migration rows may lack one).
+`404` `"No preview available for this track yet"` if the track doesn't exist, or has no preview yet —
+this includes any track that's `QUEUED`, `PROCESSING`, or `FAILED`, and legacy rows from before this
+pipeline existed that haven't been reprocessed yet. There is no fallback to the original file.
+
+---
+
+## `GET /api/tracks/queue`
+
+**Public.** Live snapshot of the analysis queue, for showing per-track progress in a frontend (poll this
+endpoint on an interval — there's no push/WebSocket variant).
+
+Response `200`:
+```json
+{
+  "queued": [5, 6, 7],
+  "processing": { "trackId": 4, "step": "BPM_ANALYSIS" }
+}
+```
+`queued` is every track id waiting its turn, in the order they'll be processed. `processing` is `null`
+when the worker is idle; otherwise the track currently being analyzed and which of the three steps is
+running: `PREVIEW_GENERATION`, `BPM_ANALYSIS`, or `KEY_ANALYSIS`. Tracks are always processed one at a
+time, in the order they were queued.
 
 ---
 
@@ -278,10 +299,16 @@ Behavior:
   otherwise the track is created with zero artists — there's no fake "Unknown Artist" placeholder.
 - `durationSeconds` is always read from the actual audio data, not a placeholder — this works even for a
   file with no tags at all.
-- `bpm` (`0`) and `key` (`null`) are placeholders — nothing analyzes actual audio content yet. A future
-  pipeline (not built) will fill these in and move `status` through `PROCESSING` to `READY`/`FAILED`.
+- `bpm` (`0`) and `key` (`null`) are placeholders until analysis finishes — see below.
 - `status` starts at `QUEUED`.
 - `fileFormat` is the file's extension (`mp3`/`wav`).
+
+The upload response returns immediately with `status: QUEUED`; the track is then picked up asynchronously
+(one track at a time, in upload order) for analysis: a streaming preview is generated, then BPM is
+detected, then musical key is detected. `status` moves to `PROCESSING` once its turn comes, then to
+`READY` (with real `bpm`/`key` values, and a preview now servable via `GET /{id}/audio`) if all three
+steps succeed, or `FAILED` if any one of them fails — nothing further happens to a `FAILED` track unless
+the server is restarted (see "Not yet implemented" below). Poll `GET /api/tracks/queue` for live progress.
 
 Response `201`: the created track, same shape as `GET /api/tracks/{id}`.
 
@@ -298,8 +325,10 @@ Errors — on every one of these, no `Track` row is created and no file is left 
 
 ## `PUT /api/tracks/{id}`
 
-**Requires a JWT with role `EDITOR` or `ADMIN`.** Edits a track's metadata and artist tagging. This is
-metadata-only — it never creates a track or changes its file; see `POST /api/tracks` for that.
+**Requires a JWT with role `EDITOR` or `ADMIN`.** Edits a track's metadata and artist tagging. This
+never creates a track or replaces its file — see `POST /api/tracks` for that — but it does write
+`title`, `key`, `bpm`, and the artist list back into the original audio file's own tags (if a file
+exists on disk for the track), so the file and the database never drift apart.
 
 Request — replaces the full set of editable fields (not a partial patch):
 ```json
@@ -314,19 +343,47 @@ Request — replaces the full set of editable fields (not a partial patch):
 }
 ```
 `artistIds` replaces the track's artist associations wholesale — resolve/create artists via the artist
-endpoints first, then reference them by id here. An empty array clears all artist tags.
+endpoints first, then reference them by id here. An empty array clears all artist tags (and the file's
+artist tag).
 
 Response `200`: the updated track, same shape as `GET /api/tracks/{id}`.
 
 Errors:
 - `404` if the track doesn't exist.
 - `400` `"Unknown artist id: <id>"` if any id in `artistIds` doesn't exist.
+- `500` `"Could not update audio file metadata"` if the track has a file on disk but writing the tags
+  back to it fails — the whole update is rejected in this case, so the database and the file never end
+  up disagreeing.
+
+Note: `status` here is set exactly as sent — it is **not** validated against the analysis pipeline's own
+state machine (`QUEUED → PROCESSING → READY/FAILED`, see `POST /api/tracks`). Setting it manually (e.g.
+back to `QUEUED`) does not actually re-enqueue the track for analysis.
+
+---
+
+## `PUT /api/tracks/{id}/cover`
+
+**Requires a JWT with role `EDITOR` or `ADMIN`.** Replaces the track's embedded cover art. There's no
+separate cover storage (see `GET /{id}/cover` above) — this writes the image straight into the
+original audio file's artwork tag, replacing whatever was embedded before.
+
+Request: `multipart/form-data` with a single part named `file` — a `.jpg`/`.jpeg` or `.png` image
+(checked by `Content-Type`; max 200MB, same global limit as track uploads).
+
+Response: `204 No Content`.
+
+Errors:
+- `404` if the track doesn't exist, or has no audio file on disk.
+- `400` `"Uploaded cover image is empty"`.
+- `400` `"Unsupported image type — only .jpg/.jpeg and .png are accepted"`.
+- `500` `"Could not update audio file metadata"` if writing the artwork into the file fails.
 
 ---
 
 ## `DELETE /api/tracks/{id}`
 
-**Requires a JWT with role `EDITOR` or `ADMIN`.** Also deletes the track's audio file from disk.
+**Requires a JWT with role `EDITOR` or `ADMIN`.** Also deletes the track's audio file from disk, and its
+generated preview file if one exists.
 Response: `204 No Content`, or `404` if the track doesn't exist.
 
 ---
@@ -388,6 +445,6 @@ doesn't exist.
 
 Flagging gaps a frontend might expect but that don't exist yet: no "forgot password" email flow (only
 `POST /api/auth/change-password` for a logged-in user — there's no mail service in this app), no way to
-list/revoke outstanding registration codes, and no async analysis/preview-generation pipeline yet — a
-track uploaded via `POST /api/tracks` sits in `QUEUED` indefinitely for now; nothing currently moves it
-to `PROCESSING`/`READY`/`FAILED` or fills in real `bpm`/`key` values.
+list/revoke outstanding registration codes, no manual retry for a `FAILED` track (only restarting the
+server re-queues it — see `POST /api/tracks`), no cancelling a queued/in-progress analysis, and no
+push/WebSocket variant of `GET /api/tracks/queue` (polling only).

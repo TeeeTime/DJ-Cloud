@@ -41,6 +41,7 @@ public class TrackController {
     private final TrackUploadService trackUploadService;
     private final TrackStorageService trackStorageService;
     private final AudioMetadataReader audioMetadataReader;
+    private final TrackAnalysisQueue trackAnalysisQueue;
 
     @GetMapping
     public Page<TrackResponse> getTracks(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "30") int size, @RequestParam(defaultValue = "title") String sortBy) {
@@ -54,22 +55,28 @@ public class TrackController {
         return trackService.findById(id);
     }
 
+    /** Live snapshot of the analysis queue: what's waiting, and what's running right now. */
+    @GetMapping("/queue")
+    public TrackAnalysisQueueResponse getQueue() {
+        return trackAnalysisQueue.snapshot();
+    }
+
     /**
-     * Streams the original uploaded audio file (no compressed/analyzed preview exists yet — see
-     * API.md). Supports HTTP range requests so browsers can seek and start playback without
-     * downloading the whole file first.
+     * Streams the generated streaming preview — never the original upload (see API.md). Only exists
+     * once a track's analysis has completed successfully. Supports HTTP range requests so browsers
+     * can seek and start playback without downloading the whole file first.
      */
     @GetMapping("/{id}/audio")
     public ResponseEntity<ResourceRegion> getAudio(@PathVariable Long id, @RequestHeader HttpHeaders headers)
             throws IOException {
         Track track = trackService.findEntity(id);
-        if (track.getFileName() == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No audio file stored for this track");
+        if (track.getPreviewFileName() == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No preview available for this track yet");
         }
 
-        File file = trackStorageService.resolve(track.getFileName());
+        File file = trackStorageService.resolvePreview(track.getPreviewFileName());
         if (!file.exists()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No audio file stored for this track");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No preview available for this track yet");
         }
 
         UrlResource resource = new UrlResource(file.toURI());
@@ -92,13 +99,9 @@ public class TrackController {
             region = new ResourceRegion(resource, start, rangeLength);
         }
 
-        MediaType mediaType = "wav".equalsIgnoreCase(track.getFileFormat())
-                ? MediaType.parseMediaType("audio/wav")
-                : MediaType.parseMediaType("audio/mpeg");
-
         return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-                .contentType(mediaType)
+                .contentType(MediaType.parseMediaType("audio/mpeg"))
                 .body(region);
     }
 
@@ -140,6 +143,16 @@ public class TrackController {
     @PutMapping("/{id}")
     public TrackResponse updateTrack(@PathVariable Long id, @Valid @RequestBody TrackUpdateRequest request) {
         return trackService.update(id, request);
+    }
+
+    /**
+     * Replaces the track's embedded cover art. There's no separate cover storage (see
+     * `GET /{id}/cover`) — this writes straight into the original audio file's artwork tag.
+     */
+    @PutMapping(value = "/{id}/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void updateCover(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+        trackService.updateCover(id, file);
     }
 
     @DeleteMapping("/{id}")
