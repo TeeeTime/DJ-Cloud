@@ -116,6 +116,29 @@ export interface TracksPage {
   numberOfElements: number;
 }
 
+export interface TrackUpdateRequest {
+  title: string;
+  durationSeconds: number;
+  key: string | null;
+  bpm: number;
+  fileFormat: string;
+  status: TrackStatus;
+  artistIds: number[];
+}
+
+export interface ArtistResponse {
+  id: number;
+  name: string;
+}
+
+export const artistsApi = {
+  autocomplete: (query: string) => {
+    const qs = new URLSearchParams();
+    if (query) qs.set("query", query);
+    return request<ArtistResponse[]>(`/api/artists/autocomplete?${qs.toString()}`, { method: "GET" });
+  },
+};
+
 export const tracksApi = {
   list: (params: { page?: number; size?: number; sortBy?: string } = {}) => {
     const query = new URLSearchParams();
@@ -131,6 +154,16 @@ export const tracksApi = {
     formData.append("file", file);
     return request<TrackResponse>("/api/tracks", { method: "POST", body: formData }, token);
   },
+
+  update: (id: number, data: TrackUpdateRequest, token: string) =>
+    request<TrackResponse>(
+      `/api/tracks/${id}`,
+      { method: "PUT", body: JSON.stringify(data) },
+      token
+    ),
+
+  delete: (id: number, token: string) =>
+    request<void>(`/api/tracks/${id}`, { method: "DELETE" }, token),
 
   audioUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/audio`,
 

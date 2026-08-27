@@ -101,11 +101,10 @@ export function BottomPlayer() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleSeek = (val: number | number[]) => {
     if (!audioRef.current || !duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    audioRef.current.currentTime = percent * duration;
+    const percent = Array.isArray(val) ? val[0] : val;
+    audioRef.current.currentTime = (percent / 100) * duration;
   };
 
   const playNext = () => {
@@ -176,20 +175,14 @@ export function BottomPlayer() {
         </div>
         <div className="flex items-center gap-3 w-full text-xs text-zinc-500 font-mono">
           <span className="w-8 text-right">{formatTime(currentTime)}</span>
-          <div 
-            className="group relative flex-1 h-2 flex items-center cursor-pointer"
-            onClick={handleSeek}
-          >
-            <div className="absolute h-1 w-full bg-zinc-900 rounded-full overflow-hidden pointer-events-none">
-              <div 
-                className="h-full bg-white rounded-full group-hover:bg-zinc-300 transition-colors pointer-events-none"
-                style={{ width: `${progressPercent}%` }}
-              ></div>
-            </div>
-            <div 
-              className="absolute h-3 w-3 bg-white rounded-full -ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
-              style={{ left: `${progressPercent}%` }}
-            ></div>
+          <div className="flex-1 px-2 flex items-center">
+            <Slider 
+              value={[progressPercent]}
+              max={100}
+              step={0.1}
+              onValueChange={handleSeek}
+              className="w-full"
+            />
           </div>
           <span className="w-8">{formatTime(duration)}</span>
         </div>
