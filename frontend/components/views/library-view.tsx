@@ -210,10 +210,8 @@ export function LibraryView() {
         <div className="flex items-center gap-4 flex-1">
           {/* Mobile Menu Trigger */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="md:hidden text-zinc-400 hover:text-white shrink-0">
-                <Menu className="w-5 h-5" />
-              </Button>
+            <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden text-zinc-400 hover:text-white shrink-0" />}>
+              <Menu className="w-5 h-5" />
             </SheetTrigger>
             <SheetContent side="left" className="p-0 bg-black border-r border-zinc-900 w-64 sm:max-w-64">
               <SheetTitle className="sr-only">Navigation Menu</SheetTitle>

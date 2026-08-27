@@ -4,6 +4,7 @@ export type Track = {
   id: number;
   title: string;
   artist: string;
+  artists: string[];
   bpm: number | null;
   key: string | null;
   format: string;
@@ -29,6 +30,7 @@ export function mapTrackResponse(t: TrackResponse): Track {
     id: t.id,
     title: t.title,
     artist: t.artists.length > 0 ? t.artists.join(", ") : "Unknown Artist",
+    artists: t.artists,
     bpm: t.bpm > 0 ? t.bpm : null,
     key: t.key,
     format: t.fileFormat.toUpperCase(),

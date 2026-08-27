@@ -137,6 +137,8 @@ export const artistsApi = {
     if (query) qs.set("query", query);
     return request<ArtistResponse[]>(`/api/artists/autocomplete?${qs.toString()}`, { method: "GET" });
   },
+  create: (name: string, token: string) =>
+    request<ArtistResponse>("/api/artists", { method: "POST", body: JSON.stringify({ name }) }, token),
 };
 
 export const tracksApi = {

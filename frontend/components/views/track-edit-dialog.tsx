@@ -40,15 +40,20 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
       setKey(track.key || "");
       setStatus(track.status);
       
-      // Load current artists' IDs
+      // Pre-populate artists immediately with fake IDs so they show up in the UI
+      setArtists((track.artists || []).map((name, idx) => ({ id: -(idx + 1), name })));
+      
+      // Load current artists' actual IDs in the background if they exist
       const loadArtists = async () => {
         setIsLoadingArtists(true);
         const resolved: ArtistResponse[] = [];
         try {
-          for (const name of track.artists) {
+          for (let idx = 0; idx < (track.artists || []).length; idx++) {
+            const name = track.artists[idx];
             const results = await artistsApi.autocomplete(name);
             const match = results.find(a => a.name.toLowerCase() === name.toLowerCase());
             if (match) resolved.push(match);
+            else resolved.push({ id: -(idx + 1), name }); // keep fake ID
           }
           setArtists(resolved);
         } catch (err) {
@@ -98,6 +103,18 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
     setError(null);
     
     try {
+      // Create missing artists
+      const finalArtistIds: number[] = [];
+      for (const artist of artists) {
+        if (artist.id < 0) {
+          // Negative ID means it hasn't been created in DB yet
+          const created = await artistsApi.create(artist.name, token);
+          finalArtistIds.push(created.id);
+        } else {
+          finalArtistIds.push(artist.id);
+        }
+      }
+
       await tracksApi.update(track.id, {
         title,
         durationSeconds: track.durationSeconds || 0,
@@ -105,7 +122,7 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
         key: key || null,
         status,
         fileFormat: track.format || "mp3",
-        artistIds: artists.map(a => a.id)
+        artistIds: finalArtistIds
       }, token);
       
       await refreshTracks();
@@ -135,7 +152,7 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="bg-black border-zinc-800 focus-visible:ring-1 focus-visible:ring-zinc-700 h-10"
+                className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-1 focus-visible:ring-zinc-700 h-10"
               />
             </div>
             
@@ -143,10 +160,12 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
               <div>
                 <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5 block">BPM</label>
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={bpm}
                   onChange={(e) => setBpm(e.target.value)}
-                  className="bg-black border-zinc-800 focus-visible:ring-1 focus-visible:ring-zinc-700 h-10"
+                  className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-1 focus-visible:ring-zinc-700 h-10"
                 />
               </div>
               <div>
@@ -154,23 +173,9 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
                 <Input
                   value={key}
                   onChange={(e) => setKey(e.target.value)}
-                  className="bg-black border-zinc-800 focus-visible:ring-1 focus-visible:ring-zinc-700 h-10"
+                  className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-1 focus-visible:ring-zinc-700 h-10"
                 />
               </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5 block">Status</label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as Track["status"])}
-                className="w-full bg-black border border-zinc-800 rounded-md h-10 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-700"
-              >
-                <option value="QUEUED">Queued</option>
-                <option value="PROCESSING">Processing</option>
-                <option value="READY">Ready</option>
-                <option value="FAILED">Failed</option>
-              </select>
             </div>
 
             <div className="relative">
@@ -192,9 +197,15 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
                   searchArtists(e.target.value);
                   setShowSuggestions(true);
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && artistInput.trim() !== "") {
+                    e.preventDefault();
+                    addArtist({ id: -Math.floor(Math.random() * 1000000), name: artistInput.trim() });
+                  }
+                }}
                 onFocus={() => setShowSuggestions(true)}
-                placeholder="Search to add artist..."
-                className="bg-black border-zinc-800 focus-visible:ring-1 focus-visible:ring-zinc-700 h-10"
+                placeholder="Search to add artist (press Enter to create)..."
+                className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-1 focus-visible:ring-zinc-700 h-10"
               />
               
               {showSuggestions && artistSuggestions.length > 0 && (
