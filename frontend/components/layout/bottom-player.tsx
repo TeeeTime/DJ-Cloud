@@ -101,7 +101,7 @@ export function BottomPlayer() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  const handleSeek = (val: number | number[]) => {
+  const handleSeek = (val: number | readonly number[]) => {
     if (!audioRef.current || !duration) return;
     const percent = Array.isArray(val) ? val[0] : val;
     audioRef.current.currentTime = (percent / 100) * duration;
