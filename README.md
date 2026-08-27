@@ -17,23 +17,37 @@ detection) that shells out to three external command-line tools. These are **not
 they must be installed separately on any machine that runs the backend, and be on `PATH` (or pointed to
 directly via the env vars below).
 
+The code itself is fully cross-platform — nothing hardcodes `.exe`, backslashes, or Windows paths. Every
+command is just the bare name (`ffmpeg`, `aubiotrack`, `keyfinder-cli`) resolved via whatever `PATH` the
+JVM sees, overridable per-tool via `FFMPEG_COMMAND`/`AUBIO_COMMAND`/`KEYFINDER_COMMAND` (see
+`application.yml`). Only the *installation* steps below differ by OS.
+
 #### ffmpeg (and ffprobe)
 
 Used to generate the lower-bitrate streaming preview, and to decode the original upload to a plain WAV
 before BPM/key analysis.
 
+**Windows**:
 - Download: [Windows builds from gyan.dev](https://www.gyan.dev/ffmpeg/builds/) (the "release essentials"
   build is enough) or [Windows builds by BtbN](https://github.com/BtbN/FFmpeg-Builds/releases) — both are
   linked from the [official ffmpeg download page](https://ffmpeg.org/download.html).
 - Setup: extract, then add the `bin` folder (containing `ffmpeg.exe`/`ffprobe.exe`) to `PATH`, or set the
   `FFMPEG_COMMAND` env var to the full path of `ffmpeg.exe`.
-- Verify: `ffmpeg -version`.
+
+**Linux (production)**:
+```
+sudo apt-get install ffmpeg
+```
+Installs to `/usr/bin/ffmpeg`, already on `PATH` — no env var override needed.
+
+- Verify (either OS): `ffmpeg -version`.
 
 #### aubio (BPM detection)
 
 `aubiotrack`, one of aubio's bundled command-line tools, detects beat timestamps, from which BPM is
 derived.
 
+**Windows**:
 - Download: the **plain** (not `-ffmpeg`) precompiled Windows build from
   [aubio.org/download](https://aubio.org/download) — e.g.
   [aubio-0.4.6-win64.zip](https://aubio.org/bin/0.4.6/aubio-0.4.6-win64.zip) (or `-win32.zip` for 32-bit).
@@ -44,14 +58,50 @@ derived.
   mp3 directly.
 - Setup: extract, then either add the folder to `PATH`, or set `AUBIO_COMMAND` to the full path of
   `aubiotrack.exe` (default assumes `aubiotrack` is on `PATH`).
-- Verify: `aubiotrack --help`.
+
+**Linux (production)**: officially packaged, unlike on Windows — no zip/PATH juggling needed:
+```
+sudo apt-get install aubio-tools
+```
+(confirmed as a real Debian/Ubuntu package providing `aubiotrack` — see
+[Debian's package page](https://packages.debian.org/stable/aubio-tools)). Installs to `/usr/bin/aubiotrack`,
+already on `PATH`.
+
+- Verify (either OS): `aubiotrack --help`.
 
 #### keyfinder-cli (musical key detection)
 
 Detects the musical key in Camelot Wheel notation (e.g. `8A`), matching this app's `key` field convention.
-No precompiled binaries are provided for any platform — it must be built from source (CMake) against
-`libkeyfinder` and ffmpeg's dev libraries. On Windows, the least painful way to get a working C++ toolchain
-plus prebuilt ffmpeg dev libs is **MSYS2** (the same style of toolchain aubio's own official Windows
+No precompiled binaries are provided for Windows or Debian/Ubuntu — it must be built from source (CMake)
+against `libkeyfinder` and ffmpeg's dev libraries. **The Linux build is simpler than the Windows one** —
+Debian/Ubuntu ship the exact FFmpeg dev libraries needed as normal apt packages, so there's no
+MSYS2/MinGW-style toolchain detour required; see the Linux steps first if you're setting up prod.
+
+**Linux (production)**:
+```
+sudo apt-get install build-essential cmake pkg-config git \
+    libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libfftw3-dev
+
+git clone --depth 1 https://github.com/mixxxdj/libkeyfinder.git
+cd libkeyfinder
+cmake -B build -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+sudo cmake --install build
+sudo ldconfig
+
+cd ..
+git clone --depth 1 https://github.com/EvanPurkhiser/keyfinder-cli.git
+cd keyfinder-cli
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+sudo cmake --install build
+```
+Installs `keyfinder-cli` to `/usr/local/bin`, already on `PATH` — no env var override needed. (If ever
+deploying on Alpine instead, there's a prebuilt `keyfinder-cli` package in its community repo — check that
+first.)
+
+**Windows**: no apt equivalent, so a full C++ toolchain has to be installed first. The least painful way to
+get one plus prebuilt ffmpeg dev libs is **MSYS2** (the same style of toolchain aubio's own official Windows
 binaries are built with) — this avoids compiling ffmpeg from source (which a vcpkg-based approach would
 require).
 
