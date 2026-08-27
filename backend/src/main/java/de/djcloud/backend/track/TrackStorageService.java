@@ -26,9 +26,13 @@ class TrackStorageService {
     @Value("${app.storage.tracks-dir}")
     private String tracksDir;
 
+    @Value("${app.storage.previews-dir}")
+    private String previewsDir;
+
     @PostConstruct
     void createStorageDirectory() throws IOException {
         Files.createDirectories(Path.of(tracksDir));
+        Files.createDirectories(Path.of(previewsDir));
     }
 
     StoredFile save(MultipartFile file) {
@@ -52,6 +56,31 @@ class TrackStorageService {
     void delete(File file) {
         if (!file.delete()) {
             log.warn("Could not delete orphaned upload file: {}", file);
+        }
+    }
+
+    File resolve(String fileName) {
+        return Path.of(tracksDir, fileName).toFile();
+    }
+
+    void deleteByFileName(String fileName) {
+        if (fileName != null) {
+            delete(resolve(fileName));
+        }
+    }
+
+    /** Allocates a fresh, not-yet-existing file path for a generated preview — always an mp3. */
+    File newPreviewFile() {
+        return Path.of(previewsDir, UUID.randomUUID() + ".mp3").toFile();
+    }
+
+    File resolvePreview(String previewFileName) {
+        return Path.of(previewsDir, previewFileName).toFile();
+    }
+
+    void deletePreviewByFileName(String previewFileName) {
+        if (previewFileName != null) {
+            delete(resolvePreview(previewFileName));
         }
     }
 

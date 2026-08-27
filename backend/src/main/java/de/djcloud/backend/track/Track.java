@@ -23,6 +23,15 @@ public class Track {
     private int bpm;
     private String fileFormat;
 
+    /** Name of the file as stored on disk (see app.storage.tracks-dir) — never exposed via the API directly. */
+    private String fileName;
+
+    /**
+     * Name of the generated streaming preview as stored on disk (see app.storage.previews-dir) —
+     * null until the analysis pipeline finishes; never exposed via the API directly.
+     */
+    private String previewFileName;
+
     @Enumerated(EnumType.STRING)
     private TrackStatus status;
 

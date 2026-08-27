@@ -7,18 +7,32 @@ import { ArrowLeft, KeyRound, User, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuroraText } from "@/components/ui/aurora-text";
+import { useAuth } from "@/components/providers/auth-provider";
+import { ApiError } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setIsLoading(true);
-    // Mock authentication delay
-    setTimeout(() => {
+    try {
+      await login(username, password);
       router.push("/library");
-    }, 1200);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.status === 401 ? "Invalid username or password" : err.message);
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -54,25 +68,35 @@ export default function LoginPage() {
           <div className="space-y-4">
             <div className="relative group">
               <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-white transition-colors" />
-              <Input 
+              <Input
                 type="text"
-                placeholder="Username" 
+                placeholder="Username"
                 required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="pl-10 h-12 bg-black/60 border-zinc-800 text-white rounded-xl focus-visible:ring-1 focus-visible:ring-zinc-600 focus-visible:border-zinc-600 transition-all placeholder:text-zinc-600"
               />
             </div>
             <div className="relative group">
               <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-white transition-colors" />
-              <Input 
+              <Input
                 type="password"
-                placeholder="Passcode" 
+                placeholder="Passcode"
                 required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="pl-10 h-12 bg-black/60 border-zinc-800 text-white rounded-xl focus-visible:ring-1 focus-visible:ring-zinc-600 focus-visible:border-zinc-600 transition-all placeholder:text-zinc-600"
               />
             </div>
           </div>
 
-          <Button 
+          {error && (
+            <p className="text-sm text-red-400 text-center -mt-2" role="alert">
+              {error}
+            </p>
+          )}
+
+          <Button
             type="submit"
             disabled={isLoading}
             className="w-full h-12 bg-white hover:bg-zinc-200 text-black font-bold tracking-widest uppercase rounded-xl transition-all hover:shadow-[0_0_30px_-5px_rgba(255,255,255,0.3)] active:scale-[0.98] disabled:opacity-70 disabled:hover:shadow-none"
@@ -85,9 +109,15 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <div className="mt-8 text-center">
+        <div className="mt-8 text-center space-y-3">
           <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold">
             Authorized Personnel Only
+          </p>
+          <p className="text-xs text-zinc-500">
+            Have an invite code?{" "}
+            <Link href="/register" className="text-zinc-300 hover:text-white underline underline-offset-4 transition-colors">
+              Register
+            </Link>
           </p>
         </div>
       </div>

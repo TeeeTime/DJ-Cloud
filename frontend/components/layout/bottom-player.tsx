@@ -11,6 +11,27 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { usePlayer } from "@/components/providers/player-provider";
 import { usePathname } from "next/navigation";
 
+function TrackCover({ src, isPlaying, scratching }: { src: string; isPlaying: boolean; scratching: boolean }) {
+  const [error, setError] = useState(false);
+
+  if (error) {
+    return isPlaying ? (
+      <Disc3 className={`w-8 h-8 text-zinc-300 ${scratching ? 'animate-none rotate-45 text-white' : 'animate-[spin_2s_linear_infinite]'}`} />
+    ) : (
+      <Music2 className="w-5 h-5 text-zinc-600" />
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt=""
+      onError={() => setError(true)}
+      className="absolute inset-0 w-full h-full object-cover"
+    />
+  );
+}
+
 export function BottomPlayer() {
   const pathname = usePathname();
   const {
@@ -88,6 +109,7 @@ export function BottomPlayer() {
   };
 
   const playNext = () => {
+    if (!currentTrack) return;
     const currentIndex = filteredTracks.findIndex(t => t.id === currentTrack.id);
     if (currentIndex >= 0 && currentIndex < filteredTracks.length - 1) {
       setCurrentTrack(filteredTracks[currentIndex + 1]);
@@ -96,6 +118,7 @@ export function BottomPlayer() {
   };
 
   const playPrev = () => {
+    if (!currentTrack) return;
     const currentIndex = filteredTracks.findIndex(t => t.id === currentTrack.id);
     if (currentIndex > 0) {
       setCurrentTrack(filteredTracks[currentIndex - 1]);
@@ -105,7 +128,7 @@ export function BottomPlayer() {
     }
   };
 
-  if (pathname === '/' || pathname === '/login') {
+  if (pathname === '/' || pathname === '/login' || pathname === '/register' || !currentTrack) {
     return null;
   }
 
@@ -126,11 +149,7 @@ export function BottomPlayer() {
           {isPlaying && !scratching && (
             <div className="absolute inset-0 bg-white/5 animate-pulse"></div>
           )}
-          {isPlaying ? (
-            <Disc3 className={`w-8 h-8 text-zinc-300 ${scratching ? 'animate-none rotate-45 text-white' : 'animate-[spin_2s_linear_infinite]'}`} />
-          ) : (
-            <Music2 className="w-5 h-5 text-zinc-600" />
-          )}
+          <TrackCover key={currentTrack.id} src={currentTrack.coverUrl} isPlaying={isPlaying} scratching={scratching} />
         </div>
 
         <div className="flex flex-col truncate">
@@ -145,7 +164,7 @@ export function BottomPlayer() {
           <button onClick={playPrev} className="text-zinc-500 hover:text-white transition-colors">
             <SkipBack className="w-4 h-4 fill-current" />
           </button>
-          <button 
+          <button
             onClick={() => setIsPlaying(!isPlaying)}
             className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-zinc-200 text-black transition-all active:scale-95"
           >
@@ -198,7 +217,7 @@ export function BottomPlayer() {
           <DialogTrigger render={
             <Button 
               variant="outline" 
-              className={`gap-2 h-9 px-3 rounded-md text-xs font-medium border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:text-white transition-all ${currentTrack.stems !== 'Ready' && 'opacity-50 pointer-events-none'}`}
+              className={`gap-2 h-9 px-3 rounded-md text-xs font-medium border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:text-white transition-all ${currentTrack.status !== 'READY' && 'opacity-50 pointer-events-none'}`}
             >
               <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
               Stems
