@@ -11,6 +11,27 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { usePlayer } from "@/components/providers/player-provider";
 import { usePathname } from "next/navigation";
 
+function TrackCover({ src, isPlaying, scratching }: { src: string; isPlaying: boolean; scratching: boolean }) {
+  const [error, setError] = useState(false);
+
+  if (error) {
+    return isPlaying ? (
+      <Disc3 className={`w-8 h-8 text-zinc-300 ${scratching ? 'animate-none rotate-45 text-white' : 'animate-[spin_2s_linear_infinite]'}`} />
+    ) : (
+      <Music2 className="w-5 h-5 text-zinc-600" />
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt=""
+      onError={() => setError(true)}
+      className="absolute inset-0 w-full h-full object-cover"
+    />
+  );
+}
+
 export function BottomPlayer() {
   const pathname = usePathname();
   const {
@@ -80,14 +101,14 @@ export function BottomPlayer() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleSeek = (val: number | readonly number[]) => {
     if (!audioRef.current || !duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    audioRef.current.currentTime = percent * duration;
+    const percent = Array.isArray(val) ? val[0] : val;
+    audioRef.current.currentTime = (percent / 100) * duration;
   };
 
   const playNext = () => {
+    if (!currentTrack) return;
     const currentIndex = filteredTracks.findIndex(t => t.id === currentTrack.id);
     if (currentIndex >= 0 && currentIndex < filteredTracks.length - 1) {
       setCurrentTrack(filteredTracks[currentIndex + 1]);
@@ -96,6 +117,7 @@ export function BottomPlayer() {
   };
 
   const playPrev = () => {
+    if (!currentTrack) return;
     const currentIndex = filteredTracks.findIndex(t => t.id === currentTrack.id);
     if (currentIndex > 0) {
       setCurrentTrack(filteredTracks[currentIndex - 1]);
@@ -105,7 +127,7 @@ export function BottomPlayer() {
     }
   };
 
-  if (pathname === '/' || pathname === '/login') {
+  if (pathname === '/' || pathname === '/login' || pathname === '/register' || !currentTrack) {
     return null;
   }
 
@@ -126,11 +148,7 @@ export function BottomPlayer() {
           {isPlaying && !scratching && (
             <div className="absolute inset-0 bg-white/5 animate-pulse"></div>
           )}
-          {isPlaying ? (
-            <Disc3 className={`w-8 h-8 text-zinc-300 ${scratching ? 'animate-none rotate-45 text-white' : 'animate-[spin_2s_linear_infinite]'}`} />
-          ) : (
-            <Music2 className="w-5 h-5 text-zinc-600" />
-          )}
+          <TrackCover key={currentTrack.id} src={currentTrack.coverUrl} isPlaying={isPlaying} scratching={scratching} />
         </div>
 
         <div className="flex flex-col truncate">
@@ -145,7 +163,7 @@ export function BottomPlayer() {
           <button onClick={playPrev} className="text-zinc-500 hover:text-white transition-colors">
             <SkipBack className="w-4 h-4 fill-current" />
           </button>
-          <button 
+          <button
             onClick={() => setIsPlaying(!isPlaying)}
             className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-zinc-200 text-black transition-all active:scale-95"
           >
@@ -157,20 +175,14 @@ export function BottomPlayer() {
         </div>
         <div className="flex items-center gap-3 w-full text-xs text-zinc-500 font-mono">
           <span className="w-8 text-right">{formatTime(currentTime)}</span>
-          <div 
-            className="group relative flex-1 h-2 flex items-center cursor-pointer"
-            onClick={handleSeek}
-          >
-            <div className="absolute h-1 w-full bg-zinc-900 rounded-full overflow-hidden pointer-events-none">
-              <div 
-                className="h-full bg-white rounded-full group-hover:bg-zinc-300 transition-colors pointer-events-none"
-                style={{ width: `${progressPercent}%` }}
-              ></div>
-            </div>
-            <div 
-              className="absolute h-3 w-3 bg-white rounded-full -ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
-              style={{ left: `${progressPercent}%` }}
-            ></div>
+          <div className="flex-1 px-2 flex items-center">
+            <Slider 
+              value={[progressPercent]}
+              max={100}
+              step={0.1}
+              onValueChange={handleSeek}
+              className="w-full"
+            />
           </div>
           <span className="w-8">{formatTime(duration)}</span>
         </div>
@@ -198,7 +210,7 @@ export function BottomPlayer() {
           <DialogTrigger render={
             <Button 
               variant="outline" 
-              className={`gap-2 h-9 px-3 rounded-md text-xs font-medium border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:text-white transition-all ${currentTrack.stems !== 'Ready' && 'opacity-50 pointer-events-none'}`}
+              className={`gap-2 h-9 px-3 rounded-md text-xs font-medium border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:text-white transition-all ${currentTrack.status !== 'READY' && 'opacity-50 pointer-events-none'}`}
             >
               <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
               Stems

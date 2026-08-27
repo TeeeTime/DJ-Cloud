@@ -48,3 +48,20 @@ app:
   storage:
     # Where uploaded track audio files are saved. Override via env var for non-local deployments.
     tracks-dir: ${TRACKS_DIR:./data/tracks}
+    # Where generated streaming previews are saved.
+    previews-dir: ${PREVIEWS_DIR:./data/previews}
+  analysis:
+    # Ceiling for each individual external-tool invocation (ffmpeg/aubio/keyfinder-cli) before it's
+    # killed and the track is marked FAILED.
+    process-timeout-seconds: ${ANALYSIS_TIMEOUT_SECONDS:180}
+    # Used both for preview generation and to decode the original down to a plain WAV before BPM/key
+    # analysis (aubio's plain Windows build can't read mp3 directly).
+    ffmpeg-command: ${FFMPEG_COMMAND:ffmpeg}
+    preview:
+      bitrate: ${PREVIEW_BITRATE:192k}
+    bpm:
+      # aubiotrack is one of the precompiled command-line tools bundled with aubio's Windows
+      # binaries (aubio.org/download) — not the Python-only unified "aubio tempo" command.
+      command: ${AUBIO_COMMAND:aubiotrack}
+    key:
+      command: ${KEYFINDER_COMMAND:keyfinder-cli}

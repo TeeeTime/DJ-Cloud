@@ -7,6 +7,7 @@ import org.jaudiotagger.audio.AudioFileIO;
 import org.jaudiotagger.audio.AudioHeader;
 import org.jaudiotagger.tag.FieldKey;
 import org.jaudiotagger.tag.Tag;
+import org.jaudiotagger.tag.images.Artwork;
 import org.springframework.stereotype.Component;
 
 /** Thin wrapper so the rest of the app never touches jaudiotagger's types (or its exception zoo) directly. */
@@ -30,6 +31,32 @@ class AudioMetadataReader {
 
         return new AudioMetadata(readField(tag, FieldKey.TITLE), readField(tag, FieldKey.ARTIST),
                 header.getTrackLength());
+    }
+
+    /**
+     * Reads the embedded cover art straight from the file's tag on every call — nothing is cached
+     * or persisted separately, by design. Returns null if the file has no tag, or no artwork field.
+     */
+    CoverArt readArtwork(File file) {
+        AudioFile audioFile;
+
+        try {
+            audioFile = AudioFileIO.read(file);
+        } catch (Exception ex) {
+            return null;
+        }
+
+        Tag tag = audioFile.getTag();
+        if (tag == null) {
+            return null;
+        }
+
+        Artwork artwork = tag.getFirstArtwork();
+        if (artwork == null || artwork.getBinaryData() == null || artwork.getBinaryData().length == 0) {
+            return null;
+        }
+
+        return new CoverArt(artwork.getBinaryData(), artwork.getMimeType());
     }
 
     private String readField(Tag tag, FieldKey key) {
