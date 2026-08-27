@@ -54,9 +54,9 @@ export function LandingPage() {
   const { setThemeIndex } = usePlayer();
 
   return (
-    <div className="flex flex-col min-h-screen bg-black text-white selection:bg-zinc-800 font-sans animate-in fade-in duration-500 scroll-smooth pb-24">
+    <div className="flex-1 flex flex-col overflow-y-auto bg-black text-white selection:bg-zinc-800 font-sans animate-in fade-in duration-500 scroll-smooth pb-24 no-scrollbar">
       {/* HERO SECTION (Full Screen) */}
-      <section className="relative h-screen flex flex-col items-center justify-center overflow-hidden">
+      <section className="relative h-screen shrink-0 flex flex-col items-center justify-center overflow-hidden">
         {/* Background glow */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-zinc-900/30 via-black to-black z-0 pointer-events-none"></div>
 

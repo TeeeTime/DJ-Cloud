@@ -12,9 +12,8 @@ import { ProfileMenu } from "@/components/layout/profile-menu";
 export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
   const { activeFilter, setActiveFilter } = usePlayer();
   const pathname = usePathname();
-
   return (
-    <aside className={`w-64 border-r border-zinc-900 bg-black flex-col z-20 shrink-0 pb-24 h-full ${isMobile ? 'flex' : 'hidden md:flex'}`}>
+    <aside className={`w-64 border-r border-zinc-900 bg-black flex-col z-20 shrink-0 h-full ${isMobile ? 'flex' : 'hidden md:flex'}`}>
       {/* Brand */}
       <Link href="/">
         <div className="h-20 flex items-center px-6 border-b border-zinc-900 cursor-pointer group">
