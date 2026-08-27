@@ -6,6 +6,7 @@ import {
   Disc3, Music2
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { QueueStatusWidget } from "@/components/layout/queue-status";
 import { usePlayer } from "@/components/providers/player-provider";
 import { usePathname } from "next/navigation";
 
@@ -133,7 +134,7 @@ export function BottomPlayer() {
   return (
     <div className="fixed bottom-0 left-0 right-0 h-24 bg-black border-t border-zinc-900 z-50 flex items-center px-6 gap-8">
       {/* Track Info */}
-      <div className="flex items-center gap-4 w-1/4 min-w-[240px]">
+      <div className="flex items-center gap-4 w-1/4 min-w-[280px]">
         {/* Easter Egg 4: Vinyl Spinning & Scratching */}
         <div 
           className={`relative w-14 h-14 rounded-md bg-zinc-900 flex items-center justify-center border border-zinc-800 overflow-hidden cursor-pointer ${scratching ? 'scale-110 skew-x-12' : 'transition-transform'}`}
@@ -184,8 +185,8 @@ export function BottomPlayer() {
         </div>
       </div>
 
-      {/* Right Controls (Volume) */}
-      <div className="w-1/4 min-w-[240px] flex items-center justify-start gap-6">
+      {/* Right Controls (Volume + Queue Status) */}
+      <div className="w-1/4 min-w-[280px] flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 w-32 group">
           <Volume2 className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 transition-colors shrink-0" />
           <Slider
@@ -201,6 +202,7 @@ export function BottomPlayer() {
             className="w-full"
           />
         </div>
+        <QueueStatusWidget />
       </div>
     </div>
   );

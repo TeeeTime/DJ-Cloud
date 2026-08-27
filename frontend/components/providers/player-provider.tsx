@@ -7,6 +7,8 @@ import { tracksApi } from "@/lib/api";
 type FilterType = { type: 'all' | 'playlist' | 'genre', value: string };
 type SortConfig = { key: keyof Track, direction: 'asc' | 'desc' } | null;
 
+const ACTIVE_TRACKS_POLL_INTERVAL_MS = 3000;
+
 interface PlayerContextType {
   isPlaying: boolean;
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
@@ -60,6 +62,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       .catch(() => setTracksError("Could not load tracks from the server."))
       .finally(() => setTracksLoading(false));
   }, [applyTracksPage]);
+
+  // While any track is still QUEUED/PROCESSING, its status can change server-side (via the
+  // analysis pipeline) without any user action here, so poll until nothing is left in flight —
+  // same inline-chain-in-effect shape as above, for the same lint reason.
+  const hasActiveTracks = tracks.some(t => t.status === 'QUEUED' || t.status === 'PROCESSING');
+
+  useEffect(() => {
+    if (!hasActiveTracks) return;
+    const interval = setInterval(() => {
+      tracksApi.list({ size: 200, sortBy: 'title' })
+        .then(applyTracksPage)
+        .catch(() => {});
+    }, ACTIVE_TRACKS_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [hasActiveTracks, applyTracksPage]);
 
   const refreshTracks = useCallback(async () => {
     setTracksLoading(true);
