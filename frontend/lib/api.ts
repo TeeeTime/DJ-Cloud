@@ -141,6 +141,13 @@ export const artistsApi = {
     request<ArtistResponse>("/api/artists", { method: "POST", body: JSON.stringify({ name }) }, token),
 };
 
+export type AnalysisStep = "PREVIEW_GENERATION" | "BPM_ANALYSIS" | "KEY_ANALYSIS";
+
+export interface QueueStatus {
+  queued: number[];
+  processing: { trackId: number; step: AnalysisStep } | null;
+}
+
 export const tracksApi = {
   list: (params: { page?: number; size?: number; sortBy?: string } = {}) => {
     const query = new URLSearchParams();
@@ -170,4 +177,6 @@ export const tracksApi = {
   audioUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/audio`,
 
   coverUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/cover`,
+
+  queue: () => request<QueueStatus>("/api/tracks/queue", { method: "GET" }),
 };
