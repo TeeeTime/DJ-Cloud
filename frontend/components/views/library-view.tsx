@@ -7,11 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { usePlayer } from "@/components/providers/player-provider";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Track } from "@/lib/data";
 import { ApiError, tracksApi } from "@/lib/api";
 import { Sidebar } from "@/components/layout/sidebar";
+import { TrackEditDialog } from "./track-edit-dialog";
+import { TrackDeleteDialog } from "./track-delete-dialog";
 
 const ACCEPTED_EXTENSIONS = [".mp3", ".wav"];
 const MAX_FILE_SIZE = 200 * 1024 * 1024;
@@ -188,6 +191,12 @@ export function LibraryView() {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const canUpload = user?.role === 'EDITOR' || user?.role === 'ADMIN';
 
+  const [trackToEdit, setTrackToEdit] = useState<Track | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+
+  const [trackToDelete, setTrackToDelete] = useState<Track | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
   const renderSortIcon = (key: keyof Track) => {
     if (sortConfig?.key !== key) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-20 group-hover:opacity-100 transition-opacity" />;
     if (sortConfig.direction === 'asc') return <ChevronUp className="w-3 h-3 ml-1 text-white" />;
@@ -200,16 +209,15 @@ export function LibraryView() {
       <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-10 shrink-0 gap-4">
         <div className="flex items-center gap-4 flex-1">
           {/* Mobile Menu Trigger */}
-          <Dialog open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-            <DialogTrigger render={
-              <Button variant="ghost" size="icon" className="md:hidden text-zinc-400 hover:text-white shrink-0">
-                <Menu className="w-5 h-5" />
-              </Button>
-            } />
-            <DialogContent className="bg-black border-zinc-900 p-0 sm:max-w-xs h-full absolute left-0 top-0 rounded-none w-64 block">
-              <Sidebar />
-            </DialogContent>
-          </Dialog>
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden text-zinc-400 hover:text-white shrink-0" />}>
+              <Menu className="w-5 h-5" />
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0 bg-black border-r border-zinc-900 w-64 sm:max-w-64">
+              <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+              <Sidebar isMobile={true} />
+            </SheetContent>
+          </Sheet>
 
           <div className="relative w-full max-w-md group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-white transition-colors" />
@@ -336,12 +344,28 @@ export function LibraryView() {
                             <Settings2 className="w-4 h-4 mr-2" /> <span className="text-sm">Stems Options</span>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator className="bg-zinc-800 my-1" />
-                          <DropdownMenuItem className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2">
-                            <Pencil className="w-4 h-4 mr-2" /> <span className="text-sm">Edit Info</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="focus:!bg-red-950/50 focus:!text-red-400 hover:!bg-red-950/50 hover:!text-red-400 text-red-500 cursor-pointer rounded-md py-2">
-                            <Trash className="w-4 h-4 mr-2" /> <span className="text-sm">Delete</span>
-                          </DropdownMenuItem>
+                          {canUpload && (
+                            <>
+                              <DropdownMenuItem 
+                                onClick={() => {
+                                  setTrackToEdit(track);
+                                  setEditDialogOpen(true);
+                                }}
+                                className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
+                              >
+                                <Pencil className="w-4 h-4 mr-2" /> <span className="text-sm">Edit Info</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => {
+                                  setTrackToDelete(track);
+                                  setDeleteDialogOpen(true);
+                                }}
+                                className="focus:!bg-red-950/50 focus:!text-red-400 hover:!bg-red-950/50 hover:!text-red-400 text-red-500 cursor-pointer rounded-md py-2"
+                              >
+                                <Trash className="w-4 h-4 mr-2" /> <span className="text-sm">Delete</span>
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -369,6 +393,18 @@ export function LibraryView() {
           </div>
         </div>
       </div>
+
+      <TrackEditDialog 
+        track={trackToEdit} 
+        open={editDialogOpen} 
+        onOpenChange={setEditDialogOpen} 
+      />
+      
+      <TrackDeleteDialog 
+        track={trackToDelete} 
+        open={deleteDialogOpen} 
+        onOpenChange={setDeleteDialogOpen} 
+      />
     </main>
   );
 }

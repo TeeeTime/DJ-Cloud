@@ -9,12 +9,12 @@ import { usePlayer } from "@/components/providers/player-provider";
 import { AuroraText } from "@/components/ui/aurora-text";
 import { ProfileMenu } from "@/components/layout/profile-menu";
 
-export function Sidebar() {
+export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
   const { activeFilter, setActiveFilter } = usePlayer();
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 border-r border-zinc-900 bg-black flex flex-col hidden md:flex z-20 shrink-0 pb-24">
+    <aside className={`w-64 border-r border-zinc-900 bg-black flex-col z-20 shrink-0 pb-24 h-full ${isMobile ? 'flex' : 'hidden md:flex'}`}>
       {/* Brand */}
       <Link href="/">
         <div className="h-20 flex items-center px-6 border-b border-zinc-900 cursor-pointer group">
@@ -29,9 +29,9 @@ export function Sidebar() {
         
         {/* Main Links */}
         <div className="space-y-1">
-          <Link href="/">
+          <Link href="/overview">
             <button 
-              className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pathname === '/' ? 'bg-zinc-900 text-white' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}
+              className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pathname === '/overview' ? 'bg-zinc-900 text-white' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}
             >
               <LayoutGrid className="w-4 h-4" />
               Overview
@@ -61,7 +61,7 @@ export function Sidebar() {
               <div
                 key={pl}
                 title="Playlists aren't supported by the backend yet"
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-zinc-600 opacity-50 cursor-not-allowed"
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-zinc-500 hover:text-zinc-400 hover:bg-zinc-900/30 transition-colors cursor-not-allowed"
               >
                 <ListMusic className="w-4 h-4" />
                 {pl}
@@ -81,7 +81,7 @@ export function Sidebar() {
               <div
                 key={g}
                 title="Genres aren't supported by the backend yet"
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-zinc-600 opacity-50 cursor-not-allowed"
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-zinc-500 hover:text-zinc-400 hover:bg-zinc-900/30 transition-colors cursor-not-allowed"
               >
                 <Disc3 className="w-4 h-4" />
                 {g}
