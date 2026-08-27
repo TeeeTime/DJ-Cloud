@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,42 +33,66 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
   const [artistSuggestions, setArtistSuggestions] = useState<ArtistResponse[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // Resets the form fields when the dialog opens for a (possibly different) track. Done during
+  // render rather than in an effect, per https://react.dev/learn/you-might-not-need-an-effect —
+  // this is "adjusting state when a prop changes", not synchronizing with an external system.
+  // Uses state (not a ref) to track what we last initialized for, since refs can't be read or
+  // written during render.
+  const [initializedFor, setInitializedFor] = useState<{ open: boolean; trackId: number | null }>({
+    open: false,
+    trackId: null,
+  });
+
+  if (open && track && token && (!initializedFor.open || initializedFor.trackId !== track.id)) {
+    setInitializedFor({ open: true, trackId: track.id });
+    setTitle(track.title);
+    setBpm(track.bpm ? track.bpm.toString() : "");
+    setKey(track.key || "");
+    setStatus(track.status);
+    // Pre-populate artists immediately with fake IDs so they show up in the UI
+    setArtists((track.artists || []).map((name, idx) => ({ id: -(idx + 1), name })));
+    setArtistInput("");
+    setArtistSuggestions([]);
+    setError(null);
+  } else if (!open && initializedFor.open) {
+    setInitializedFor({ open: false, trackId: null });
+    setArtists([]);
+    setArtistInput("");
+    setArtistSuggestions([]);
+    setError(null);
+  }
+
+  // Loads current artists' actual IDs in the background if they exist — a real side effect
+  // (fetching from the API), so it stays in an effect unlike the resets above.
   useEffect(() => {
-    if (open && track && token) {
-      setTitle(track.title);
-      setBpm(track.bpm ? track.bpm.toString() : "");
-      setKey(track.key || "");
-      setStatus(track.status);
-      
-      // Pre-populate artists immediately with fake IDs so they show up in the UI
-      setArtists((track.artists || []).map((name, idx) => ({ id: -(idx + 1), name })));
-      
-      // Load current artists' actual IDs in the background if they exist
-      const loadArtists = async () => {
-        setIsLoadingArtists(true);
-        const resolved: ArtistResponse[] = [];
-        try {
-          for (let idx = 0; idx < (track.artists || []).length; idx++) {
-            const name = track.artists[idx];
-            const results = await artistsApi.autocomplete(name);
-            const match = results.find(a => a.name.toLowerCase() === name.toLowerCase());
-            if (match) resolved.push(match);
-            else resolved.push({ id: -(idx + 1), name }); // keep fake ID
-          }
-          setArtists(resolved);
-        } catch (err) {
-          console.error("Failed to load artist IDs", err);
-        } finally {
-          setIsLoadingArtists(false);
-        }
-      };
-      loadArtists();
-    } else {
-      setArtists([]);
-      setArtistInput("");
-      setArtistSuggestions([]);
-      setError(null);
+    if (!open || !track || !token) {
+      return;
     }
+
+    let cancelled = false;
+    const loadArtists = async () => {
+      setIsLoadingArtists(true);
+      const resolved: ArtistResponse[] = [];
+      try {
+        for (let idx = 0; idx < (track.artists || []).length; idx++) {
+          const name = track.artists[idx];
+          const results = await artistsApi.autocomplete(name);
+          const match = results.find(a => a.name.toLowerCase() === name.toLowerCase());
+          if (match) resolved.push(match);
+          else resolved.push({ id: -(idx + 1), name }); // keep fake ID
+        }
+        if (!cancelled) setArtists(resolved);
+      } catch (err) {
+        console.error("Failed to load artist IDs", err);
+      } finally {
+        if (!cancelled) setIsLoadingArtists(false);
+      }
+    };
+    loadArtists();
+
+    return () => {
+      cancelled = true;
+    };
   }, [open, track, token]);
 
   const searchArtists = async (query: string) => {

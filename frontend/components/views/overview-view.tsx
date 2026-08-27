@@ -2,9 +2,9 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { 
-  Menu, Music2, Users, HardDrive, Play, 
-  TrendingUp, Disc3, Radio, ListMusic, Activity
+import {
+  Menu, Music2, Users, HardDrive, Play,
+  Disc3, ListMusic, Activity
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";

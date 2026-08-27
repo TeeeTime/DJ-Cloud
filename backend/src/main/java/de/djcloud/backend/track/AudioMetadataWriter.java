@@ -62,11 +62,22 @@ class AudioMetadataWriter {
         }
     }
 
+    /**
+     * Some tag formats only support a fixed, narrow field set — e.g. a WAV file with no ID3 chunk
+     * falls back to jaudiotagger's RIFF INFO tag, which has no slot for KEY or BPM. jaudiotagger
+     * signals that with an unchecked UnsupportedOperationException rather than one of its usual
+     * checked exceptions, so it's swallowed here per-field instead of aborting the whole write —
+     * fields the format can't hold are skipped rather than blocking the ones it can (TITLE/ARTIST).
+     */
     private void setField(Tag tag, FieldKey key, String value) throws Exception {
-        if (value == null || value.isBlank()) {
-            tag.deleteField(key);
-        } else {
-            tag.setField(key, value);
+        try {
+            if (value == null || value.isBlank()) {
+                tag.deleteField(key);
+            } else {
+                tag.setField(key, value);
+            }
+        } catch (UnsupportedOperationException ex) {
+            // field not supported by this tag format — nothing to do
         }
     }
 }
