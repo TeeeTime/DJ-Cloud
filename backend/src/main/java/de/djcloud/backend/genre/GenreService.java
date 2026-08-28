@@ -31,6 +31,11 @@ public class GenreService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<GenreDistributionResponse> distribution() {
+        return genreRepository.distribution();
+    }
+
     @Transactional
     public GenreResponse create(GenreRequest request) {
         if (genreRepository.existsByNameIgnoreCase(request.name())) {

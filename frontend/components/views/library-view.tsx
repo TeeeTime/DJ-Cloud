@@ -296,9 +296,9 @@ export function LibraryView() {
                   <TableHead className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Key</TableHead>
                   <TableHead
                     className="w-[12%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
-                    onClick={() => handleSort('dateAdded')}
+                    onClick={() => handleSort('addedAt')}
                   >
-                    <div className="flex items-center">Date Added {renderSortIcon('dateAdded')}</div>
+                    <div className="flex items-center">Date Added {renderSortIcon('addedAt')}</div>
                   </TableHead>
                   <TableHead className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Status</TableHead>
                   <TableHead className="w-[8%] text-right text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11"></TableHead>

@@ -5,6 +5,7 @@ import de.djcloud.backend.genre.Genre;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
@@ -27,6 +28,12 @@ public class Track {
 
     /** Date the track was added to the library. Never set by the client — always the upload date. */
     private LocalDate dateAdded;
+
+    /**
+     * Exact moment the track was added — used for precise "recently added" ordering and "new" tagging;
+     * {@code dateAdded}'s display in the track list is unaffected by this field.
+     */
+    private Instant addedAt;
 
     /** Name of the file as stored on disk (see app.storage.tracks-dir) — never exposed via the API directly. */
     private String fileName;

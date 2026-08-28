@@ -136,6 +136,16 @@ Errors:
 
 ---
 
+## `POST /api/auth/me/recently-added-seen`
+
+**Requires a valid JWT.** Marks the caller's "recently added" list as seen as of now — every track
+currently `isNew` in `GET /api/tracks/recent` stops being `isNew` after this call (until newer tracks are
+added).
+
+Response: `204 No Content`.
+
+---
+
 ## `POST /api/auth/register`
 
 **Public**, but requires a valid, unused, admin-issued registration code — self-serve signup does not
@@ -202,6 +212,7 @@ Response `200` — a Spring Data `Page`:
       "bpm": 128,
       "fileFormat": "mp3",
       "dateAdded": "2026-08-28",
+      "addedAt": "2026-08-28T23:11:12.605Z",
       "status": "READY",
       "artists": ["Artist One", "Artist Two"],
       "genres": ["Tech House", "Deep House"]
@@ -233,6 +244,43 @@ associations use the ids returned by the artist endpoints below, not names — s
 **Public.** Fetch a single track.
 
 Response `200`: same shape as one `content` entry above. `404` if no track has that id.
+
+---
+
+## `GET /api/tracks/recent`
+
+**Requires a JWT** (any role) — unlike the rest of `GET /api/tracks/**`, this isn't public, since it's
+personalized to the caller (see `isNew` below). Most-recently-added tracks first.
+
+Query params:
+
+| param   | default | notes                     |
+|---------|---------|----------------------------|
+| `limit` | `20`    | max results                |
+
+Response `200`:
+```json
+{
+  "tracks": [
+    {
+      "id": 1,
+      "title": "Song Name",
+      "artists": ["Artist One"],
+      "addedAt": "2026-08-29T14:03:11.123Z",
+      "isNew": true
+    }
+  ],
+  "newCount": 12
+}
+```
+`addedAt` is the exact moment the track was added (unlike `dateAdded` elsewhere, which is day-only).
+`isNew` is `true` if `addedAt` is after the caller's last call to `POST /api/auth/me/recently-added-seen`
+(or always `true` if they've never called it) — see that endpoint below.
+
+`newCount` is the *total* number of new tracks, independent of `limit` — it can exceed `tracks.length` when
+there are more new tracks than fit in the response; every entry in `tracks` is still guaranteed to be one
+of the most-recently-added tracks overall, so `isNew` stays correct even when `tracks` doesn't contain all
+of them.
 
 ---
 
@@ -311,6 +359,9 @@ Behavior:
 - `fileFormat` is the file's extension (`mp3`/`wav`).
 - `dateAdded` is today's date (server-side, `yyyy-MM-dd`) — the day the track was uploaded. Not
   settable by the client and not part of `PUT /api/tracks/{id}`'s editable fields.
+- `addedAt` is the exact upload instant (server-side) — same purpose as `dateAdded` but precise to the
+  moment, for correct ordering when multiple tracks are added the same day. Also not settable by the
+  client and not part of `PUT /api/tracks/{id}`'s editable fields.
 
 The upload response returns immediately with `status: QUEUED`; the track is then picked up asynchronously
 (one track at a time, in upload order) for analysis: a streaming preview is generated, then BPM is
@@ -471,6 +522,21 @@ Response `200`:
 [
   { "id": 1, "name": "Tech House" },
   { "id": 2, "name": "Deep House" }
+]
+```
+
+---
+
+## `GET /api/genres/distribution`
+
+**Public.** How many tracks are tagged with each genre, most-tagged first. A genre with zero tagged
+tracks is omitted entirely rather than returned with `count: 0`.
+
+Response `200`:
+```json
+[
+  { "name": "Tech House", "count": 42 },
+  { "name": "Deep House", "count": 17 }
 ]
 ```
 

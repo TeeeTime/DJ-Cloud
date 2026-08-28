@@ -11,6 +11,8 @@ export type Track = {
   key: string | null;
   format: string;
   dateAdded: string;
+  // Exact upload instant — used only for precise sorting; the track list still displays `dateAdded`.
+  addedAt: string;
   status: TrackStatus;
   duration: string;
   durationSeconds: number;
@@ -34,6 +36,19 @@ export function formatDateAdded(dateAdded: string): string {
   return `${day}.${month}.${year}`;
 }
 
+export function formatTimeAgo(addedAt: string): string {
+  const diffMs = Date.now() - new Date(addedAt).getTime();
+  const minutes = Math.floor(diffMs / 60_000);
+  const hours = Math.floor(diffMs / 3_600_000);
+  const days = Math.floor(diffMs / 86_400_000);
+
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  if (hours < 48) return "Yesterday";
+  return `${days} days ago`;
+}
+
 export function mapTrackResponse(t: TrackResponse): Track {
   return {
     id: t.id,
@@ -45,6 +60,7 @@ export function mapTrackResponse(t: TrackResponse): Track {
     key: t.key,
     format: t.fileFormat.toUpperCase(),
     dateAdded: t.dateAdded,
+    addedAt: t.addedAt,
     status: t.status,
     duration: formatDuration(t.durationSeconds),
     durationSeconds: t.durationSeconds,

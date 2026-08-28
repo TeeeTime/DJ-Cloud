@@ -60,4 +60,11 @@ public class AuthController {
     public void changePassword(Authentication authentication, @Valid @RequestBody ChangePasswordRequest request) {
         authService.changePassword((AppUserDetails) authentication.getPrincipal(), request);
     }
+
+    /** Marks the caller's "recently added" list as seen as of now, clearing any "new" tags on next fetch. */
+    @PostMapping("/me/recently-added-seen")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void markRecentlyAddedSeen(Authentication authentication) {
+        authService.markRecentlyAddedSeen((AppUserDetails) authentication.getPrincipal());
+    }
 }

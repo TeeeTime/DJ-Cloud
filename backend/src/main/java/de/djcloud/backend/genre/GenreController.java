@@ -29,6 +29,12 @@ public class GenreController {
         return genreService.autocomplete(query, limit);
     }
 
+    /** How many tracks are tagged with each genre, most-tagged first. Genres with zero tracks are omitted. */
+    @GetMapping("/distribution")
+    public List<GenreDistributionResponse> distribution() {
+        return genreService.distribution();
+    }
+
     @PostMapping
     public GenreResponse create(@Valid @RequestBody GenreRequest request) {
         return genreService.create(request);

@@ -1,5 +1,6 @@
 package de.djcloud.backend.track;
 
+import java.time.Instant;
 import java.time.LocalDate;
 
 import org.springframework.http.HttpStatus;
@@ -46,6 +47,7 @@ public class TrackUploadService {
             track.setBpm(0);
             track.setFileFormat(storedFile.extension());
             track.setDateAdded(LocalDate.now());
+            track.setAddedAt(Instant.now());
             track.setFileName(storedFile.file().getName());
             track.setStatus(TrackStatus.QUEUED);
 
