@@ -137,7 +137,7 @@ export function BottomPlayer() {
       <div className="flex items-center gap-4 w-1/4 min-w-[280px]">
         {/* Easter Egg 4: Vinyl Spinning & Scratching */}
         <div 
-          className={`relative w-14 h-14 rounded-md bg-zinc-900 flex items-center justify-center border border-zinc-800 overflow-hidden cursor-pointer ${scratching ? 'scale-110 skew-x-12' : 'transition-transform'}`}
+          className={`relative w-14 h-14 shrink-0 rounded-md bg-zinc-900 flex items-center justify-center border border-zinc-800 overflow-hidden cursor-pointer ${scratching ? 'scale-110 skew-x-12' : 'transition-transform'}`}
           onMouseDown={() => setScratching(true)}
           onMouseUp={() => setScratching(false)}
           onMouseLeave={() => setScratching(false)}
