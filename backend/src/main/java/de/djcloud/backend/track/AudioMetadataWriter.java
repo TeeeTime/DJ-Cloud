@@ -13,6 +13,7 @@ import org.jaudiotagger.tag.images.ArtworkFactory;
 import org.springframework.stereotype.Component;
 
 import de.djcloud.backend.artist.Artist;
+import de.djcloud.backend.genre.Genre;
 
 /**
  * Writes edited track fields back into the original audio file's own tags, so editing a track via
@@ -21,7 +22,7 @@ import de.djcloud.backend.artist.Artist;
 @Component
 class AudioMetadataWriter {
 
-    void write(File file, String title, String key, int bpm, Set<Artist> artists) {
+    void write(File file, String title, String key, int bpm, Set<Artist> artists, Set<Genre> genres) {
         try {
             AudioFile audioFile = AudioFileIO.read(file);
             Tag tag = audioFile.getTagOrCreateAndSetDefault();
@@ -31,6 +32,9 @@ class AudioMetadataWriter {
             setField(tag, FieldKey.BPM, bpm > 0 ? String.valueOf(bpm) : null);
             setField(tag, FieldKey.ARTIST, artists.stream()
                     .map(Artist::getName)
+                    .collect(Collectors.joining("; ")));
+            setField(tag, FieldKey.GENRE, genres.stream()
+                    .map(Genre::getName)
                     .collect(Collectors.joining("; ")));
 
             audioFile.commit();

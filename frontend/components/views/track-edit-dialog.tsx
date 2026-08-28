@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Track } from "@/lib/data";
 import { useAuth } from "@/components/providers/auth-provider";
-import { tracksApi, artistsApi, ArtistResponse, ApiError } from "@/lib/api";
+import { tracksApi, artistsApi, ArtistResponse, genresApi, GenreResponse, ApiError } from "@/lib/api";
 import { Loader2, AlertCircle, X } from "lucide-react";
 import { usePlayer } from "@/components/providers/player-provider";
 
@@ -21,6 +21,7 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
   const { refreshTracks } = usePlayer();
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingArtists, setIsLoadingArtists] = useState(false);
+  const [isLoadingGenres, setIsLoadingGenres] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
@@ -32,6 +33,11 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
   const [artistInput, setArtistInput] = useState("");
   const [artistSuggestions, setArtistSuggestions] = useState<ArtistResponse[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const [genres, setGenres] = useState<GenreResponse[]>([]);
+  const [genreInput, setGenreInput] = useState("");
+  const [genreSuggestions, setGenreSuggestions] = useState<GenreResponse[]>([]);
+  const [showGenreSuggestions, setShowGenreSuggestions] = useState(false);
 
   // Resets the form fields when the dialog opens for a (possibly different) track. Done during
   // render rather than in an effect, per https://react.dev/learn/you-might-not-need-an-effect —
@@ -53,12 +59,19 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
     setArtists((track.artists || []).map((name, idx) => ({ id: -(idx + 1), name })));
     setArtistInput("");
     setArtistSuggestions([]);
+    // Pre-populate genres immediately with fake IDs so they show up in the UI
+    setGenres((track.genres || []).map((name, idx) => ({ id: -(idx + 1), name })));
+    setGenreInput("");
+    setGenreSuggestions([]);
     setError(null);
   } else if (!open && initializedFor.open) {
     setInitializedFor({ open: false, trackId: null });
     setArtists([]);
     setArtistInput("");
     setArtistSuggestions([]);
+    setGenres([]);
+    setGenreInput("");
+    setGenreSuggestions([]);
     setError(null);
   }
 
@@ -95,6 +108,38 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
     };
   }, [open, track, token]);
 
+  // Loads current genres' actual IDs in the background if they exist — mirrors loadArtists above.
+  useEffect(() => {
+    if (!open || !track || !token) {
+      return;
+    }
+
+    let cancelled = false;
+    const loadGenres = async () => {
+      setIsLoadingGenres(true);
+      const resolved: GenreResponse[] = [];
+      try {
+        for (let idx = 0; idx < (track.genres || []).length; idx++) {
+          const name = track.genres[idx];
+          const results = await genresApi.autocomplete(name);
+          const match = results.find(g => g.name.toLowerCase() === name.toLowerCase());
+          if (match) resolved.push(match);
+          else resolved.push({ id: -(idx + 1), name }); // keep fake ID
+        }
+        if (!cancelled) setGenres(resolved);
+      } catch (err) {
+        console.error("Failed to load genre IDs", err);
+      } finally {
+        if (!cancelled) setIsLoadingGenres(false);
+      }
+    };
+    loadGenres();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, track, token]);
+
   const searchArtists = async (query: string) => {
     if (!query) {
       setArtistSuggestions([]);
@@ -121,6 +166,33 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
     setArtists(artists.filter(a => a.id !== id));
   };
 
+  const searchGenres = async (query: string) => {
+    if (!query) {
+      setGenreSuggestions([]);
+      return;
+    }
+    try {
+      const results = await genresApi.autocomplete(query);
+      setGenreSuggestions(results);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const addGenre = (genre: GenreResponse) => {
+    if (genres.length >= 3) return;
+    if (!genres.find(g => g.id === genre.id)) {
+      setGenres([...genres, genre]);
+    }
+    setGenreInput("");
+    setGenreSuggestions([]);
+    setShowGenreSuggestions(false);
+  };
+
+  const removeGenre = (id: number) => {
+    setGenres(genres.filter(g => g.id !== id));
+  };
+
   const handleSave = async () => {
     if (!track || !token) return;
     setIsSaving(true);
@@ -139,6 +211,17 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
         }
       }
 
+      // Create missing genres
+      const finalGenreIds: number[] = [];
+      for (const genre of genres) {
+        if (genre.id < 0) {
+          const created = await genresApi.create(genre.name, token);
+          finalGenreIds.push(created.id);
+        } else {
+          finalGenreIds.push(genre.id);
+        }
+      }
+
       await tracksApi.update(track.id, {
         title,
         durationSeconds: track.durationSeconds || 0,
@@ -146,7 +229,8 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
         key: key || null,
         status,
         fileFormat: track.format || "mp3",
-        artistIds: finalArtistIds
+        artistIds: finalArtistIds,
+        genreIds: finalGenreIds
       }, token);
       
       await refreshTracks();
@@ -165,7 +249,7 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
           <DialogTitle className="text-xl font-semibold">Edit Track Info</DialogTitle>
         </DialogHeader>
         
-        {isLoadingArtists ? (
+        {isLoadingArtists || isLoadingGenres ? (
           <div className="py-12 flex justify-center">
             <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
           </div>
@@ -247,6 +331,57 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
               )}
             </div>
 
+            <div className="relative">
+              <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5 block">Genres</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {genres.map(genre => (
+                  <span key={genre.id} className="inline-flex items-center gap-1 bg-zinc-900 border border-zinc-800 text-xs px-2 py-1 rounded-md">
+                    {genre.name}
+                    <button onClick={() => removeGenre(genre.id)} className="text-zinc-500 hover:text-white">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              {genres.length >= 3 ? (
+                <p className="text-xs text-zinc-500 mt-1">Maximum of 3 genres</p>
+              ) : (
+                <>
+                  <Input
+                    value={genreInput}
+                    onChange={(e) => {
+                      setGenreInput(e.target.value);
+                      searchGenres(e.target.value);
+                      setShowGenreSuggestions(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && genreInput.trim() !== "") {
+                        e.preventDefault();
+                        addGenre({ id: -Math.floor(Math.random() * 1000000), name: genreInput.trim() });
+                      }
+                    }}
+                    onFocus={() => setShowGenreSuggestions(true)}
+                    placeholder="Search to add genre (press Enter to create)..."
+                    className="bg-zinc-900/50 border-zinc-800 focus-visible:ring-1 focus-visible:ring-zinc-700 h-10"
+                  />
+
+                  {showGenreSuggestions && genreSuggestions.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-zinc-900 border border-zinc-800 rounded-md shadow-lg max-h-40 overflow-y-auto">
+                      {genreSuggestions.map(genre => (
+                        <button
+                          key={genre.id}
+                          onClick={() => addGenre(genre)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-800"
+                        >
+                          {genre.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
             {error && (
               <p className="text-sm text-red-400 mt-4 flex items-center gap-2" role="alert">
                 <AlertCircle className="w-4 h-4 shrink-0" />
@@ -259,7 +394,7 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
         <DialogFooter className="mt-8 gap-2">
           <Button
             onClick={() => onOpenChange(false)}
-            disabled={isSaving || isLoadingArtists}
+            disabled={isSaving || isLoadingArtists || isLoadingGenres}
             variant="ghost"
             className="text-zinc-400 hover:text-white hover:bg-zinc-900"
           >
@@ -267,7 +402,7 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
           </Button>
           <Button
             onClick={handleSave}
-            disabled={isSaving || isLoadingArtists}
+            disabled={isSaving || isLoadingArtists || isLoadingGenres}
             className="bg-white hover:bg-zinc-200 text-black font-medium"
           >
             {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : "Save Changes"}

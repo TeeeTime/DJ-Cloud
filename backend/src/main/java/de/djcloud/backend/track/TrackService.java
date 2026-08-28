@@ -16,6 +16,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import de.djcloud.backend.artist.Artist;
 import de.djcloud.backend.artist.ArtistRepository;
+import de.djcloud.backend.genre.Genre;
+import de.djcloud.backend.genre.GenreRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -24,6 +26,7 @@ public class TrackService {
 
     private final TrackRepository trackRepository;
     private final ArtistRepository artistRepository;
+    private final GenreRepository genreRepository;
     private final TrackStorageService trackStorageService;
     private final AudioMetadataWriter audioMetadataWriter;
 
@@ -55,6 +58,13 @@ public class TrackService {
                 .collect(Collectors.toSet());
         track.setArtists(artists);
 
+        Set<Genre> genres = request.genreIds().stream()
+                .map(genreId -> genreRepository.findById(genreId)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                "Unknown genre id: " + genreId)))
+                .collect(Collectors.toSet());
+        track.setGenres(genres);
+
         writeMetadataToFile(track);
 
         return TrackResponse.fromEntity(trackRepository.save(track));
@@ -77,7 +87,8 @@ public class TrackService {
         }
 
         try {
-            audioMetadataWriter.write(file, track.getTitle(), track.getKey(), track.getBpm(), track.getArtists());
+            audioMetadataWriter.write(file, track.getTitle(), track.getKey(), track.getBpm(), track.getArtists(),
+                    track.getGenres());
         } catch (AudioMetadataException ex) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Could not update audio file metadata", ex);

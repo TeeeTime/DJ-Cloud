@@ -5,6 +5,8 @@ export type Track = {
   title: string;
   artist: string;
   artists: string[];
+  // Real per-track genre data from the backend, up to 3 — distinct from the unrelated `genre?` field below.
+  genres: string[];
   bpm: number | null;
   key: string | null;
   format: string;
@@ -38,6 +40,7 @@ export function mapTrackResponse(t: TrackResponse): Track {
     title: t.title,
     artist: t.artists.length > 0 ? t.artists.join(", ") : "Unknown Artist",
     artists: t.artists,
+    genres: t.genres,
     bpm: t.bpm > 0 ? t.bpm : null,
     key: t.key,
     format: t.fileFormat.toUpperCase(),
