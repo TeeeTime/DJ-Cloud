@@ -203,7 +203,8 @@ Response `200` — a Spring Data `Page`:
       "fileFormat": "mp3",
       "dateAdded": "2026-08-28",
       "status": "READY",
-      "artists": ["Artist One", "Artist Two"]
+      "artists": ["Artist One", "Artist Two"],
+      "genres": ["Tech House", "Deep House"]
     }
   ],
   "totalElements": 1,
@@ -221,6 +222,9 @@ once it's fully registered — there is no "uploading" state exposed; see `POST 
 
 `artists` is just a flat list of artist names (not ids), for display. To edit a track's artist
 associations use the ids returned by the artist endpoints below, not names — see `PUT /api/tracks/{id}`.
+
+`genres` is the same idea, for a track's up to 3 genres — a flat list of genre names, edited via
+`genreIds` using the ids returned by the genre endpoints below — see `PUT /api/tracks/{id}`.
 
 ---
 
@@ -298,6 +302,8 @@ Behavior:
   minus its extension.
 - `artists` comes from the file's artist tag if present (an artist with that name is found or created);
   otherwise the track is created with zero artists — there's no fake "Unknown Artist" placeholder.
+- `genres` comes from the file's genre tag if present (up to 3, split on `;`/`/`/`,` and deduped
+  case-insensitively; each name is found or created); otherwise the track is created with zero genres.
 - `durationSeconds` is always read from the actual audio data, not a placeholder — this works even for a
   file with no tags at all.
 - `bpm` (`0`) and `key` (`null`) are placeholders until analysis finishes — see below.
@@ -328,10 +334,10 @@ Errors — on every one of these, no `Track` row is created and no file is left 
 
 ## `PUT /api/tracks/{id}`
 
-**Requires a JWT with role `EDITOR` or `ADMIN`.** Edits a track's metadata and artist tagging. This
-never creates a track or replaces its file — see `POST /api/tracks` for that — but it does write
-`title`, `key`, `bpm`, and the artist list back into the original audio file's own tags (if a file
-exists on disk for the track), so the file and the database never drift apart.
+**Requires a JWT with role `EDITOR` or `ADMIN`.** Edits a track's metadata, artist tagging, and genre
+tagging. This never creates a track or replaces its file — see `POST /api/tracks` for that — but it does
+write `title`, `key`, `bpm`, and the artist and genre lists back into the original audio file's own tags
+(if a file exists on disk for the track), so the file and the database never drift apart.
 
 Request — replaces the full set of editable fields (not a partial patch):
 ```json
@@ -342,18 +348,23 @@ Request — replaces the full set of editable fields (not a partial patch):
   "bpm": 128,
   "fileFormat": "mp3",
   "status": "READY",
-  "artistIds": [1, 2]
+  "artistIds": [1, 2],
+  "genreIds": [1, 2]
 }
 ```
 `artistIds` replaces the track's artist associations wholesale — resolve/create artists via the artist
 endpoints first, then reference them by id here. An empty array clears all artist tags (and the file's
 artist tag).
 
+`genreIds` works the same way for genres, via the genre endpoints below — **at most 3 ids**.
+
 Response `200`: the updated track, same shape as `GET /api/tracks/{id}`.
 
 Errors:
 - `404` if the track doesn't exist.
 - `400` `"Unknown artist id: <id>"` if any id in `artistIds` doesn't exist.
+- `400` `"Unknown genre id: <id>"` if any id in `genreIds` doesn't exist.
+- `400` if `genreIds` has more than 3 entries.
 - `500` `"Could not update audio file metadata"` if the track has a file on disk but writing the tags
   back to it fails — the whole update is rejected in this case, so the database and the file never end
   up disagreeing.
@@ -440,6 +451,59 @@ Response `200`: the updated artist. `404` if the artist doesn't exist.
 
 **Requires a JWT with role `EDITOR` or `ADMIN`.** Deletes an artist and untags it from every track that
 referenced it (tracks themselves are not deleted). Response: `204 No Content`, or `404` if the artist
+doesn't exist.
+
+---
+
+## `GET /api/genres/autocomplete`
+
+**Public.** Case-insensitive substring search over genre names, for a search-as-you-type field.
+
+Query params:
+
+| param   | default | notes                                    |
+|---------|---------|--------------------------------------------|
+| `query` | —       | **required.** Blank/missing returns `[]` rather than erroring. |
+| `limit` | `10`    | max results, sorted alphabetically by name |
+
+Response `200`:
+```json
+[
+  { "id": 1, "name": "Tech House" },
+  { "id": 2, "name": "Deep House" }
+]
+```
+
+---
+
+## `POST /api/genres`
+
+**Requires a JWT with role `EDITOR` or `ADMIN`.** Creates a genre.
+
+Request:
+```json
+{ "name": "Tech House" }
+```
+
+Response `200`: `{ "id": 1, "name": "Tech House" }`. `409` `"Genre already exists"` if the name
+already exists (case-insensitive).
+
+---
+
+## `PUT /api/genres/{id}`
+
+**Requires a JWT with role `EDITOR` or `ADMIN`.** Renames a genre.
+
+Request: `{ "name": "New Name" }`
+
+Response `200`: the updated genre. `404` if the genre doesn't exist.
+
+---
+
+## `DELETE /api/genres/{id}`
+
+**Requires a JWT with role `EDITOR` or `ADMIN`.** Deletes a genre and untags it from every track that
+referenced it (tracks themselves are not deleted). Response: `204 No Content`, or `404` if the genre
 doesn't exist.
 
 ---

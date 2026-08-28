@@ -1,6 +1,7 @@
 package de.djcloud.backend.track;
 
 import de.djcloud.backend.artist.Artist;
+import de.djcloud.backend.genre.Genre;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -48,4 +49,14 @@ public class Track {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     private Set<Artist> artists = new HashSet<>();
+
+    @ManyToMany
+    @JoinTable(
+            name = "track_genre",
+            joinColumns = @JoinColumn(name = "track_id"),
+            inverseJoinColumns = @JoinColumn(name = "genre_id")
+    )
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private Set<Genre> genres = new HashSet<>();
 }

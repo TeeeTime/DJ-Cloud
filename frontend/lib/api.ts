@@ -104,6 +104,7 @@ export interface TrackResponse {
   dateAdded: string;
   status: TrackStatus;
   artists: string[];
+  genres: string[];
 }
 
 export interface TracksPage {
@@ -125,6 +126,7 @@ export interface TrackUpdateRequest {
   fileFormat: string;
   status: TrackStatus;
   artistIds: number[];
+  genreIds: number[];
 }
 
 export interface ArtistResponse {
@@ -140,6 +142,21 @@ export const artistsApi = {
   },
   create: (name: string, token: string) =>
     request<ArtistResponse>("/api/artists", { method: "POST", body: JSON.stringify({ name }) }, token),
+};
+
+export interface GenreResponse {
+  id: number;
+  name: string;
+}
+
+export const genresApi = {
+  autocomplete: (query: string) => {
+    const qs = new URLSearchParams();
+    if (query) qs.set("query", query);
+    return request<GenreResponse[]>(`/api/genres/autocomplete?${qs.toString()}`, { method: "GET" });
+  },
+  create: (name: string, token: string) =>
+    request<GenreResponse>("/api/genres", { method: "POST", body: JSON.stringify({ name }) }, token),
 };
 
 export type AnalysisStep = "PREVIEW_GENERATION" | "BPM_ANALYSIS" | "KEY_ANALYSIS";
