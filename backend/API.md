@@ -201,6 +201,7 @@ Response `200` — a Spring Data `Page`:
       "key": "8A",
       "bpm": 128,
       "fileFormat": "mp3",
+      "dateAdded": "2026-08-28",
       "status": "READY",
       "artists": ["Artist One", "Artist Two"]
     }
@@ -302,6 +303,8 @@ Behavior:
 - `bpm` (`0`) and `key` (`null`) are placeholders until analysis finishes — see below.
 - `status` starts at `QUEUED`.
 - `fileFormat` is the file's extension (`mp3`/`wav`).
+- `dateAdded` is today's date (server-side, `yyyy-MM-dd`) — the day the track was uploaded. Not
+  settable by the client and not part of `PUT /api/tracks/{id}`'s editable fields.
 
 The upload response returns immediately with `status: QUEUED`; the track is then picked up asynchronously
 (one track at a time, in upload order) for analysis: a streaming preview is generated, then BPM is

@@ -10,7 +10,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { usePlayer } from "@/components/providers/player-provider";
 import { useAuth } from "@/components/providers/auth-provider";
-import { Track } from "@/lib/data";
+import { Track, formatDateAdded } from "@/lib/data";
 import { ApiError, tracksApi } from "@/lib/api";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TrackEditDialog } from "./track-edit-dialog";
@@ -293,9 +293,14 @@ export function LibraryView() {
                     <div className="flex items-center">BPM {renderSortIcon('bpm')}</div>
                   </TableHead>
                   <TableHead className="text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Key</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Format</TableHead>
+                  <TableHead
+                    className="text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    onClick={() => handleSort('dateAdded')}
+                  >
+                    <div className="flex items-center">Date Added {renderSortIcon('dateAdded')}</div>
+                  </TableHead>
                   <TableHead className="text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Status</TableHead>
-                  <TableHead className="text-right text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Actions</TableHead>
+                  <TableHead className="text-right text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -338,8 +343,8 @@ export function LibraryView() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider px-1.5 py-0.5 rounded border border-zinc-800 bg-zinc-900">
-                        {track.format}
+                      <span className="text-xs text-zinc-400">
+                        {formatDateAdded(track.dateAdded)}
                       </span>
                     </TableCell>
                     <TableCell>

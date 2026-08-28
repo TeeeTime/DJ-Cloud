@@ -101,6 +101,7 @@ export interface TrackResponse {
   key: string | null;
   bpm: number;
   fileFormat: string;
+  dateAdded: string;
   status: TrackStatus;
   artists: string[];
 }

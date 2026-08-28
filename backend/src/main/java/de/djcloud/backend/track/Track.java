@@ -4,6 +4,7 @@ import de.djcloud.backend.artist.Artist;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -22,6 +23,9 @@ public class Track {
     private String key;
     private int bpm;
     private String fileFormat;
+
+    /** Date the track was added to the library. Never set by the client — always the upload date. */
+    private LocalDate dateAdded;
 
     /** Name of the file as stored on disk (see app.storage.tracks-dir) — never exposed via the API directly. */
     private String fileName;

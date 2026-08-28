@@ -8,6 +8,7 @@ export type Track = {
   bpm: number | null;
   key: string | null;
   format: string;
+  dateAdded: string;
   status: TrackStatus;
   duration: string;
   durationSeconds: number;
@@ -25,6 +26,12 @@ function formatDuration(totalSeconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+export function formatDateAdded(dateAdded: string): string {
+  // dateAdded is already a plain "yyyy-MM-dd" date — just reorder to dd.mm.yyyy.
+  const [year, month, day] = dateAdded.split("-");
+  return `${day}.${month}.${year}`;
+}
+
 export function mapTrackResponse(t: TrackResponse): Track {
   return {
     id: t.id,
@@ -34,6 +41,7 @@ export function mapTrackResponse(t: TrackResponse): Track {
     bpm: t.bpm > 0 ? t.bpm : null,
     key: t.key,
     format: t.fileFormat.toUpperCase(),
+    dateAdded: t.dateAdded,
     status: t.status,
     duration: formatDuration(t.durationSeconds),
     durationSeconds: t.durationSeconds,

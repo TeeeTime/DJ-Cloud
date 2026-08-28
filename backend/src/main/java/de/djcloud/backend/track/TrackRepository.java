@@ -11,4 +11,6 @@ public interface TrackRepository extends JpaRepository<Track, Long> {
     List<Track> findByStatus(TrackStatus status);
 
     List<Track> findByPreviewFileNameIsNullOrderById();
+
+    List<Track> findByDateAddedIsNull();
 }
