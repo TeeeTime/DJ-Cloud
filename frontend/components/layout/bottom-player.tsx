@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import {
-  Play, Pause, SkipForward, SkipBack, Volume2,
+  Play, Pause, SkipForward, SkipBack, Volume, Volume1, Volume2, VolumeX,
   Disc3, Music2
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
@@ -48,6 +48,30 @@ export function BottomPlayer() {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(80);
 
+  // Load volume from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("djcloud_volume");
+    if (saved !== null) {
+      const parsed = parseFloat(saved);
+      if (!isNaN(parsed)) setVolume(parsed);
+    }
+  }, []);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setIsPlaying(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setIsPlaying]);
+
   // Sync play/pause
   useEffect(() => {
     if (!audioRef.current) return;
@@ -88,6 +112,7 @@ export function BottomPlayer() {
   useEffect(() => {
     if (audioRef.current && typeof volume === 'number' && !isNaN(volume)) {
       audioRef.current.volume = Math.max(0, Math.min(1, volume / 100));
+      localStorage.setItem("djcloud_volume", volume.toString());
     }
   }, [volume, audioRef]);
 
@@ -187,8 +212,24 @@ export function BottomPlayer() {
 
       {/* Right Controls (Volume + Queue Status) */}
       <div className="w-1/4 min-w-[280px] flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 w-32 group">
-          <Volume2 className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 transition-colors shrink-0" />
+        <div 
+          className="flex items-center gap-3 w-32 group"
+          onWheel={(e) => {
+            const delta = e.deltaY > 0 ? -5 : 5;
+            let nextVol = safeVolume + delta;
+            nextVol = Math.max(0, Math.min(100, nextVol));
+            setVolume(nextVol);
+          }}
+        >
+          {safeVolume === 0 ? (
+            <VolumeX className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 transition-colors shrink-0" />
+          ) : safeVolume < 33 ? (
+            <Volume className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 transition-colors shrink-0" />
+          ) : safeVolume < 66 ? (
+            <Volume1 className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 transition-colors shrink-0" />
+          ) : (
+            <Volume2 className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 transition-colors shrink-0" />
+          )}
           <Slider
             value={[safeVolume]}
             max={100}
