@@ -53,6 +53,7 @@ export function BottomPlayer() {
     const saved = localStorage.getItem("djcloud_volume");
     if (saved !== null) {
       const parsed = parseFloat(saved);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (!isNaN(parsed)) setVolume(parsed);
     }
   }, []);
