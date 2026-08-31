@@ -85,6 +85,9 @@ export const authApi = {
       { method: "POST", body: JSON.stringify({ role }) },
       token
     ),
+
+  markRecentlyAddedSeen: (token: string) =>
+    request<void>("/api/auth/me/recently-added-seen", { method: "POST" }, token),
 };
 
 export interface RegistrationCodeResponse {
@@ -101,8 +104,24 @@ export interface TrackResponse {
   key: string | null;
   bpm: number;
   fileFormat: string;
+  dateAdded: string;
+  addedAt: string;
   status: TrackStatus;
   artists: string[];
+  genres: string[];
+}
+
+export interface RecentTrackResponse {
+  id: number;
+  title: string;
+  artists: string[];
+  addedAt: string;
+  isNew: boolean;
+}
+
+export interface RecentTracksResponse {
+  tracks: RecentTrackResponse[];
+  newCount: number;
 }
 
 export interface TracksPage {
@@ -124,6 +143,7 @@ export interface TrackUpdateRequest {
   fileFormat: string;
   status: TrackStatus;
   artistIds: number[];
+  genreIds: number[];
 }
 
 export interface ArtistResponse {
@@ -141,6 +161,27 @@ export const artistsApi = {
     request<ArtistResponse>("/api/artists", { method: "POST", body: JSON.stringify({ name }) }, token),
 };
 
+export interface GenreResponse {
+  id: number;
+  name: string;
+}
+
+export const genresApi = {
+  autocomplete: (query: string) => {
+    const qs = new URLSearchParams();
+    if (query) qs.set("query", query);
+    return request<GenreResponse[]>(`/api/genres/autocomplete?${qs.toString()}`, { method: "GET" });
+  },
+  create: (name: string, token: string) =>
+    request<GenreResponse>("/api/genres", { method: "POST", body: JSON.stringify({ name }) }, token),
+  distribution: () => request<GenreDistributionResponse[]>("/api/genres/distribution", { method: "GET" }),
+};
+
+export interface GenreDistributionResponse {
+  name: string;
+  count: number;
+}
+
 export type AnalysisStep = "PREVIEW_GENERATION" | "BPM_ANALYSIS" | "KEY_ANALYSIS";
 
 export interface QueueStatus {
@@ -157,6 +198,11 @@ export const tracksApi = {
     const qs = query.toString();
     return request<TracksPage>(`/api/tracks${qs ? `?${qs}` : ""}`, { method: "GET" });
   },
+
+  recent: (limit: number, token: string) =>
+    request<RecentTracksResponse>(`/api/tracks/recent?limit=${limit}`, { method: "GET" }, token),
+
+  get: (id: number) => request<TrackResponse>(`/api/tracks/${id}`, { method: "GET" }),
 
   upload: (file: File, token: string) => {
     const formData = new FormData();

@@ -2,11 +2,14 @@ package de.djcloud.backend.track;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -16,6 +19,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import de.djcloud.backend.artist.Artist;
 import de.djcloud.backend.artist.ArtistRepository;
+import de.djcloud.backend.genre.Genre;
+import de.djcloud.backend.genre.GenreRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -24,12 +29,24 @@ public class TrackService {
 
     private final TrackRepository trackRepository;
     private final ArtistRepository artistRepository;
+    private final GenreRepository genreRepository;
     private final TrackStorageService trackStorageService;
     private final AudioMetadataWriter audioMetadataWriter;
 
     @Transactional(readOnly = true)
     public Page<TrackResponse> findAll(Pageable pageable) {
         return trackRepository.findAll(pageable).map(TrackResponse::fromEntity);
+    }
+
+    @Transactional(readOnly = true)
+    public RecentTracksResponse findRecent(int limit, Instant lastSeen) {
+        List<RecentTrackResponse> tracks = trackRepository.findAllByOrderByAddedAtDesc(PageRequest.of(0, limit)).stream()
+                .map(track -> RecentTrackResponse.fromEntity(track,
+                        lastSeen == null || track.getAddedAt().isAfter(lastSeen)))
+                .toList();
+        long newCount = lastSeen == null ? trackRepository.count() : trackRepository.countByAddedAtAfter(lastSeen);
+
+        return new RecentTracksResponse(tracks, newCount);
     }
 
     @Transactional(readOnly = true)
@@ -55,6 +72,13 @@ public class TrackService {
                 .collect(Collectors.toSet());
         track.setArtists(artists);
 
+        Set<Genre> genres = request.genreIds().stream()
+                .map(genreId -> genreRepository.findById(genreId)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                "Unknown genre id: " + genreId)))
+                .collect(Collectors.toSet());
+        track.setGenres(genres);
+
         writeMetadataToFile(track);
 
         return TrackResponse.fromEntity(trackRepository.save(track));
@@ -77,7 +101,8 @@ public class TrackService {
         }
 
         try {
-            audioMetadataWriter.write(file, track.getTitle(), track.getKey(), track.getBpm(), track.getArtists());
+            audioMetadataWriter.write(file, track.getTitle(), track.getKey(), track.getBpm(), track.getArtists(),
+                    track.getGenres());
         } catch (AudioMetadataException ex) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Could not update audio file metadata", ex);

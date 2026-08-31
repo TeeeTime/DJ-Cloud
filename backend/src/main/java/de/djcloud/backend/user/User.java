@@ -1,5 +1,7 @@
 package de.djcloud.backend.user;
 
+import java.time.Instant;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -37,4 +39,7 @@ public class User {
     /** Bumped on logout or password change to invalidate every JWT issued before that point. */
     @Column(nullable = false)
     private int tokenVersion = 0;
+
+    /** Null means this user has never viewed the "recently added" list yet. */
+    private Instant lastSeenRecentlyAddedAt;
 }

@@ -92,6 +92,21 @@ public class AuthService {
         bumpTokenVersion(userDetails.getUsername());
     }
 
+    @Transactional(readOnly = true)
+    public Instant getLastSeenRecentlyAddedAt(AppUserDetails userDetails) {
+        return userRepository.findByUsername(userDetails.getUsername())
+                .map(User::getLastSeenRecentlyAddedAt)
+                .orElse(null);
+    }
+
+    @Transactional
+    public void markRecentlyAddedSeen(AppUserDetails userDetails) {
+        User user = userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+        user.setLastSeenRecentlyAddedAt(Instant.now());
+        userRepository.save(user);
+    }
+
     @Transactional
     public void changePassword(AppUserDetails userDetails, ChangePasswordRequest request) {
         User user = userRepository.findByUsername(userDetails.getUsername())

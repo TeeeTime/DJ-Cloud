@@ -1,11 +1,15 @@
 package de.djcloud.backend.track;
 
+import java.time.Instant;
+import java.time.LocalDate;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import de.djcloud.backend.artist.ArtistService;
+import de.djcloud.backend.genre.GenreService;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -15,6 +19,7 @@ public class TrackUploadService {
     private final TrackStorageService trackStorageService;
     private final AudioMetadataReader audioMetadataReader;
     private final ArtistService artistService;
+    private final GenreService genreService;
     private final TrackRepository trackRepository;
     private final TrackAnalysisQueue trackAnalysisQueue;
 
@@ -41,6 +46,8 @@ public class TrackUploadService {
             track.setKey(null);
             track.setBpm(0);
             track.setFileFormat(storedFile.extension());
+            track.setDateAdded(LocalDate.now());
+            track.setAddedAt(Instant.now());
             track.setFileName(storedFile.file().getName());
             track.setStatus(TrackStatus.QUEUED);
 
@@ -50,6 +57,8 @@ public class TrackUploadService {
                 // shared transaction here, since the file I/O above must never run inside one
                 track.getArtists().add(artistService.findOrCreateByName(metadata.artist()));
             }
+
+            metadata.genres().forEach(genreName -> track.getGenres().add(genreService.findOrCreateByName(genreName)));
 
             savedTrack = trackRepository.save(track);
         } catch (RuntimeException ex) {

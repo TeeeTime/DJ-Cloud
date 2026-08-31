@@ -2,6 +2,7 @@ package de.djcloud.backend.track;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.core.io.UrlResource;
@@ -15,6 +16,7 @@ import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,6 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import de.djcloud.backend.auth.AppUserDetails;
+import de.djcloud.backend.auth.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -42,12 +46,20 @@ public class TrackController {
     private final TrackStorageService trackStorageService;
     private final AudioMetadataReader audioMetadataReader;
     private final TrackAnalysisQueue trackAnalysisQueue;
+    private final AuthService authService;
 
     @GetMapping
     public Page<TrackResponse> getTracks(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "30") int size, @RequestParam(defaultValue = "title") String sortBy) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy));
 
         return trackService.findAll(pageable);
+    }
+
+    /** Most-recently-added tracks first, with each one flagged whether the caller has seen it yet. */
+    @GetMapping("/recent")
+    public RecentTracksResponse getRecentTracks(Authentication authentication, @RequestParam(defaultValue = "20") int limit) {
+        Instant lastSeen = authService.getLastSeenRecentlyAddedAt((AppUserDetails) authentication.getPrincipal());
+        return trackService.findRecent(limit, lastSeen);
     }
 
     @GetMapping("/{id}")

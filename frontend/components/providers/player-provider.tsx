@@ -98,7 +98,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     // 1. Search Query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      if (!track.title.toLowerCase().includes(query) && !track.artist.toLowerCase().includes(query)) {
+      const matchesGenre = track.genres.some(genre => genre.toLowerCase().includes(query));
+      if (!track.title.toLowerCase().includes(query) && !track.artist.toLowerCase().includes(query) && !matchesGenre) {
         return false;
       }
     }

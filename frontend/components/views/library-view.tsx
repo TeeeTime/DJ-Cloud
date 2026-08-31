@@ -10,7 +10,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { usePlayer } from "@/components/providers/player-provider";
 import { useAuth } from "@/components/providers/auth-provider";
-import { Track } from "@/lib/data";
+import { Track, formatDateAdded } from "@/lib/data";
 import { ApiError, tracksApi } from "@/lib/api";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TrackEditDialog } from "./track-edit-dialog";
@@ -269,33 +269,39 @@ export function LibraryView() {
           )}
 
           {/* Table */}
-          <div className="rounded-xl border border-zinc-900 bg-black/50 overflow-x-auto w-full">
-            <Table className="min-w-[800px]">
+          <div className="rounded-xl border border-zinc-900 bg-black/50 overflow-hidden w-full">
+            <Table className="table-fixed w-full">
               <TableHeader className="bg-zinc-900/30 select-none">
                 <TableRow className="border-zinc-900 hover:bg-transparent">
-                  <TableHead className="w-12 text-center h-11">#</TableHead>
+                  <TableHead className="w-[4%] text-center h-11">#</TableHead>
                   <TableHead
-                    className="text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    className="w-[22%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
                     onClick={() => handleSort('title')}
                   >
                     <div className="flex items-center">Title {renderSortIcon('title')}</div>
                   </TableHead>
                   <TableHead
-                    className="text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    className="w-[16%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
                     onClick={() => handleSort('artist')}
                   >
                     <div className="flex items-center">Artist {renderSortIcon('artist')}</div>
                   </TableHead>
+                  <TableHead className="w-[14%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Genre</TableHead>
                   <TableHead
-                    className="text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
                     onClick={() => handleSort('bpm')}
                   >
                     <div className="flex items-center">BPM {renderSortIcon('bpm')}</div>
                   </TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Key</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Format</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Status</TableHead>
-                  <TableHead className="text-right text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Actions</TableHead>
+                  <TableHead className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Key</TableHead>
+                  <TableHead
+                    className="w-[12%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    onClick={() => handleSort('addedAt')}
+                  >
+                    <div className="flex items-center">Date Added {renderSortIcon('addedAt')}</div>
+                  </TableHead>
+                  <TableHead className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Status</TableHead>
+                  <TableHead className="w-[8%] text-right text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -323,14 +329,24 @@ export function LibraryView() {
                       </div>
                     </TableCell>
                     <TableCell className="font-medium">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         <TrackThumbnail src={track.coverUrl} />
-                        <span className={`text-sm ${currentTrack?.id === track.id ? 'text-white' : 'text-zinc-200'}`}>
+                        <span
+                          className={`block truncate min-w-0 flex-1 text-sm ${currentTrack?.id === track.id ? 'text-white' : 'text-zinc-200'}`}
+                          title={track.title}
+                        >
                           {track.title}
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-zinc-400 text-sm">{track.artist}</TableCell>
+                    <TableCell className="text-zinc-400 text-sm">
+                      <span className="block truncate" title={track.artist}>{track.artist}</span>
+                    </TableCell>
+                    <TableCell className="text-zinc-400 text-sm">
+                      <span className="block truncate" title={track.genres.join(", ")}>
+                        {track.genres.length > 0 ? track.genres.join(", ") : "—"}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-zinc-400 text-sm font-mono">{track.bpm ?? "—"}</TableCell>
                     <TableCell>
                       <span className="text-xs font-mono text-zinc-300">
@@ -338,8 +354,8 @@ export function LibraryView() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider px-1.5 py-0.5 rounded border border-zinc-800 bg-zinc-900">
-                        {track.format}
+                      <span className="text-xs text-zinc-400">
+                        {formatDateAdded(track.dateAdded)}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -391,7 +407,7 @@ export function LibraryView() {
                 ))}
                 {tracksLoading && (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-32 text-center text-zinc-500">
+                    <TableCell colSpan={9} className="h-32 text-center text-zinc-500">
                       <div className="flex items-center justify-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Loading tracks…
@@ -401,7 +417,7 @@ export function LibraryView() {
                 )}
                 {!tracksLoading && filteredTracks.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-32 text-center text-zinc-500">
+                    <TableCell colSpan={9} className="h-32 text-center text-zinc-500">
                       No tracks found in this category.
                     </TableCell>
                   </TableRow>
