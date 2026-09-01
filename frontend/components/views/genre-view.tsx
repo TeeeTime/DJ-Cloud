@@ -29,7 +29,7 @@ interface GenreViewProps {
 
 export function GenreView({ genreName }: GenreViewProps) {
   const { user } = useAuth();
-  const { currentTrack, setCurrentTrack, isPlaying, setIsPlaying } = usePlayer();
+  const { currentTrack, setCurrentTrack, isPlaying, setIsPlaying, setActiveTrackOrder } = usePlayer();
   const canUpload = user?.role === 'EDITOR' || user?.role === 'ADMIN';
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -56,6 +56,14 @@ export function GenreView({ genreName }: GenreViewProps) {
     defaultSortKey: DEFAULT_SORT_KEY,
     fetchPage: fetchGenreTracksPage,
   });
+
+  // Skip-forward/back in the bottom player should follow this genre's own visible order while
+  // it's the active view, reverting to the library default when the user navigates away.
+  useEffect(() => {
+    setActiveTrackOrder(tracks);
+  }, [tracks, setActiveTrackOrder]);
+
+  useEffect(() => () => setActiveTrackOrder(null), [setActiveTrackOrder]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLTableRowElement>(null);

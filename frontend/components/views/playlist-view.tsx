@@ -47,7 +47,7 @@ function describeLoadError(err: unknown): string {
 
 export function PlaylistView({ playlistId }: PlaylistViewProps) {
   const { token, user } = useAuth();
-  const { currentTrack, setCurrentTrack, isPlaying, setIsPlaying } = usePlayer();
+  const { currentTrack, setCurrentTrack, isPlaying, setIsPlaying, setActiveTrackOrder } = usePlayer();
   const { refreshPlaylists } = usePlaylists();
   const canUpload = user?.role === 'EDITOR' || user?.role === 'ADMIN';
 
@@ -78,6 +78,14 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
     defaultSortKey: DEFAULT_SORT_KEY,
     fetchPage: fetchPlaylistTracksPage,
   });
+
+  // Skip-forward/back in the bottom player should follow this playlist's own visible order while
+  // it's the active view, reverting to the library default when the user navigates away.
+  useEffect(() => {
+    setActiveTrackOrder(tracks);
+  }, [tracks, setActiveTrackOrder]);
+
+  useEffect(() => () => setActiveTrackOrder(null), [setActiveTrackOrder]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLTableRowElement>(null);
