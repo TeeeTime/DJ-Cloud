@@ -415,7 +415,7 @@ export function LibraryView() {
                     </TableCell>
                   </TableRow>
                 )}
-                {!tracksLoading && tracks.length > 0 && (
+                {!tracksLoading && hasMoreTracks && (
                   <TableRow ref={loadMoreRef} className="border-none hover:bg-transparent">
                     <TableCell colSpan={9} className="h-16 text-center text-zinc-500">
                       {tracksLoadingMore && (
