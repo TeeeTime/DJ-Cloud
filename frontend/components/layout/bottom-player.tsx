@@ -40,7 +40,7 @@ export function BottomPlayer() {
     scratching,
     setScratching,
     audioRef,
-    filteredTracks,
+    tracks,
     setCurrentTrack
   } = usePlayer();
 
@@ -132,18 +132,18 @@ export function BottomPlayer() {
 
   const playNext = () => {
     if (!currentTrack) return;
-    const currentIndex = filteredTracks.findIndex(t => t.id === currentTrack.id);
-    if (currentIndex >= 0 && currentIndex < filteredTracks.length - 1) {
-      setCurrentTrack(filteredTracks[currentIndex + 1]);
+    const currentIndex = tracks.findIndex(t => t.id === currentTrack.id);
+    if (currentIndex >= 0 && currentIndex < tracks.length - 1) {
+      setCurrentTrack(tracks[currentIndex + 1]);
       setIsPlaying(true);
     }
   };
 
   const playPrev = () => {
     if (!currentTrack) return;
-    const currentIndex = filteredTracks.findIndex(t => t.id === currentTrack.id);
+    const currentIndex = tracks.findIndex(t => t.id === currentTrack.id);
     if (currentIndex > 0) {
-      setCurrentTrack(filteredTracks[currentIndex - 1]);
+      setCurrentTrack(tracks[currentIndex - 1]);
       setIsPlaying(true);
     } else if (audioRef.current) {
       audioRef.current.currentTime = 0;

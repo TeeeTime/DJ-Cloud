@@ -124,15 +124,13 @@ export interface RecentTracksResponse {
   newCount: number;
 }
 
-export interface TracksPage {
-  content: TrackResponse[];
+export interface PageResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
   totalElements: number;
   totalPages: number;
-  size: number;
-  number: number;
-  first: boolean;
-  last: boolean;
-  numberOfElements: number;
+  hasNext: boolean;
 }
 
 export interface TrackUpdateRequest {
@@ -189,20 +187,26 @@ export interface QueueStatus {
   processing: { trackId: number; step: AnalysisStep } | null;
 }
 
+export interface TrackListParams {
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  direction?: "asc" | "desc";
+  query?: string;
+  excludePlaylistId?: number;
+}
+
 export const tracksApi = {
-  list: (params: { page?: number; size?: number; sortBy?: string } = {}) => {
+  list: (params: TrackListParams = {}) => {
     const query = new URLSearchParams();
     if (params.page !== undefined) query.set("page", String(params.page));
     if (params.size !== undefined) query.set("size", String(params.size));
     if (params.sortBy) query.set("sortBy", params.sortBy);
+    if (params.direction) query.set("direction", params.direction);
+    if (params.query) query.set("query", params.query);
+    if (params.excludePlaylistId !== undefined) query.set("excludePlaylistId", String(params.excludePlaylistId));
     const qs = query.toString();
-    return request<TracksPage>(`/api/tracks${qs ? `?${qs}` : ""}`, { method: "GET" });
-  },
-
-  search: (query: string, limit = 10, excludePlaylistId?: number) => {
-    const qs = new URLSearchParams({ query, limit: String(limit) });
-    if (excludePlaylistId !== undefined) qs.set("excludePlaylistId", String(excludePlaylistId));
-    return request<TrackResponse[]>(`/api/tracks/search?${qs.toString()}`, { method: "GET" });
+    return request<PageResponse<TrackResponse>>(`/api/tracks${qs ? `?${qs}` : ""}`, { method: "GET" });
   },
 
   recent: (limit: number, token: string) =>
@@ -251,7 +255,7 @@ export interface PlaylistDetailResponse {
   createdAt: string;
   canEditTracks: boolean;
   subscribed: boolean;
-  tracks: TrackResponse[];
+  trackCount: number;
 }
 
 export const playlistsApi = {
@@ -260,6 +264,17 @@ export const playlistsApi = {
 
   get: (id: number, token: string) =>
     request<PlaylistDetailResponse>(`/api/playlists/${id}`, { method: "GET" }, token),
+
+  getTracks: (id: number, params: TrackListParams, token: string) => {
+    const query = new URLSearchParams();
+    if (params.page !== undefined) query.set("page", String(params.page));
+    if (params.size !== undefined) query.set("size", String(params.size));
+    if (params.sortBy) query.set("sortBy", params.sortBy);
+    if (params.direction) query.set("direction", params.direction);
+    if (params.query) query.set("query", params.query);
+    const qs = query.toString();
+    return request<PageResponse<TrackResponse>>(`/api/playlists/${id}/tracks${qs ? `?${qs}` : ""}`, { method: "GET" }, token);
+  },
 
   create: (name: string, isPublic: boolean, token: string) =>
     request<PlaylistResponse>(

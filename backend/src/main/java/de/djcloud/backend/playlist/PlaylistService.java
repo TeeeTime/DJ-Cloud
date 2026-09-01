@@ -13,8 +13,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import de.djcloud.backend.auth.AppUserDetails;
+import de.djcloud.backend.common.PageResponse;
 import de.djcloud.backend.track.Track;
 import de.djcloud.backend.track.TrackRepository;
+import de.djcloud.backend.track.TrackResponse;
+import de.djcloud.backend.track.TrackSearchCriteria;
+import de.djcloud.backend.track.TrackService;
 import de.djcloud.backend.user.Role;
 import de.djcloud.backend.user.User;
 import de.djcloud.backend.user.UserRepository;
@@ -28,6 +32,7 @@ public class PlaylistService {
     private final PlaylistLastViewedRepository playlistLastViewedRepository;
     private final PlaylistSubscriptionRepository playlistSubscriptionRepository;
     private final TrackRepository trackRepository;
+    private final TrackService trackService;
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
@@ -62,6 +67,19 @@ public class PlaylistService {
 
         return PlaylistDetailResponse.fromEntity(playlist, canEditTracks(playlist, caller),
                 isSubscribed(id, caller.getId()));
+    }
+
+    /**
+     * Paged/sorted/searched track listing for one playlist — same backend-driven search as the main
+     * library ({@code GET /api/tracks}), scoped to this playlist's tracks via
+     * {@link TrackSearchCriteria#scopeToPlaylistId()}.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<TrackResponse> getTracks(Long id, AppUserDetails caller, TrackSearchCriteria criteria) {
+        Playlist playlist = findOrThrow(id);
+        assertCanView(playlist, caller);
+
+        return trackService.search(criteria.withScopeToPlaylistId(playlist.getId()));
     }
 
     @Transactional

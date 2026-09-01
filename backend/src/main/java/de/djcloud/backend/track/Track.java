@@ -12,6 +12,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
+@Table(indexes = { @Index(name = "idx_track_title", columnList = "title") })
 @Getter
 @Setter
 @NoArgsConstructor
@@ -52,7 +53,9 @@ public class Track {
     @JoinTable(
             name = "track_artist",
             joinColumns = @JoinColumn(name = "track_id"),
-            inverseJoinColumns = @JoinColumn(name = "artist_id")
+            inverseJoinColumns = @JoinColumn(name = "artist_id"),
+            indexes = { @Index(name = "idx_track_artist_track_id", columnList = "track_id"),
+                    @Index(name = "idx_track_artist_artist_id", columnList = "artist_id") }
     )
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
@@ -62,7 +65,9 @@ public class Track {
     @JoinTable(
             name = "track_genre",
             joinColumns = @JoinColumn(name = "track_id"),
-            inverseJoinColumns = @JoinColumn(name = "genre_id")
+            inverseJoinColumns = @JoinColumn(name = "genre_id"),
+            indexes = { @Index(name = "idx_track_genre_track_id", columnList = "track_id"),
+                    @Index(name = "idx_track_genre_genre_id", columnList = "genre_id") }
     )
     @ToString.Exclude
     @EqualsAndHashCode.Exclude

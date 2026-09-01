@@ -7,10 +7,6 @@ import java.util.List;
 
 import org.springframework.core.io.UrlResource;
 import org.springframework.core.io.support.ResourceRegion;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
@@ -33,6 +29,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import de.djcloud.backend.auth.AppUserDetails;
 import de.djcloud.backend.auth.AuthService;
+import de.djcloud.backend.common.PageResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -49,10 +46,14 @@ public class TrackController {
     private final AuthService authService;
 
     @GetMapping
-    public Page<TrackResponse> getTracks(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "30") int size, @RequestParam(defaultValue = "title") String sortBy) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy));
+    public PageResponse<TrackResponse> getTracks(@RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "30") int size, @RequestParam(defaultValue = "title") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction, @RequestParam(required = false) String query,
+            @RequestParam(required = false) Long excludePlaylistId) {
+        TrackSearchCriteria criteria = TrackSearchCriteria.fromParams(query, sortBy, direction, page, size,
+                excludePlaylistId);
 
-        return trackService.findAll(pageable);
+        return trackService.search(criteria);
     }
 
     /** Most-recently-added tracks first, with each one flagged whether the caller has seen it yet. */
@@ -65,12 +66,6 @@ public class TrackController {
     @GetMapping("/{id}")
     public TrackResponse getTrack(@PathVariable Long id) {
         return trackService.findById(id);
-    }
-
-    @GetMapping("/search")
-    public List<TrackResponse> search(@RequestParam String query, @RequestParam(defaultValue = "10") int limit,
-            @RequestParam(required = false) Long excludePlaylistId) {
-        return trackService.search(query, limit, excludePlaylistId);
     }
 
     /** Live snapshot of the analysis queue: what's waiting, and what's running right now. */

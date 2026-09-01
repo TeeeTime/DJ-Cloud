@@ -33,7 +33,9 @@ public class Playlist {
     @JoinTable(
             name = "playlist_track",
             joinColumns = @JoinColumn(name = "playlist_id"),
-            inverseJoinColumns = @JoinColumn(name = "track_id")
+            inverseJoinColumns = @JoinColumn(name = "track_id"),
+            indexes = { @Index(name = "idx_playlist_track_playlist_id", columnList = "playlist_id"),
+                    @Index(name = "idx_playlist_track_track_id", columnList = "track_id") }
     )
     @ToString.Exclude
     @EqualsAndHashCode.Exclude

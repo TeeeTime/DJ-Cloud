@@ -1,16 +1,19 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
-import { Play, Pause, Download, Pencil, Trash, Settings2, MoreHorizontal, Loader2, AlertCircle, Lock, Globe, Bell, BellOff, Menu as MenuIcon } from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Play, Pause, Download, Pencil, Trash, Settings2, MoreHorizontal, Loader2, AlertCircle, Lock, Globe, Bell, BellOff, Menu as MenuIcon, Search, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/components/providers/auth-provider";
 import { usePlayer } from "@/components/providers/player-provider";
 import { usePlaylists } from "@/components/providers/playlist-provider";
-import { Track, formatDateAdded, mapTrackResponse } from "@/lib/data";
-import { ApiError, PlaylistDetailResponse, playlistsApi } from "@/lib/api";
+import { Track, formatDateAdded } from "@/lib/data";
+import { ApiError, PageResponse, PlaylistDetailResponse, TrackResponse, playlistsApi } from "@/lib/api";
+import { usePagedTracks, FetchTracksPageParams } from "@/lib/use-paged-tracks";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { Sidebar } from "@/components/layout/sidebar";
 import { StatusBadge, TrackThumbnail } from "./track-row-parts";
 import { AddToPlaylistMenu } from "./add-to-playlist-menu";
@@ -19,6 +22,15 @@ import { TrackEditDialog } from "./track-edit-dialog";
 import { TrackDeleteDialog } from "./track-delete-dialog";
 import { EditPlaylistDialog } from "./edit-playlist-dialog";
 import { DeletePlaylistDialog } from "./delete-playlist-dialog";
+
+type SortConfig = { key: keyof Track, direction: 'asc' | 'desc' } | null;
+
+const DEFAULT_SORT_KEY = 'title';
+
+/** Never resolves — used while waiting for the auth token so no spurious error briefly flashes. */
+function pendingForever<T>(): Promise<T> {
+  return new Promise<T>(() => {});
+}
 
 interface PlaylistViewProps {
   playlistId: number;
@@ -40,9 +52,61 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
   const canUpload = user?.role === 'EDITOR' || user?.role === 'ADMIN';
 
   const [detail, setDetail] = useState<PlaylistDetailResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
+  const debouncedSearchQuery = useDebouncedValue(searchQuery);
+
+  const fetchPlaylistTracksPage = useCallback((params: FetchTracksPageParams): Promise<PageResponse<TrackResponse>> => {
+    if (!token) return pendingForever();
+    return playlistsApi.getTracks(playlistId, params, token);
+  }, [playlistId, token]);
+
+  const {
+    tracks,
+    isLoading: tracksLoading,
+    isLoadingMore: tracksLoadingMore,
+    error: tracksListError,
+    hasMore: hasMoreTracks,
+    loadMore: loadMoreTracks,
+    reset: resetTracks,
+  } = usePagedTracks({
+    query: debouncedSearchQuery,
+    sortConfig,
+    defaultSortKey: DEFAULT_SORT_KEY,
+    fetchPage: fetchPlaylistTracksPage,
+  });
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const loadMoreRef = useRef<HTMLTableRowElement>(null);
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel || !hasMoreTracks) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) loadMoreTracks();
+    }, { root: scrollContainerRef.current, rootMargin: "200px" });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreTracks, loadMoreTracks]);
+
+  const handleSort = (key: keyof Track) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const renderSortIcon = (key: keyof Track) => {
+    if (sortConfig?.key !== key) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-20 group-hover:opacity-100 transition-opacity" />;
+    if (sortConfig.direction === 'asc') return <ChevronUp className="w-3 h-3 ml-1 text-white" />;
+    return <ChevronDown className="w-3 h-3 ml-1 text-white" />;
+  };
 
   const [trackToEdit, setTrackToEdit] = useState<Track | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -69,28 +133,26 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
         applyDetail(result);
         refreshPlaylists();
       })
-      .catch((err) => setError(describeLoadError(err)))
-      .finally(() => setLoading(false));
+      .catch((err) => setError(describeLoadError(err)));
   }, [playlistId, token, applyDetail, refreshPlaylists]);
 
   const reload = useCallback(async () => {
     if (!token) return;
-    setLoading(true);
     try {
       const result = await playlistsApi.get(playlistId, token);
       applyDetail(result);
     } catch (err) {
       setError(describeLoadError(err));
-    } finally {
-      setLoading(false);
     }
-  }, [playlistId, token, applyDetail]);
+    resetTracks();
+  }, [playlistId, token, applyDetail, resetTracks]);
 
   const handleRemove = async (trackId: number) => {
     if (!token) return;
     try {
       const updated = await playlistsApi.removeTrack(playlistId, trackId, token);
       setDetail(updated);
+      resetTracks();
     } catch (err) {
       console.error(err instanceof ApiError ? err.message : err);
     }
@@ -109,8 +171,6 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
     }
   };
 
-  const tracks: Track[] = (detail?.tracks ?? []).map(mapTrackResponse);
-
   return (
     <main className="flex-1 flex flex-col min-w-0 bg-zinc-950/30 relative h-full">
       <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-10 shrink-0 gap-4">
@@ -125,11 +185,21 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
             </SheetContent>
           </Sheet>
 
+          <div className="relative w-full max-w-xs group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-white transition-colors" />
+            <Input
+              placeholder="Search this playlist..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 bg-black border-zinc-800 text-white focus-visible:ring-1 focus-visible:ring-zinc-700 focus-visible:border-zinc-700 transition-all rounded-md h-10 placeholder:text-zinc-600"
+            />
+          </div>
+
           {detail?.canEditTracks && <PlaylistTrackSearch playlistId={playlistId} onTrackAdded={reload} />}
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto pb-6">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto pb-6">
         <div className="px-8 py-8">
           <div className="flex items-center gap-3 mb-8">
             <h2 className="text-3xl font-bold text-white tracking-tight">
@@ -185,16 +255,42 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
             </div>
           ) : (
           <div className="rounded-xl border border-zinc-900 bg-black/50 overflow-hidden w-full">
+            {tracksListError && (
+              <div className="m-4 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {tracksListError}
+              </div>
+            )}
             <Table className="table-fixed w-full">
               <TableHeader className="bg-zinc-900/30 select-none">
                 <TableRow className="border-zinc-900 hover:bg-transparent">
                   <TableHead className="w-[4%] text-center h-11">#</TableHead>
-                  <TableHead className="w-[24%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Title</TableHead>
-                  <TableHead className="w-[16%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Artist</TableHead>
+                  <TableHead
+                    className="w-[24%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    onClick={() => handleSort('title')}
+                  >
+                    <div className="flex items-center">Title {renderSortIcon('title')}</div>
+                  </TableHead>
+                  <TableHead
+                    className="w-[16%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    onClick={() => handleSort('artist')}
+                  >
+                    <div className="flex items-center">Artist {renderSortIcon('artist')}</div>
+                  </TableHead>
                   <TableHead className="w-[14%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Genre</TableHead>
-                  <TableHead className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">BPM</TableHead>
+                  <TableHead
+                    className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    onClick={() => handleSort('bpm')}
+                  >
+                    <div className="flex items-center">BPM {renderSortIcon('bpm')}</div>
+                  </TableHead>
                   <TableHead className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Key</TableHead>
-                  <TableHead className="w-[12%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Date Added</TableHead>
+                  <TableHead
+                    className="w-[12%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    onClick={() => handleSort('addedAt')}
+                  >
+                    <div className="flex items-center">Date Added {renderSortIcon('addedAt')}</div>
+                  </TableHead>
                   <TableHead className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Status</TableHead>
                   <TableHead className="w-[8%] text-right text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11"></TableHead>
                 </TableRow>
@@ -313,7 +409,7 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                     </TableCell>
                   </TableRow>
                 ))}
-                {loading && (
+                {tracksLoading && (
                   <TableRow>
                     <TableCell colSpan={9} className="h-32 text-center text-zinc-500">
                       <div className="flex items-center justify-center gap-2">
@@ -323,10 +419,22 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                     </TableCell>
                   </TableRow>
                 )}
-                {!loading && tracks.length === 0 && (
+                {!tracksLoading && tracks.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={9} className="h-32 text-center text-zinc-500">
                       No tracks in this playlist yet.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!tracksLoading && tracks.length > 0 && (
+                  <TableRow ref={loadMoreRef} className="border-none hover:bg-transparent">
+                    <TableCell colSpan={9} className="h-16 text-center text-zinc-500">
+                      {tracksLoadingMore && (
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Loading more…
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 )}

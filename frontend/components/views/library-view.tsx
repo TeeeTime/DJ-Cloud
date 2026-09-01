@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Play, Pause, Download, Pencil, Trash, Settings2, CloudUpload, Search, MoreHorizontal, ArrowUpDown, ChevronUp, ChevronDown, Menu, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -165,10 +165,12 @@ function UploadDialog() {
 export function LibraryView() {
   const {
     activeFilter,
-    filteredTracks,
-    sortedTracks,
+    tracks,
     tracksLoading,
+    tracksLoadingMore,
     tracksError,
+    hasMoreTracks,
+    loadMoreTracks,
     currentTrack,
     setCurrentTrack,
     isPlaying,
@@ -188,6 +190,21 @@ export function LibraryView() {
 
   const [trackToDelete, setTrackToDelete] = useState<Track | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const loadMoreRef = useRef<HTMLTableRowElement>(null);
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel || !hasMoreTracks) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) loadMoreTracks();
+    }, { root: scrollContainerRef.current, rootMargin: "200px" });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreTracks, loadMoreTracks]);
 
   const renderSortIcon = (key: keyof Track) => {
     if (sortConfig?.key !== key) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-20 group-hover:opacity-100 transition-opacity" />;
@@ -229,7 +246,7 @@ export function LibraryView() {
       </header>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto pb-6">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto pb-6">
         <div className="px-8 py-8">
           <h2 className="text-3xl font-bold text-white mb-8 tracking-tight">
             {activeFilter.value}
@@ -279,7 +296,7 @@ export function LibraryView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedTracks.map((track, index) => (
+                {tracks.map((track, index) => (
                   <TableRow
                     key={track.id}
                     className={`border-zinc-900 hover:bg-zinc-900/40 group transition-colors cursor-pointer ${currentTrack?.id === track.id ? 'bg-zinc-900/20' : ''}`}
@@ -391,10 +408,22 @@ export function LibraryView() {
                     </TableCell>
                   </TableRow>
                 )}
-                {!tracksLoading && filteredTracks.length === 0 && (
+                {!tracksLoading && tracks.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={9} className="h-32 text-center text-zinc-500">
                       No tracks found in this category.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!tracksLoading && tracks.length > 0 && (
+                  <TableRow ref={loadMoreRef} className="border-none hover:bg-transparent">
+                    <TableCell colSpan={9} className="h-16 text-center text-zinc-500">
+                      {tracksLoadingMore && (
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Loading more…
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 )}

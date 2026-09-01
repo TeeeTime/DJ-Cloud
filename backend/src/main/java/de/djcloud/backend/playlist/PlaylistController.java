@@ -7,6 +7,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import de.djcloud.backend.auth.AppUserDetails;
+import de.djcloud.backend.common.PageResponse;
+import de.djcloud.backend.track.TrackResponse;
+import de.djcloud.backend.track.TrackSearchCriteria;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -26,6 +29,17 @@ public class PlaylistController {
     @GetMapping("/{id}")
     public PlaylistDetailResponse get(@PathVariable Long id, Authentication authentication) {
         return playlistService.findById(id, (AppUserDetails) authentication.getPrincipal());
+    }
+
+    /** Same backend-driven search/sort/paging as {@code GET /api/tracks}, scoped to this playlist. */
+    @GetMapping("/{id}/tracks")
+    public PageResponse<TrackResponse> getTracks(@PathVariable Long id, Authentication authentication,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "30") int size,
+            @RequestParam(defaultValue = "title") String sortBy, @RequestParam(defaultValue = "asc") String direction,
+            @RequestParam(required = false) String query) {
+        TrackSearchCriteria criteria = TrackSearchCriteria.fromParams(query, sortBy, direction, page, size, null);
+
+        return playlistService.getTracks(id, (AppUserDetails) authentication.getPrincipal(), criteria);
     }
 
     @PostMapping
