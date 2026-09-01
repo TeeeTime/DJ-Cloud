@@ -199,6 +199,12 @@ export const tracksApi = {
     return request<TracksPage>(`/api/tracks${qs ? `?${qs}` : ""}`, { method: "GET" });
   },
 
+  search: (query: string, limit = 10, excludePlaylistId?: number) => {
+    const qs = new URLSearchParams({ query, limit: String(limit) });
+    if (excludePlaylistId !== undefined) qs.set("excludePlaylistId", String(excludePlaylistId));
+    return request<TrackResponse[]>(`/api/tracks/search?${qs.toString()}`, { method: "GET" });
+  },
+
   recent: (limit: number, token: string) =>
     request<RecentTracksResponse>(`/api/tracks/recent?limit=${limit}`, { method: "GET" }, token),
 
@@ -225,4 +231,70 @@ export const tracksApi = {
   coverUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/cover`,
 
   queue: () => request<QueueStatus>("/api/tracks/queue", { method: "GET" }),
+};
+
+export interface PlaylistResponse {
+  id: number;
+  name: string;
+  isPublic: boolean;
+  ownerUsername: string;
+  createdAt: string;
+  trackCount: number;
+  subscribed: boolean;
+}
+
+export interface PlaylistDetailResponse {
+  id: number;
+  name: string;
+  isPublic: boolean;
+  ownerUsername: string;
+  createdAt: string;
+  canEditTracks: boolean;
+  subscribed: boolean;
+  tracks: TrackResponse[];
+}
+
+export const playlistsApi = {
+  list: (token: string, editableOnly = false) =>
+    request<PlaylistResponse[]>(`/api/playlists?editableOnly=${editableOnly}`, { method: "GET" }, token),
+
+  get: (id: number, token: string) =>
+    request<PlaylistDetailResponse>(`/api/playlists/${id}`, { method: "GET" }, token),
+
+  create: (name: string, isPublic: boolean, token: string) =>
+    request<PlaylistResponse>(
+      "/api/playlists",
+      { method: "POST", body: JSON.stringify({ name, isPublic }) },
+      token
+    ),
+
+  update: (id: number, name: string, isPublic: boolean, token: string) =>
+    request<PlaylistResponse>(
+      `/api/playlists/${id}`,
+      { method: "PUT", body: JSON.stringify({ name, isPublic }) },
+      token
+    ),
+
+  delete: (id: number, token: string) =>
+    request<void>(`/api/playlists/${id}`, { method: "DELETE" }, token),
+
+  subscribe: (id: number, token: string) =>
+    request<PlaylistDetailResponse>(`/api/playlists/${id}/subscription`, { method: "POST" }, token),
+
+  unsubscribe: (id: number, token: string) =>
+    request<PlaylistDetailResponse>(`/api/playlists/${id}/subscription`, { method: "DELETE" }, token),
+
+  addTrack: (playlistId: number, trackId: number, token: string) =>
+    request<PlaylistDetailResponse>(
+      `/api/playlists/${playlistId}/tracks`,
+      { method: "POST", body: JSON.stringify({ trackId }) },
+      token
+    ),
+
+  removeTrack: (playlistId: number, trackId: number, token: string) =>
+    request<PlaylistDetailResponse>(
+      `/api/playlists/${playlistId}/tracks/${trackId}`,
+      { method: "DELETE" },
+      token
+    ),
 };

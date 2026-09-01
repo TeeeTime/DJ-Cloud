@@ -3,6 +3,7 @@ package de.djcloud.backend.track;
 import java.io.File;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -52,6 +53,23 @@ public class TrackService {
     @Transactional(readOnly = true)
     public TrackResponse findById(Long id) {
         return TrackResponse.fromEntity(findOrThrow(id));
+    }
+
+    /** Case-insensitive substring search over titles, for a search-as-you-type field. */
+    @Transactional(readOnly = true)
+    public List<TrackResponse> search(String query, int limit, Long excludePlaylistId) {
+        if (query == null || query.isBlank()) {
+            return List.of();
+        }
+
+        Pageable pageable = PageRequest.of(0, limit);
+        String trimmed = query.trim();
+
+        List<Track> results = excludePlaylistId == null
+                ? trackRepository.findByTitleContainingIgnoreCase(trimmed, pageable)
+                : trackRepository.searchExcludingPlaylist(trimmed, excludePlaylistId, pageable);
+
+        return results.stream().map(TrackResponse::fromEntity).toList();
     }
 
     @Transactional
@@ -156,6 +174,11 @@ public class TrackService {
     @Transactional
     public void delete(Long id) {
         Track track = findOrThrow(id);
+
+        // clear the join-table rows from the owning (Playlist) side first, so no playlist is left
+        // pointing at a track id that no longer exists
+        new HashSet<>(track.getPlaylists()).forEach(playlist -> playlist.getTracks().remove(track));
+
         trackRepository.delete(track);
         trackStorageService.deleteByFileName(track.getFileName());
         trackStorageService.deletePreviewByFileName(track.getPreviewFileName());

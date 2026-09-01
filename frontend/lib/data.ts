@@ -18,7 +18,6 @@ export type Track = {
   durationSeconds: number;
   // Not modeled by the backend yet — kept optional so existing filter UI keeps compiling.
   genre?: string;
-  playlist?: string;
   audioUrl: string;
   // May 404 — not every track has embedded artwork. Consumers should fall back gracefully.
   coverUrl: string;
@@ -69,7 +68,6 @@ export function mapTrackResponse(t: TrackResponse): Track {
   };
 }
 
-export const playlists = ["Peak Time", "Warmup", "Classics"];
 export const genres = ["Tech House", "Deep House", "Progressive", "Dubstep"];
 
 export const colorThemes = [

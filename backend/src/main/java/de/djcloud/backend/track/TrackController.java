@@ -67,6 +67,12 @@ public class TrackController {
         return trackService.findById(id);
     }
 
+    @GetMapping("/search")
+    public List<TrackResponse> search(@RequestParam String query, @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(required = false) Long excludePlaylistId) {
+        return trackService.search(query, limit, excludePlaylistId);
+    }
+
     /** Live snapshot of the analysis queue: what's waiting, and what's running right now. */
     @GetMapping("/queue")
     public TrackAnalysisQueueResponse getQueue() {

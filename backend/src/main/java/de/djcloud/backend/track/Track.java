@@ -2,6 +2,7 @@ package de.djcloud.backend.track;
 
 import de.djcloud.backend.artist.Artist;
 import de.djcloud.backend.genre.Genre;
+import de.djcloud.backend.playlist.Playlist;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -66,4 +67,10 @@ public class Track {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     private Set<Genre> genres = new HashSet<>();
+
+    /** Inverse side of {@code Playlist.tracks} — lets a track's deletion clean up its memberships. */
+    @ManyToMany(mappedBy = "tracks")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private Set<Playlist> playlists = new HashSet<>();
 }

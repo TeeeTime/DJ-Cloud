@@ -52,6 +52,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/tracks/**", "/api/artists/**", "/api/genres/**").hasAnyRole("EDITOR", "ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/tracks/**", "/api/artists/**", "/api/genres/**").hasAnyRole("EDITOR", "ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/tracks/**", "/api/artists/**", "/api/genres/**").hasAnyRole("EDITOR", "ADMIN")
+                        // Subscribing is open to any authenticated role, so these more specific
+                        // matchers must be evaluated before the coarser EDITOR/ADMIN-only ones below.
+                        .requestMatchers(HttpMethod.POST, "/api/playlists/*/subscription").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/playlists/*/subscription").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/playlists/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/playlists/**").hasAnyRole("EDITOR", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/playlists/**").hasAnyRole("EDITOR", "ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/playlists/**").hasAnyRole("EDITOR", "ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
