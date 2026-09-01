@@ -24,6 +24,13 @@ interface PlayerContextType {
   sortConfig: SortConfig;
   setSortConfig: React.Dispatch<React.SetStateAction<SortConfig>>;
   tracks: Track[];
+  activeTrackOrder: Track[];
+  setActiveTrackOrder: React.Dispatch<React.SetStateAction<Track[] | null>>;
+  // Lets the active view override what happens when skip-forward runs past the end of its order —
+  // e.g. the Overview page's "new tracks" list extends itself instead of looping. Returns the new,
+  // extended order, or null if there's genuinely nothing more (caller should then loop to the start).
+  onOrderExhausted: (() => Promise<Track[] | null>) | null;
+  setOnOrderExhausted: React.Dispatch<React.SetStateAction<(() => Promise<Track[] | null>) | null>>;
   tracksLoading: boolean;
   tracksLoadingMore: boolean;
   tracksError: string | null;
@@ -52,6 +59,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebouncedValue(searchQuery);
   const audioRef = React.useRef<HTMLAudioElement>(null);
+  const [registeredOrder, setRegisteredOrder] = useState<Track[] | null>(null);
+  const [onOrderExhausted, setOnOrderExhausted] = useState<(() => Promise<Track[] | null>) | null>(null);
 
   const {
     tracks,
@@ -86,6 +95,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Default to the first track once the library loads, without forcing playback.
   const currentTrack = selectedTrack ?? tracks[0] ?? null;
 
+  // Whichever view is currently mounted (genre/playlist/overview) can override this with its own
+  // visible order; falls back to the library list when nothing has registered one.
+  const activeTrackOrder = registeredOrder ?? tracks;
+
   const handleSort = (key: keyof Track) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -107,6 +120,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       sortConfig,
       setSortConfig,
       tracks,
+      activeTrackOrder,
+      setActiveTrackOrder: setRegisteredOrder,
+      onOrderExhausted,
+      setOnOrderExhausted,
       tracksLoading,
       tracksLoadingMore,
       tracksError,

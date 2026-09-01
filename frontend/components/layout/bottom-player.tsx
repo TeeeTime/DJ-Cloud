@@ -40,7 +40,8 @@ export function BottomPlayer() {
     scratching,
     setScratching,
     audioRef,
-    tracks,
+    activeTrackOrder,
+    onOrderExhausted,
     setCurrentTrack
   } = usePlayer();
 
@@ -130,20 +131,41 @@ export function BottomPlayer() {
     audioRef.current.currentTime = (percent / 100) * duration;
   };
 
-  const playNext = () => {
-    if (!currentTrack) return;
-    const currentIndex = tracks.findIndex(t => t.id === currentTrack.id);
-    if (currentIndex >= 0 && currentIndex < tracks.length - 1) {
-      setCurrentTrack(tracks[currentIndex + 1]);
+  const playNext = async () => {
+    if (!currentTrack || activeTrackOrder.length === 0) return;
+    const currentIndex = activeTrackOrder.findIndex(t => t.id === currentTrack.id);
+    // Not present in the current view's order? Start at its first track instead of no-op'ing.
+    const targetIndex = currentIndex === -1 ? 0 : currentIndex + 1;
+
+    if (targetIndex < activeTrackOrder.length) {
+      setCurrentTrack(activeTrackOrder[targetIndex]);
       setIsPlaying(true);
+      return;
     }
+
+    // Ran off the end of the order. Most views just loop back to the start; a view can override
+    // this (e.g. Overview's "new tracks" list extends itself with the next-newest tracks instead).
+    if (onOrderExhausted) {
+      const extended = await onOrderExhausted();
+      if (extended && targetIndex < extended.length) {
+        setCurrentTrack(extended[targetIndex]);
+        setIsPlaying(true);
+        return;
+      }
+    }
+
+    setCurrentTrack(activeTrackOrder[0]);
+    setIsPlaying(true);
   };
 
   const playPrev = () => {
-    if (!currentTrack) return;
-    const currentIndex = tracks.findIndex(t => t.id === currentTrack.id);
-    if (currentIndex > 0) {
-      setCurrentTrack(tracks[currentIndex - 1]);
+    if (!currentTrack || activeTrackOrder.length === 0) return;
+    const currentIndex = activeTrackOrder.findIndex(t => t.id === currentTrack.id);
+    if (currentIndex === -1) {
+      setCurrentTrack(activeTrackOrder[0]);
+      setIsPlaying(true);
+    } else if (currentIndex > 0) {
+      setCurrentTrack(activeTrackOrder[currentIndex - 1]);
       setIsPlaying(true);
     } else if (audioRef.current) {
       audioRef.current.currentTime = 0;

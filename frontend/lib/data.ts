@@ -48,6 +48,17 @@ export function formatTimeAgo(addedAt: string): string {
   return `${days} days ago`;
 }
 
+export async function resolveTrack(id: number, knownTracks: Track[]): Promise<Track | null> {
+  const existing = knownTracks.find(t => t.id === id);
+  if (existing) return existing;
+  try {
+    const full = await tracksApi.get(id);
+    return mapTrackResponse(full);
+  } catch {
+    return null;
+  }
+}
+
 export function mapTrackResponse(t: TrackResponse): Track {
   return {
     id: t.id,

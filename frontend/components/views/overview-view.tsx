@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Menu, Music2, Users, HardDrive, Play, Pause,
@@ -12,7 +12,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/providers/auth-provider";
 import { usePlayer } from "@/components/providers/player-provider";
 import { tracksApi, genresApi, authApi, RecentTrackResponse, GenreDistributionResponse } from "@/lib/api";
-import { formatTimeAgo, mapTrackResponse } from "@/lib/data";
+import { Track, formatTimeAgo, resolveTrack } from "@/lib/data";
 import { motion } from "motion/react";
 
 const RECENT_TRACKS_LIMIT = 7;
@@ -39,11 +39,21 @@ function toGenreBars(distribution: GenreDistributionResponse[]): GenreBar[] {
 export function OverviewView() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, token } = useAuth();
-  const { tracks, currentTrack, isPlaying, setCurrentTrack, setIsPlaying } = usePlayer();
+  const {
+    tracks, currentTrack, isPlaying, setCurrentTrack, setIsPlaying, setActiveTrackOrder, setOnOrderExhausted
+  } = usePlayer();
 
   const [recentTracks, setRecentTracks] = useState<RecentTrackResponse[]>([]);
   const [newCount, setNewCount] = useState(0);
   const [recentLoading, setRecentLoading] = useState(true);
+
+  // Tracks fetched only because skip-forward ran past the visible "Recently Added" list and needed
+  // to keep going into older-but-still-recent tracks — kept separate from `recentTracks` so the
+  // visible card always stays capped at RECENT_TRACKS_LIMIT regardless of how far skip has gone.
+  const [extraRecentTracks, setExtraRecentTracks] = useState<RecentTrackResponse[]>([]);
+
+  const [resolvedRecent, setResolvedRecent] = useState<Track[]>([]);
+  const [resolvedLoading, setResolvedLoading] = useState(true);
 
   const [genreDistribution, setGenreDistribution] = useState<GenreDistributionResponse[]>([]);
   const [genresLoading, setGenresLoading] = useState(true);
@@ -73,6 +83,58 @@ export function OverviewView() {
     };
   }, [token]);
 
+  // Resolve the recent-tracks list (plus any skip-driven extension) into full Track objects so it
+  // can serve as the bottom player's skip order — checking the already-loaded library list first,
+  // falling back to a per-track fetch.
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([...recentTracks, ...extraRecentTracks].map(rt => resolveTrack(rt.id, tracks)))
+      .then(results => {
+        if (cancelled) return;
+        setResolvedRecent(results.filter((t): t is Track => t !== null));
+        setResolvedLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [recentTracks, extraRecentTracks, tracks]);
+
+  // Skip-forward/back in the bottom player should follow this "Recently Added" order while this
+  // view is active. Wait for resolution to finish first — registering `[]` early would shadow the
+  // library-list fallback (only `null` triggers it), making skip briefly go silent on mount.
+  useEffect(() => {
+    if (resolvedLoading) return;
+    setActiveTrackOrder(resolvedRecent);
+  }, [resolvedRecent, resolvedLoading, setActiveTrackOrder]);
+
+  useEffect(() => () => setActiveTrackOrder(null), [setActiveTrackOrder]);
+
+  // Unlike other views (which just loop back to their own start once skip-forward runs off the
+  // end), this list should keep going into the next-newest tracks beyond what's currently loaded.
+  // The backend's /recent endpoint has no true offset — it's always page 0 — so "the next batch" is
+  // just re-requesting with a bigger limit; the previously-seen prefix is guaranteed stable since
+  // it's the same addedAt-desc sort over a larger window.
+  const requestMoreRecent = useCallback(async (): Promise<Track[] | null> => {
+    if (!token) return null;
+    const loadedSoFar = recentTracks.length + extraRecentTracks.length;
+    const nextLimit = loadedSoFar + RECENT_TRACKS_LIMIT;
+    try {
+      const response = await tracksApi.recent(nextLimit, token);
+      if (response.tracks.length <= loadedSoFar) return null; // truly nothing newer left
+      setExtraRecentTracks(response.tracks.slice(recentTracks.length));
+      const resolved = await Promise.all(response.tracks.map(rt => resolveTrack(rt.id, tracks)));
+      return resolved.filter((t): t is Track => t !== null);
+    } catch {
+      return null;
+    }
+  }, [token, recentTracks, extraRecentTracks, tracks]);
+
+  useEffect(() => {
+    setOnOrderExhausted(() => requestMoreRecent);
+  }, [requestMoreRecent, setOnOrderExhausted]);
+
+  useEffect(() => () => setOnOrderExhausted(null), [setOnOrderExhausted]);
+
   useEffect(() => {
     let cancelled = false;
     genresApi.distribution()
@@ -100,21 +162,15 @@ export function OverviewView() {
       return;
     }
 
-    // Prefer the already-loaded full Track (has bpm/key/genres/etc.) if it's in the library list
-    // fetched elsewhere in the app; otherwise fetch it directly — this endpoint is public.
-    const existing = tracks.find(t => t.id === recentTrack.id);
-    if (existing) {
-      setCurrentTrack(existing);
+    // Reuse the already-resolved copy (from the skip-order effect above) when available, to avoid
+    // a redundant fetch; otherwise resolve on the spot — this endpoint is public.
+    const existing = resolvedRecent.find(t => t.id === recentTrack.id);
+    const resolved = existing ?? await resolveTrack(recentTrack.id, tracks);
+    if (resolved) {
+      setCurrentTrack(resolved);
       setIsPlaying(true);
-      return;
-    }
-
-    try {
-      const full = await tracksApi.get(recentTrack.id);
-      setCurrentTrack(mapTrackResponse(full));
-      setIsPlaying(true);
-    } catch (err) {
-      console.error("Failed to load track for playback", err);
+    } else {
+      console.error("Failed to load track for playback");
     }
   };
 
