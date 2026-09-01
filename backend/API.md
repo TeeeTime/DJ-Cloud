@@ -199,17 +199,24 @@ Response `200`:
 
 ## `GET /api/tracks`
 
-**Public.** Paginated track listing.
+**Public.** Backend-driven, searchable, sortable, paginated track listing — search, sort, and paging
+all apply together against the whole library, not just whatever page happens to be loaded.
 
 Query params (all optional):
 
-| param    | default | notes                                   |
-|----------|---------|------------------------------------------|
-| `page`   | `0`     | zero-indexed                              |
-| `size`   | `30`    | page size                                 |
-| `sortBy` | `title` | any `Track` field name, ascending         |
+| param                | default | notes                                                                                          |
+|-----------------------|---------|--------------------------------------------------------------------------------------------------|
+| `page`                | `0`     | zero-indexed                                                                                      |
+| `size`                | `30`    | page size                                                                                          |
+| `sortBy`              | `title` | one of `title`, `artist`, `bpm`, `addedAt`, `dateAdded`, `durationSeconds`, `key`, `fileFormat`. `400` on an unknown value. |
+| `direction`           | `asc`   | `asc` or `desc` (case-insensitive). `400` on an unknown value.                                    |
+| `query`               | —       | case-insensitive substring match against title, artist name, **or** genre name. Blank/missing means no filter. |
+| `excludePlaylistId`   | —       | when set, tracks already in that playlist are omitted — used by the playlist "add tracks" search bar. |
 
-Response `200` — a Spring Data `Page`:
+`sortBy=artist` sorts by each track's alphabetically-first artist name (a track can have several);
+tracks with no artists sort last regardless of `direction`.
+
+Response `200`:
 ```json
 {
   "content": [
@@ -227,13 +234,11 @@ Response `200` — a Spring Data `Page`:
       "genres": ["Tech House", "Deep House"]
     }
   ],
+  "page": 0,
+  "size": 30,
   "totalElements": 1,
   "totalPages": 1,
-  "size": 30,
-  "number": 0,
-  "first": true,
-  "last": true,
-  "numberOfElements": 1
+  "hasNext": false
 }
 ```
 
@@ -253,24 +258,6 @@ associations use the ids returned by the artist endpoints below, not names — s
 **Public.** Fetch a single track.
 
 Response `200`: same shape as one `content` entry above. `404` if no track has that id.
-
----
-
-## `GET /api/tracks/search`
-
-**Public.** Case-insensitive substring search over track titles, for a search-as-you-type field —
-distinct from `GET /api/tracks`'s pagination, which doesn't support searching by title. Used by the
-playlist "add tracks" search bar (see `GET /api/playlists/{id}` below).
-
-Query params:
-
-| param               | default | notes                                                            |
-|----------------------|---------|-------------------------------------------------------------------|
-| `query`              | —       | **required.** Blank/missing returns `[]` rather than erroring.    |
-| `limit`               | `10`    | max results                                                       |
-| `excludePlaylistId`   | —       | optional. When set, tracks already in that playlist are omitted. |
-
-Response `200`: an array of tracks, same shape as one `content` entry from `GET /api/tracks`.
 
 ---
 
@@ -644,8 +631,9 @@ Response `200`:
 
 ## `GET /api/playlists/{id}`
 
-**Requires a valid JWT.** Fetches a single playlist with its full track list. Also records that the
-caller viewed this playlist just now — this is what drives the ordering of `GET /api/playlists` above.
+**Requires a valid JWT.** Fetches a single playlist's metadata (not its tracks — see
+`GET /api/playlists/{id}/tracks` below for those). Also records that the caller viewed this playlist
+just now — this is what drives the ordering of `GET /api/playlists` above.
 
 A private playlist is only visible to its owner — **not** even to an `ADMIN`. Requesting one you can't
 see returns `404`, not `403`, so a non-owner can't distinguish "doesn't exist" from "exists but is
@@ -661,7 +649,7 @@ Response `200`:
   "createdAt": "2026-08-29T14:03:11.123Z",
   "canEditTracks": true,
   "subscribed": true,
-  "tracks": [ /* same shape as GET /api/tracks content entries */ ]
+  "trackCount": 12
 }
 ```
 `canEditTracks` tells the frontend whether the caller is allowed to add/remove tracks on this
@@ -670,6 +658,20 @@ frontend doesn't need to re-derive it. `subscribed` reflects the caller's own su
 `POST .../subscription` below) — unrelated to `canEditTracks` and to ownership.
 
 `404` if the playlist doesn't exist, or exists but is private and the caller isn't its owner.
+
+---
+
+## `GET /api/playlists/{id}/tracks`
+
+**Requires a valid JWT** (same visibility rule as `GET /api/playlists/{id}` above — `404` for a private
+playlist the caller doesn't own). Backend-driven search/sort/paging over this one playlist's tracks —
+same query params, same response shape, and same `sortBy`/`direction` semantics as `GET /api/tracks`,
+just scoped to this playlist instead of the whole library.
+
+Query params (all optional): `page`, `size`, `sortBy`, `direction`, `query` — identical to
+`GET /api/tracks` above.
+
+Response `200`: same shape as `GET /api/tracks`.
 
 ---
 
