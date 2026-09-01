@@ -142,6 +142,31 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
     };
   }, [open, track, token]);
 
+  // Enter should reuse an existing artist/genre by name (case-insensitively) instead of always
+  // minting a "pending create" chip — otherwise Save hits the backend's duplicate-name 409 for
+  // anything that already exists. Checks already-added items and the current suggestions first;
+  // falls back to a fresh lookup in case Enter beat the debounced search to it.
+  const resolveTagByName = async <T extends { id: number; name: string }>(
+    trimmed: string,
+    added: T[],
+    suggestions: T[],
+    autocomplete: (query: string) => Promise<T[]>,
+  ): Promise<T> => {
+    const isMatch = (item: T) => item.name.toLowerCase() === trimmed.toLowerCase();
+    const existing = added.find(isMatch) ?? suggestions.find(isMatch);
+    if (existing) return existing;
+
+    try {
+      const results = await autocomplete(trimmed);
+      const match = results.find(isMatch);
+      if (match) return match;
+    } catch (err) {
+      console.error(err);
+    }
+
+    return { id: -Math.floor(Math.random() * 1000000), name: trimmed } as T;
+  };
+
   const searchArtists = async (query: string) => {
     if (!query) {
       setArtistSuggestions([]);
@@ -308,11 +333,11 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
                   searchArtists(e.target.value);
                   setShowSuggestions(true);
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && artistInput.trim() !== "") {
-                    e.preventDefault();
-                    addArtist({ id: -Math.floor(Math.random() * 1000000), name: artistInput.trim() });
-                  }
+                onKeyDown={async (e) => {
+                  const trimmed = artistInput.trim();
+                  if (e.key !== "Enter" || trimmed === "") return;
+                  e.preventDefault();
+                  addArtist(await resolveTagByName(trimmed, artists, artistSuggestions, artistsApi.autocomplete));
                 }}
                 onFocus={() => setShowSuggestions(true)}
                 placeholder="Search to add artist (press Enter to create)..."
@@ -357,11 +382,11 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
                       searchGenres(e.target.value);
                       setShowGenreSuggestions(true);
                     }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && genreInput.trim() !== "") {
-                        e.preventDefault();
-                        addGenre({ id: -Math.floor(Math.random() * 1000000), name: genreInput.trim() });
-                      }
+                    onKeyDown={async (e) => {
+                      const trimmed = genreInput.trim();
+                      if (e.key !== "Enter" || trimmed === "") return;
+                      e.preventDefault();
+                      addGenre(await resolveTagByName(trimmed, genres, genreSuggestions, genresApi.autocomplete));
                     }}
                     onFocus={() => setShowGenreSuggestions(true)}
                     placeholder="Search to add genre (press Enter to create)..."
