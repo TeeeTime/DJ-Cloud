@@ -106,7 +106,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     // 2. Active Filter
     if (activeFilter.type === 'all') return true;
-    if (activeFilter.type === 'playlist') return track.playlist === activeFilter.value;
     if (activeFilter.type === 'genre') return track.genre === activeFilter.value;
     return true;
   });

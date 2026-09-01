@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { Play, Pause, Download, Pencil, Trash, Settings2, CloudUpload, Search, MoreHorizontal, ArrowUpDown, ChevronUp, ChevronDown, Menu, Loader2, AlertCircle, Music2 } from "lucide-react";
+import { Play, Pause, Download, Pencil, Trash, Settings2, CloudUpload, Search, MoreHorizontal, ArrowUpDown, ChevronUp, ChevronDown, Menu, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,6 +15,8 @@ import { ApiError, tracksApi } from "@/lib/api";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TrackEditDialog } from "./track-edit-dialog";
 import { TrackDeleteDialog } from "./track-delete-dialog";
+import { StatusBadge, TrackThumbnail } from "./track-row-parts";
+import { AddToPlaylistMenu } from "./add-to-playlist-menu";
 
 const ACCEPTED_EXTENSIONS = [".mp3", ".wav"];
 const MAX_FILE_SIZE = 200 * 1024 * 1024;
@@ -157,34 +159,6 @@ function UploadDialog() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function StatusBadge({ status }: { status: Track["status"] }) {
-  if (status === 'READY') return <span className="text-zinc-300 border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 rounded">Ready</span>;
-  if (status === 'PROCESSING') return <span className="text-zinc-500 border border-zinc-800 px-1.5 py-0.5 rounded flex items-center gap-1.5 w-fit"><span className="w-1 h-1 rounded-full bg-zinc-400 animate-pulse"></span>Proc</span>;
-  if (status === 'QUEUED') return <span className="text-zinc-500 border border-zinc-800 px-1.5 py-0.5 rounded w-fit">Queued</span>;
-  return <span className="text-zinc-600 border border-zinc-900 px-1.5 py-0.5 rounded line-through">Failed</span>;
-}
-
-function TrackThumbnail({ src }: { src: string }) {
-  const [error, setError] = useState(false);
-
-  if (error) {
-    return (
-      <div className="w-8 h-8 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
-        <Music2 className="w-3.5 h-3.5 text-zinc-700" />
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={src}
-      alt=""
-      onError={() => setError(true)}
-      className="w-8 h-8 rounded object-cover border border-zinc-800 shrink-0"
-    />
   );
 }
 
@@ -378,9 +352,11 @@ export function LibraryView() {
                             <Settings2 className="w-4 h-4 mr-2" /> <span className="text-sm">Stems Options</span>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator className="bg-zinc-800 my-1" />
+                          <AddToPlaylistMenu trackId={track.id} />
                           {canUpload && (
                             <>
-                              <DropdownMenuItem 
+                              <DropdownMenuSeparator className="bg-zinc-800 my-1" />
+                              <DropdownMenuItem
                                 onClick={() => {
                                   setTrackToEdit(track);
                                   setEditDialogOpen(true);
