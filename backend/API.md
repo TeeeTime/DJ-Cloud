@@ -556,6 +556,19 @@ Response `200`:
 
 ---
 
+## `GET /api/genres/{name}/tracks`
+
+**Public.** Same backend-driven search/sort/paging as `GET /api/tracks`, scoped to tracks tagged with
+this genre — `{name}` is matched case-insensitively against the genre's name (not an id). A track
+tagged with multiple genres appears under each of them.
+
+Query params (all optional, identical semantics to `GET /api/tracks`): `page`, `size`, `sortBy`,
+`direction`, `query` (further text-searches within this genre's tracks).
+
+Response `200`: same shape as `GET /api/tracks`. `404` if no genre with that name exists.
+
+---
+
 ## `POST /api/genres`
 
 **Requires a JWT with role `EDITOR` or `ADMIN`.** Creates a genre.

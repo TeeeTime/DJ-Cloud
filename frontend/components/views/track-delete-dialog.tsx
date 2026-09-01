@@ -8,6 +8,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { tracksApi, ApiError } from "@/lib/api";
 import { Loader2, AlertCircle } from "lucide-react";
 import { usePlayer } from "@/components/providers/player-provider";
+import { useGenres } from "@/components/providers/genre-provider";
 
 interface TrackDeleteDialogProps {
   track: Track | null;
@@ -18,6 +19,7 @@ interface TrackDeleteDialogProps {
 export function TrackDeleteDialog({ track, open, onOpenChange }: TrackDeleteDialogProps) {
   const { token } = useAuth();
   const { refreshTracks } = usePlayer();
+  const { refreshGenres } = useGenres();
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,6 +30,7 @@ export function TrackDeleteDialog({ track, open, onOpenChange }: TrackDeleteDial
     try {
       await tracksApi.delete(track.id, token);
       await refreshTracks();
+      await refreshGenres();
       onOpenChange(false);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Deletion failed. Please try again.");

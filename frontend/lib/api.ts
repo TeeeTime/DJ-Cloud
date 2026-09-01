@@ -173,6 +173,17 @@ export const genresApi = {
   create: (name: string, token: string) =>
     request<GenreResponse>("/api/genres", { method: "POST", body: JSON.stringify({ name }) }, token),
   distribution: () => request<GenreDistributionResponse[]>("/api/genres/distribution", { method: "GET" }),
+
+  getTracks: (name: string, params: TrackListParams = {}) => {
+    const query = new URLSearchParams();
+    if (params.page !== undefined) query.set("page", String(params.page));
+    if (params.size !== undefined) query.set("size", String(params.size));
+    if (params.sortBy) query.set("sortBy", params.sortBy);
+    if (params.direction) query.set("direction", params.direction);
+    if (params.query) query.set("query", params.query);
+    const qs = query.toString();
+    return request<PageResponse<TrackResponse>>(`/api/genres/${encodeURIComponent(name)}/tracks${qs ? `?${qs}` : ""}`, { method: "GET" });
+  },
 };
 
 export interface GenreDistributionResponse {

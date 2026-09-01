@@ -10,6 +10,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import de.djcloud.backend.common.PageResponse;
+import de.djcloud.backend.track.TrackResponse;
+import de.djcloud.backend.track.TrackSearchCriteria;
+import de.djcloud.backend.track.TrackService;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -17,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 public class GenreService {
 
     private final GenreRepository genreRepository;
+    private final TrackService trackService;
 
     @Transactional(readOnly = true)
     public List<GenreResponse> autocomplete(String query, int limit) {
@@ -34,6 +39,18 @@ public class GenreService {
     @Transactional(readOnly = true)
     public List<GenreDistributionResponse> distribution() {
         return genreRepository.distribution();
+    }
+
+    /**
+     * Same backend-driven search/sort/paging as {@code GET /api/tracks}, scoped to tracks tagged
+     * with this genre — mirrors {@code PlaylistService.getTracks}.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<TrackResponse> getTracks(String name, TrackSearchCriteria criteria) {
+        Genre genre = genreRepository.findByNameIgnoreCase(name)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Genre not found"));
+
+        return trackService.search(criteria.withScopeToGenreId(genre.getId()));
     }
 
     @Transactional

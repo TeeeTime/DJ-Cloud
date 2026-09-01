@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import de.djcloud.backend.common.PageResponse;
+import de.djcloud.backend.track.TrackResponse;
+import de.djcloud.backend.track.TrackSearchCriteria;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -33,6 +36,17 @@ public class GenreController {
     @GetMapping("/distribution")
     public List<GenreDistributionResponse> distribution() {
         return genreService.distribution();
+    }
+
+    /** Same backend-driven search/sort/paging as {@code GET /api/tracks}, scoped to this genre. */
+    @GetMapping("/{name}/tracks")
+    public PageResponse<TrackResponse> getTracks(@PathVariable String name,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "30") int size,
+            @RequestParam(defaultValue = "title") String sortBy, @RequestParam(defaultValue = "asc") String direction,
+            @RequestParam(required = false) String query) {
+        TrackSearchCriteria criteria = TrackSearchCriteria.fromParams(query, sortBy, direction, page, size, null);
+
+        return genreService.getTracks(name, criteria);
     }
 
     @PostMapping
