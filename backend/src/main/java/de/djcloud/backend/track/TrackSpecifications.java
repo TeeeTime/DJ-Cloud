@@ -41,6 +41,9 @@ final class TrackSpecifications {
             if (criteria.scopeToPlaylistId() != null) {
                 predicates.add(inPlaylist(root, cb, criteria.scopeToPlaylistId()));
             }
+            if (criteria.scopeToGenreId() != null) {
+                predicates.add(inGenre(root, cb, criteria.scopeToGenreId()));
+            }
             if (criteria.excludePlaylistId() != null) {
                 predicates.add(notInPlaylist(root, query, cb, criteria.excludePlaylistId()));
             }
@@ -64,6 +67,11 @@ final class TrackSpecifications {
     private static Predicate inPlaylist(Root<Track> root, CriteriaBuilder cb, Long playlistId) {
         Join<Track, Playlist> playlistJoin = root.join("playlists", JoinType.INNER);
         return cb.equal(playlistJoin.get("id"), playlistId);
+    }
+
+    private static Predicate inGenre(Root<Track> root, CriteriaBuilder cb, Long genreId) {
+        Join<Track, Genre> genreJoin = root.join("genres", JoinType.INNER);
+        return cb.equal(genreJoin.get("id"), genreId);
     }
 
     private static Predicate notInPlaylist(Root<Track> root, CriteriaQuery<?> query, CriteriaBuilder cb,

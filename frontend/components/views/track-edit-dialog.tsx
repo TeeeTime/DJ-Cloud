@@ -9,6 +9,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { tracksApi, artistsApi, ArtistResponse, genresApi, GenreResponse, ApiError } from "@/lib/api";
 import { Loader2, AlertCircle, X } from "lucide-react";
 import { usePlayer } from "@/components/providers/player-provider";
+import { useGenres } from "@/components/providers/genre-provider";
 
 interface TrackEditDialogProps {
   track: Track | null;
@@ -19,6 +20,7 @@ interface TrackEditDialogProps {
 export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogProps) {
   const { token } = useAuth();
   const { refreshTracks } = usePlayer();
+  const { refreshGenres } = useGenres();
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingArtists, setIsLoadingArtists] = useState(false);
   const [isLoadingGenres, setIsLoadingGenres] = useState(false);
@@ -234,6 +236,7 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
       }, token);
       
       await refreshTracks();
+      await refreshGenres();
       onOpenChange(false);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Save failed. Please try again.");

@@ -68,8 +68,6 @@ export function mapTrackResponse(t: TrackResponse): Track {
   };
 }
 
-export const genres = ["Tech House", "Deep House", "Progressive", "Dubstep"];
-
 export const colorThemes = [
   { name: 'Default', filter: 'none' },
   { name: 'Cyberpunk', filter: 'sepia(1) hue-rotate(250deg) saturate(300%) contrast(120%)' },

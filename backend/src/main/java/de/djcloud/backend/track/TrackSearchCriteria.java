@@ -10,17 +10,21 @@ import org.springframework.web.server.ResponseStatusException;
  * {@link TrackService#search(TrackSearchCriteria)} instead of each having their own query logic.
  */
 public record TrackSearchCriteria(String query, TrackSortField sortBy, Sort.Direction direction, int page, int size,
-                                   Long scopeToPlaylistId, Long excludePlaylistId) {
+                                   Long scopeToPlaylistId, Long scopeToGenreId, Long excludePlaylistId) {
 
     /** Parses the raw request params shared by every controller endpoint backed by this criteria. */
     public static TrackSearchCriteria fromParams(String query, String sortBy, String direction, int page, int size,
             Long excludePlaylistId) {
         return new TrackSearchCriteria(query, TrackSortField.fromParam(sortBy), parseDirection(direction), page,
-                size, null, excludePlaylistId);
+                size, null, null, excludePlaylistId);
     }
 
     public TrackSearchCriteria withScopeToPlaylistId(Long playlistId) {
-        return new TrackSearchCriteria(query, sortBy, direction, page, size, playlistId, excludePlaylistId);
+        return new TrackSearchCriteria(query, sortBy, direction, page, size, playlistId, scopeToGenreId, excludePlaylistId);
+    }
+
+    public TrackSearchCriteria withScopeToGenreId(Long genreId) {
+        return new TrackSearchCriteria(query, sortBy, direction, page, size, scopeToPlaylistId, genreId, excludePlaylistId);
     }
 
     private static Sort.Direction parseDirection(String direction) {

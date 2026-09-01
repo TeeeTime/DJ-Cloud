@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { PlayerProvider, usePlayer } from "./player-provider";
 import { PlaylistProvider } from "./playlist-provider";
+import { GenreProvider } from "./genre-provider";
 import { BottomPlayer } from "@/components/layout/bottom-player";
 import { colorThemes } from "@/lib/data";
 
@@ -58,9 +59,11 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   return (
     <PlayerProvider>
       <PlaylistProvider>
-        <PlayerLayout>
-          {children}
-        </PlayerLayout>
+        <GenreProvider>
+          <PlayerLayout>
+            {children}
+          </PlayerLayout>
+        </GenreProvider>
       </PlaylistProvider>
     </PlayerProvider>
   );
