@@ -29,6 +29,8 @@ jobs:
         with:
           context: ./frontend
           push: true
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://dj.teaz.fun/ap
           tags: |
             ghcr.io/${{ steps.owner.outputs.name }}/frontend:${{ github.event.release.tag_name }}
             ghcr.io/${{ steps.owner.outputs.name }}/frontend:latest
