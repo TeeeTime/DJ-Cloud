@@ -2,11 +2,13 @@ package de.djcloud.backend.track;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 
 import org.springframework.core.io.UrlResource;
 import org.springframework.core.io.support.ResourceRegion;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
@@ -41,6 +43,7 @@ public class TrackController {
     private final TrackService trackService;
     private final TrackUploadService trackUploadService;
     private final TrackStorageService trackStorageService;
+    private final TrackDownloadService trackDownloadService;
     private final AudioMetadataReader audioMetadataReader;
     private final TrackAnalysisQueue trackAnalysisQueue;
     private final AuthService authService;
@@ -144,6 +147,26 @@ public class TrackController {
         return ResponseEntity.ok()
                 .contentType(mediaType)
                 .body(cover.data());
+    }
+
+    /**
+     * Downloads the original uploaded audio file (never the streaming preview) under a
+     * human-readable "{Title} - {Artist(s)}.{ext}" filename instead of its internal UUID storage
+     * name. Unlike the rest of {@code GET /api/tracks/**}, this requires authentication — see
+     * {@code SecurityConfig} — since actually downloading audio bytes is more sensitive than
+     * browsing metadata.
+     */
+    @GetMapping("/{id}/download")
+    public ResponseEntity<byte[]> downloadTrack(@PathVariable Long id) {
+        TrackDownloadService.TrackFile file = trackDownloadService.getDownloadFile(id);
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(file.fileName(), StandardCharsets.UTF_8)
+                .build();
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(file.mediaType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(file.data());
     }
 
     /** Reads title/artist/duration from the file's tags, with placeholders for anything not yet analyzed. */

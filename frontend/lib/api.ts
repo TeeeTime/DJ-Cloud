@@ -184,6 +184,8 @@ export const genresApi = {
     const qs = query.toString();
     return request<PageResponse<TrackResponse>>(`/api/genres/${encodeURIComponent(name)}/tracks${qs ? `?${qs}` : ""}`, { method: "GET" });
   },
+
+  downloadUrl: (name: string) => `${API_BASE_URL}/api/genres/${encodeURIComponent(name)}/download`,
 };
 
 export interface GenreDistributionResponse {
@@ -244,6 +246,8 @@ export const tracksApi = {
   audioUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/audio`,
 
   coverUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/cover`,
+
+  downloadUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/download`,
 
   queue: () => request<QueueStatus>("/api/tracks/queue", { method: "GET" }),
 };
@@ -323,4 +327,6 @@ export const playlistsApi = {
       { method: "DELETE" },
       token
     ),
+
+  downloadUrl: (id: number) => `${API_BASE_URL}/api/playlists/${id}/download`,
 };

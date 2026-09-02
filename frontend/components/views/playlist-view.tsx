@@ -11,7 +11,8 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { usePlayer } from "@/components/providers/player-provider";
 import { usePlaylists } from "@/components/providers/playlist-provider";
 import { Track, formatDateAdded } from "@/lib/data";
-import { ApiError, PageResponse, PlaylistDetailResponse, TrackResponse, playlistsApi } from "@/lib/api";
+import { ApiError, PageResponse, PlaylistDetailResponse, TrackResponse, playlistsApi, tracksApi } from "@/lib/api";
+import { downloadFile } from "@/lib/download";
 import { usePagedTracks, FetchTracksPageParams } from "@/lib/use-paged-tracks";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -125,7 +126,39 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
   const [editPlaylistOpen, setEditPlaylistOpen] = useState(false);
   const [deletePlaylistOpen, setDeletePlaylistOpen] = useState(false);
 
+  const [downloadingTrackId, setDownloadingTrackId] = useState<number | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const [isDownloadingPlaylist, setIsDownloadingPlaylist] = useState(false);
+  const [playlistDownloadError, setPlaylistDownloadError] = useState<string | null>(null);
+
   const isOwner = !!detail && !!user && detail.ownerUsername === user.username;
+
+  const handleDownloadTrack = async (track: Track) => {
+    if (!token) return;
+    setDownloadingTrackId(track.id);
+    setDownloadError(null);
+    try {
+      await downloadFile(tracksApi.downloadUrl(track.id), token, `${track.title} - ${track.artist}.${track.format.toLowerCase()}`);
+    } catch (err) {
+      setDownloadError(err instanceof ApiError ? err.message : "Download failed. Please try again.");
+    } finally {
+      setDownloadingTrackId(null);
+    }
+  };
+
+  const handleDownloadPlaylist = async () => {
+    if (!token || !detail) return;
+    setIsDownloadingPlaylist(true);
+    setPlaylistDownloadError(null);
+    try {
+      await downloadFile(playlistsApi.downloadUrl(playlistId), token, `${detail.name}.zip`);
+    } catch (err) {
+      setPlaylistDownloadError(err instanceof ApiError ? err.message : "Download failed. Please try again.");
+    } finally {
+      setIsDownloadingPlaylist(false);
+    }
+  };
 
   const applyDetail = useCallback((result: PlaylistDetailResponse) => {
     setDetail(result);
@@ -228,6 +261,19 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                 } />
                 <DropdownMenuContent align="end" className="w-52 bg-zinc-950 border-zinc-800 text-zinc-300 rounded-lg p-1 shadow-2xl">
                   <DropdownMenuItem
+                    onClick={handleDownloadPlaylist}
+                    disabled={isDownloadingPlaylist}
+                    className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
+                  >
+                    {isDownloadingPlaylist ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4 mr-2" />
+                    )}
+                    <span className="text-sm">{isDownloadingPlaylist ? "Preparing ZIP…" : "Download Playlist (ZIP)"}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-zinc-800 my-1" />
+                  <DropdownMenuItem
                     onClick={toggleSubscribe}
                     className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
                   >
@@ -256,6 +302,13 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
             )}
           </div>
 
+          {playlistDownloadError && (
+            <div className="mb-6 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {playlistDownloadError}
+            </div>
+          )}
+
           {error ? (
             <div className="rounded-xl border border-zinc-900 bg-black/50 py-24 flex flex-col items-center justify-center gap-3 text-center">
               <AlertCircle className="w-6 h-6 text-zinc-600" />
@@ -267,6 +320,12 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
               <div className="m-4 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 {tracksListError}
+              </div>
+            )}
+            {downloadError && (
+              <div className="m-4 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {downloadError}
               </div>
             )}
             <Table className="table-fixed w-full">
@@ -370,8 +429,17 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                           </button>
                         } />
                         <DropdownMenuContent align="end" className="w-48 bg-zinc-950 border-zinc-800 text-zinc-300 rounded-lg p-1 shadow-2xl">
-                          <DropdownMenuItem className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2">
-                            <Download className="w-4 h-4 mr-2" /> <span className="text-sm">Download</span>
+                          <DropdownMenuItem
+                            onClick={() => handleDownloadTrack(track)}
+                            disabled={downloadingTrackId === track.id}
+                            className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
+                          >
+                            {downloadingTrackId === track.id ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <Download className="w-4 h-4 mr-2" />
+                            )}
+                            <span className="text-sm">Download</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2">
                             <Settings2 className="w-4 h-4 mr-2" /> <span className="text-sm">Stems Options</span>

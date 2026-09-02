@@ -1,13 +1,19 @@
 package de.djcloud.backend.playlist;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import de.djcloud.backend.auth.AppUserDetails;
 import de.djcloud.backend.common.PageResponse;
+import de.djcloud.backend.track.TrackDownloadService;
 import de.djcloud.backend.track.TrackResponse;
 import de.djcloud.backend.track.TrackSearchCriteria;
 import jakarta.validation.Valid;
@@ -19,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 public class PlaylistController {
 
     private final PlaylistService playlistService;
+    private final TrackDownloadService trackDownloadService;
 
     @GetMapping
     public List<PlaylistResponse> list(Authentication authentication,
@@ -40,6 +47,29 @@ public class PlaylistController {
         TrackSearchCriteria criteria = TrackSearchCriteria.fromParams(query, sortBy, direction, page, size, null);
 
         return playlistService.getTracks(id, (AppUserDetails) authentication.getPrincipal(), criteria);
+    }
+
+    /**
+     * Streams every track in the playlist as a single ZIP, named after the playlist, with each
+     * entry under a human-readable "{Title} - {Artist(s)}.{ext}" filename. Same visibility rule as
+     * every other playlist read (404 for a private playlist the caller doesn't own).
+     */
+    @GetMapping("/{id}/download")
+    public ResponseEntity<byte[]> downloadPlaylist(@PathVariable Long id, Authentication authentication) {
+        PlaylistService.PlaylistDownload download = playlistService.getDownload(id,
+                (AppUserDetails) authentication.getPrincipal());
+
+        String zipFileName = trackDownloadService.sanitizeName(download.playlistName()) + ".zip";
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(zipFileName, StandardCharsets.UTF_8)
+                .build();
+
+        byte[] zip = trackDownloadService.buildZip(download.entries());
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(zip);
     }
 
     @PostMapping

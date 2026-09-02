@@ -13,6 +13,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { useGenres } from "@/components/providers/genre-provider";
 import { Track, formatDateAdded } from "@/lib/data";
 import { ApiError, tracksApi } from "@/lib/api";
+import { downloadFile } from "@/lib/download";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TrackEditDialog } from "./track-edit-dialog";
 import { TrackDeleteDialog } from "./track-delete-dialog";
@@ -183,7 +184,7 @@ export function LibraryView() {
     searchQuery,
     setSearchQuery,
   } = usePlayer();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const canUpload = user?.role === 'EDITOR' || user?.role === 'ADMIN';
@@ -193,6 +194,22 @@ export function LibraryView() {
 
   const [trackToDelete, setTrackToDelete] = useState<Track | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const [downloadingTrackId, setDownloadingTrackId] = useState<number | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const handleDownloadTrack = async (track: Track) => {
+    if (!token) return;
+    setDownloadingTrackId(track.id);
+    setDownloadError(null);
+    try {
+      await downloadFile(tracksApi.downloadUrl(track.id), token, `${track.title} - ${track.artist}.${track.format.toLowerCase()}`);
+    } catch (err) {
+      setDownloadError(err instanceof ApiError ? err.message : "Download failed. Please try again.");
+    } finally {
+      setDownloadingTrackId(null);
+    }
+  };
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLTableRowElement>(null);
@@ -259,6 +276,13 @@ export function LibraryView() {
             <div className="mb-6 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
               <AlertCircle className="w-4 h-4 shrink-0" />
               {tracksError}
+            </div>
+          )}
+
+          {downloadError && (
+            <div className="mb-6 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {downloadError}
             </div>
           )}
 
@@ -365,8 +389,17 @@ export function LibraryView() {
                           </button>
                         } />
                         <DropdownMenuContent align="end" className="w-48 bg-zinc-950 border-zinc-800 text-zinc-300 rounded-lg p-1 shadow-2xl">
-                          <DropdownMenuItem className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2">
-                            <Download className="w-4 h-4 mr-2" /> <span className="text-sm">Download</span>
+                          <DropdownMenuItem
+                            onClick={() => handleDownloadTrack(track)}
+                            disabled={downloadingTrackId === track.id}
+                            className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
+                          >
+                            {downloadingTrackId === track.id ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <Download className="w-4 h-4 mr-2" />
+                            )}
+                            <span className="text-sm">Download</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2">
                             <Settings2 className="w-4 h-4 mr-2" /> <span className="text-sm">Stems Options</span>

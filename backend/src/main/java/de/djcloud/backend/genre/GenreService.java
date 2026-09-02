@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import de.djcloud.backend.common.PageResponse;
+import de.djcloud.backend.track.TrackDownloadService;
 import de.djcloud.backend.track.TrackResponse;
 import de.djcloud.backend.track.TrackSearchCriteria;
 import de.djcloud.backend.track.TrackService;
@@ -22,6 +23,7 @@ public class GenreService {
 
     private final GenreRepository genreRepository;
     private final TrackService trackService;
+    private final TrackDownloadService trackDownloadService;
 
     @Transactional(readOnly = true)
     public List<GenreResponse> autocomplete(String query, int limit) {
@@ -51,6 +53,18 @@ public class GenreService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Genre not found"));
 
         return trackService.search(criteria.withScopeToGenreId(genre.getId()));
+    }
+
+    /**
+     * Materializes download-ready entries for every track tagged with this genre — the full,
+     * unpaged collection (unlike {@link #getTracks}, which is paged for browsing).
+     */
+    @Transactional(readOnly = true)
+    public List<TrackDownloadService.TrackDownloadEntry> getDownloadEntries(String name) {
+        Genre genre = genreRepository.findByNameIgnoreCase(name)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Genre not found"));
+
+        return trackDownloadService.toDownloadEntries(genre.getSongs());
     }
 
     @Transactional

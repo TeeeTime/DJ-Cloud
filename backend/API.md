@@ -349,6 +349,22 @@ Response `200`: the raw image bytes, `Content-Type` taken from the tag itself (t
 
 ---
 
+## `GET /api/tracks/{id}/download`
+
+**Requires a valid JWT** (any role) — unlike the rest of `GET /api/tracks/**`, this isn't public,
+since actually downloading audio bytes is more sensitive than browsing metadata. Downloads the
+**original uploaded file** (never the streaming preview — contrast with `GET /{id}/audio` above).
+
+Response `200`: the raw audio bytes. `Content-Type` is `audio/mpeg` for an mp3 or `audio/wav` for a
+wav (based on `fileFormat`). `Content-Disposition: attachment; filename="..."` gives the file a
+human-readable name — `"{Title} - {Artist(s)}.{ext}"` — sanitized for both Windows and macOS
+filesystems (illegal characters replaced, trailing dots/spaces stripped, reserved device names like
+`CON` suffixed), instead of the internal UUID name it's stored under on disk.
+
+`404` if the track doesn't exist or has no audio file on disk. `401` if not authenticated.
+
+---
+
 ## `POST /api/tracks`
 
 **Requires a JWT with role `EDITOR` or `ADMIN`.** Uploads a track's audio file. This is the only way a
@@ -569,6 +585,22 @@ Response `200`: same shape as `GET /api/tracks`. `404` if no genre with that nam
 
 ---
 
+## `GET /api/genres/{name}/download`
+
+**Requires a valid JWT** (any role) — unlike the rest of `GET /api/genres/**`, this isn't public,
+since actually downloading audio bytes is more sensitive than browsing metadata. `{name}` is matched
+case-insensitively, same as `GET /{name}/tracks`. Streams every track tagged with this genre (the
+full set, not paged) as a single ZIP file.
+
+Response `200`: `Content-Type: application/zip`. `Content-Disposition: attachment;
+filename="{GenreName}.zip"` (sanitized for Windows/macOS). Same per-entry naming, duplicate-name
+suffixing, empty-genre, and missing-file-on-disk behavior as `GET /api/playlists/{id}/download`
+above.
+
+`404` if no genre with that name exists. `401` if not authenticated.
+
+---
+
 ## `POST /api/genres`
 
 **Requires a JWT with role `EDITOR` or `ADMIN`.** Creates a genre.
@@ -685,6 +717,23 @@ Query params (all optional): `page`, `size`, `sortBy`, `direction`, `query` — 
 `GET /api/tracks` above.
 
 Response `200`: same shape as `GET /api/tracks`.
+
+---
+
+## `GET /api/playlists/{id}/download`
+
+**Requires a valid JWT** (same visibility rule as `GET /api/playlists/{id}` above — `404` for a
+private playlist the caller doesn't own). Streams every track in the playlist as a single ZIP file.
+
+Response `200`: `Content-Type: application/zip`. `Content-Disposition: attachment;
+filename="{PlaylistName}.zip"` (sanitized for Windows/macOS). Each entry inside the ZIP is named
+`"{Title} - {Artist(s)}.{ext}"`; two tracks that would produce the same name (e.g. duplicate
+title+artist) get a `" (2)"`, `" (3)"`, … suffix so neither overwrites the other. An empty playlist
+still produces a valid (empty) ZIP rather than an error. A track whose file is unexpectedly missing
+from disk is silently skipped rather than failing the whole download.
+
+`404` if the playlist doesn't exist, or is private and not owned by the caller (same privacy note as
+`GET /api/playlists/{id}`).
 
 ---
 
