@@ -10,6 +10,19 @@ import { QueueStatusWidget } from "@/components/layout/queue-status";
 import { usePlayer } from "@/components/providers/player-provider";
 import { usePathname } from "next/navigation";
 
+const VOLUME_STORAGE_KEY = "djcloud_volume";
+
+function loadStoredVolume(): number {
+  if (typeof window === "undefined") return 80;
+  try {
+    const saved = localStorage.getItem(VOLUME_STORAGE_KEY);
+    const parsed = saved !== null ? parseFloat(saved) : NaN;
+    return !isNaN(parsed) ? Math.max(0, Math.min(100, parsed)) : 80;
+  } catch {
+    return 80;
+  }
+}
+
 function TrackCover({ src, isPlaying, scratching }: { src: string; isPlaying: boolean; scratching: boolean }) {
   const [error, setError] = useState(false);
 
@@ -47,17 +60,7 @@ export function BottomPlayer() {
 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(80);
-
-  // Load volume from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem("djcloud_volume");
-    if (saved !== null) {
-      const parsed = parseFloat(saved);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (!isNaN(parsed)) setVolume(parsed);
-    }
-  }, []);
+  const [volume, setVolume] = useState(loadStoredVolume);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -114,7 +117,12 @@ export function BottomPlayer() {
   useEffect(() => {
     if (audioRef.current && typeof volume === 'number' && !isNaN(volume)) {
       audioRef.current.volume = Math.max(0, Math.min(1, volume / 100));
-      localStorage.setItem("djcloud_volume", volume.toString());
+      try {
+        localStorage.setItem(VOLUME_STORAGE_KEY, volume.toString());
+      } catch {
+        // Storage may be unavailable (private browsing, blocked site data, etc.) — volume
+        // still works for this session, it just won't persist.
+      }
     }
   }, [volume, audioRef]);
 
