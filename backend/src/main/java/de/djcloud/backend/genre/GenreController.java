@@ -1,8 +1,13 @@
 package de.djcloud.backend.genre;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,6 +20,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import de.djcloud.backend.common.PageResponse;
+import de.djcloud.backend.track.TrackDownloadService;
 import de.djcloud.backend.track.TrackResponse;
 import de.djcloud.backend.track.TrackSearchCriteria;
 import jakarta.validation.Valid;
@@ -26,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 public class GenreController {
 
     private final GenreService genreService;
+    private final TrackDownloadService trackDownloadService;
 
     @GetMapping("/autocomplete")
     public List<GenreResponse> autocomplete(@RequestParam String query, @RequestParam(defaultValue = "10") int limit) {
@@ -47,6 +54,28 @@ public class GenreController {
         TrackSearchCriteria criteria = TrackSearchCriteria.fromParams(query, sortBy, direction, page, size, null);
 
         return genreService.getTracks(name, criteria);
+    }
+
+    /**
+     * Streams every track tagged with this genre as a single ZIP, named after the genre, with each
+     * entry under a human-readable "{Title} - {Artist(s)}.{ext}" filename. Requires authentication —
+     * see {@code SecurityConfig} — unlike the rest of {@code GET /api/genres/**}.
+     */
+    @GetMapping("/{name}/download")
+    public ResponseEntity<byte[]> downloadGenre(@PathVariable String name) {
+        List<TrackDownloadService.TrackDownloadEntry> entries = genreService.getDownloadEntries(name);
+
+        String zipFileName = trackDownloadService.sanitizeName(name) + ".zip";
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(zipFileName, StandardCharsets.UTF_8)
+                .build();
+
+        byte[] zip = trackDownloadService.buildZip(entries);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(zip);
     }
 
     @PostMapping

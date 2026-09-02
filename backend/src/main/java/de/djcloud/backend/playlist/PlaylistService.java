@@ -15,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 import de.djcloud.backend.auth.AppUserDetails;
 import de.djcloud.backend.common.PageResponse;
 import de.djcloud.backend.track.Track;
+import de.djcloud.backend.track.TrackDownloadService;
 import de.djcloud.backend.track.TrackRepository;
 import de.djcloud.backend.track.TrackResponse;
 import de.djcloud.backend.track.TrackSearchCriteria;
@@ -33,6 +34,7 @@ public class PlaylistService {
     private final PlaylistSubscriptionRepository playlistSubscriptionRepository;
     private final TrackRepository trackRepository;
     private final TrackService trackService;
+    private final TrackDownloadService trackDownloadService;
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
@@ -80,6 +82,23 @@ public class PlaylistService {
         assertCanView(playlist, caller);
 
         return trackService.search(criteria.withScopeToPlaylistId(playlist.getId()));
+    }
+
+    public record PlaylistDownload(String playlistName, List<TrackDownloadService.TrackDownloadEntry> entries) {
+    }
+
+    /**
+     * Materializes everything needed to stream this playlist as a ZIP — same visibility check as
+     * every other playlist read ({@code assertCanView}, 404 not 403 for privacy) — before any
+     * {@code StreamingResponseBody} is built, since {@code Playlist.tracks} is a lazy collection
+     * that can't be read once the session closes.
+     */
+    @Transactional(readOnly = true)
+    public PlaylistDownload getDownload(Long id, AppUserDetails caller) {
+        Playlist playlist = findOrThrow(id);
+        assertCanView(playlist, caller);
+
+        return new PlaylistDownload(playlist.getName(), trackDownloadService.toDownloadEntries(playlist.getTracks()));
     }
 
     @Transactional

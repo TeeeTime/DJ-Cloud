@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/components/providers/auth-provider";
 import { usePlayer } from "@/components/providers/player-provider";
 import { Track, formatDateAdded } from "@/lib/data";
-import { genresApi } from "@/lib/api";
+import { ApiError, genresApi, tracksApi } from "@/lib/api";
+import { downloadFile } from "@/lib/download";
 import { usePagedTracks, FetchTracksPageParams } from "@/lib/use-paged-tracks";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -28,7 +29,7 @@ interface GenreViewProps {
 }
 
 export function GenreView({ genreName }: GenreViewProps) {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { currentTrack, setCurrentTrack, isPlaying, setIsPlaying, setActiveTrackOrder } = usePlayer();
   const canUpload = user?.role === 'EDITOR' || user?.role === 'ADMIN';
 
@@ -100,6 +101,38 @@ export function GenreView({ genreName }: GenreViewProps) {
   const [trackToDelete, setTrackToDelete] = useState<Track | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
+  const [downloadingTrackId, setDownloadingTrackId] = useState<number | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const [isDownloadingGenre, setIsDownloadingGenre] = useState(false);
+  const [genreDownloadError, setGenreDownloadError] = useState<string | null>(null);
+
+  const handleDownloadTrack = async (track: Track) => {
+    if (!token) return;
+    setDownloadingTrackId(track.id);
+    setDownloadError(null);
+    try {
+      await downloadFile(tracksApi.downloadUrl(track.id), token, `${track.title} - ${track.artist}.${track.format.toLowerCase()}`);
+    } catch (err) {
+      setDownloadError(err instanceof ApiError ? err.message : "Download failed. Please try again.");
+    } finally {
+      setDownloadingTrackId(null);
+    }
+  };
+
+  const handleDownloadGenre = async () => {
+    if (!token) return;
+    setIsDownloadingGenre(true);
+    setGenreDownloadError(null);
+    try {
+      await downloadFile(genresApi.downloadUrl(genreName), token, `${genreName}.zip`);
+    } catch (err) {
+      setGenreDownloadError(err instanceof ApiError ? err.message : "Download failed. Please try again.");
+    } finally {
+      setIsDownloadingGenre(false);
+    }
+  };
+
   return (
     <main className="flex-1 flex flex-col min-w-0 bg-zinc-950/30 relative h-full">
       <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-10 shrink-0 gap-4">
@@ -128,14 +161,44 @@ export function GenreView({ genreName }: GenreViewProps) {
 
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto pb-6">
         <div className="px-8 py-8">
-          <h2 className="text-3xl font-bold text-white mb-8 tracking-tight">
-            {genreName}
-          </h2>
+          <div className="flex items-center gap-3 mb-8">
+            <h2 className="text-3xl font-bold text-white tracking-tight">
+              {genreName}
+            </h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDownloadGenre}
+              disabled={isDownloadingGenre}
+              title="Download all tracks in this genre (ZIP)"
+              className="text-zinc-500 hover:text-white hover:bg-zinc-800/50"
+            >
+              {isDownloadingGenre ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
 
           {tracksError && (
             <div className="mb-6 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
               <AlertCircle className="w-4 h-4 shrink-0" />
               {tracksError}
+            </div>
+          )}
+
+          {genreDownloadError && (
+            <div className="mb-6 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {genreDownloadError}
+            </div>
+          )}
+
+          {downloadError && (
+            <div className="mb-6 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {downloadError}
             </div>
           )}
 
@@ -241,8 +304,17 @@ export function GenreView({ genreName }: GenreViewProps) {
                           </button>
                         } />
                         <DropdownMenuContent align="end" className="w-48 bg-zinc-950 border-zinc-800 text-zinc-300 rounded-lg p-1 shadow-2xl">
-                          <DropdownMenuItem className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2">
-                            <Download className="w-4 h-4 mr-2" /> <span className="text-sm">Download</span>
+                          <DropdownMenuItem
+                            onClick={() => handleDownloadTrack(track)}
+                            disabled={downloadingTrackId === track.id}
+                            className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
+                          >
+                            {downloadingTrackId === track.id ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <Download className="w-4 h-4 mr-2" />
+                            )}
+                            <span className="text-sm">Download</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2">
                             <Settings2 className="w-4 h-4 mr-2" /> <span className="text-sm">Stems Options</span>
