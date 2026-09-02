@@ -8,17 +8,19 @@ RUN ./mvnw clean package -DskipTests
 # --- Stage 2: libkeyfinder + keyfinder-cli kompilieren (exakt nach README) ---
 FROM eclipse-temurin:21-jdk-noble AS tools-builder
 RUN apt-get update && apt-get install -y \
-    build-essential cmake pkg-config git \
+    build-essential cmake pkg-config curl \
     libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libfftw3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-RUN git clone --depth 1 https://github.com/mixxxdj/libkeyfinder.git /tmp/libkeyfinder \
+RUN curl -L https://github.com/mixxxdj/libkeyfinder/archive/refs/tags/2.2.8.tar.gz | tar xz \
+    && mv libkeyfinder-2.2.8 /tmp/libkeyfinder \
     && cmake -B /tmp/libkeyfinder/build -S /tmp/libkeyfinder -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release \
     && cmake --build /tmp/libkeyfinder/build \
     && cmake --install /tmp/libkeyfinder/build \
     && ldconfig
 
-RUN git clone --depth 1 https://github.com/EvanPurkhiser/keyfinder-cli.git /tmp/keyfinder-cli \
+RUN curl -L https://github.com/EvanPurkhiser/keyfinder-cli/archive/refs/tags/v1.1.5.tar.gz | tar xz \
+    && mv keyfinder-cli-1.1.5 /tmp/keyfinder-cli \
     && cmake -B /tmp/keyfinder-cli/build -S /tmp/keyfinder-cli -DCMAKE_BUILD_TYPE=Release \
     && cmake --build /tmp/keyfinder-cli/build \
     && cmake --install /tmp/keyfinder-cli/build
