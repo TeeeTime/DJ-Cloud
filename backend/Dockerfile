@@ -2,6 +2,7 @@
 FROM eclipse-temurin:21-jdk-noble AS app-builder
 WORKDIR /app
 COPY . .
+RUN chmod +x mvnw
 RUN ./mvnw clean package -DskipTests
 
 # --- Stage 2: libkeyfinder + keyfinder-cli kompilieren (exakt nach README) ---
