@@ -1,0 +1,7 @@
+# Cargo and rustfmt always write LF regardless of platform. Without this, core.autocrlf on
+# Windows expects these checked out as CRLF, so every tool-triggered rewrite shows up as a
+# spurious "modified" file in git status even when the content didn't actually change.
+*.rs text eol=lf
+*.toml text eol=lf
+Cargo.lock text eol=lf
+*.json text eol=lf
