@@ -23,15 +23,15 @@ function NetworkAnimation() {
       {/* Left side: DJs */}
       <div className="flex flex-col justify-between h-full gap-6 z-10">
         <div ref={tomRef} className="w-14 h-14 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center overflow-hidden z-10 relative group cursor-pointer hover:border-white transition-colors">
-          <Image src="https://i.pravatar.cc/150?u=tom" alt="Tom" width={150} height={150} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" unoptimized />
+          <Image src="/images/team/Tom_Protait_Professionell.jpeg" alt="Tom" width={150} height={150} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" unoptimized />
           <span className="absolute -left-14 text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white transition-colors">Tom</span>
         </div>
         <div ref={carlosRef} className="w-14 h-14 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center overflow-hidden z-10 relative group cursor-pointer hover:border-white transition-colors">
-          <Image src="https://i.pravatar.cc/150?u=carlos" alt="Carlos" width={150} height={150} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" unoptimized />
+          <Image src="/images/team/Carlos_Protait_Professionell.jpeg" alt="Carlos" width={150} height={150} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" unoptimized />
           <span className="absolute -left-16 text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white transition-colors">Carlos</span>
         </div>
         <div ref={juliusRef} className="w-14 h-14 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center overflow-hidden z-10 relative group cursor-pointer hover:border-white transition-colors">
-          <Image src="https://i.pravatar.cc/150?u=julius" alt="Julius" width={150} height={150} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" unoptimized />
+          <Image src="/images/team/Julius_Protait_Professionell.jpeg" alt="Julius" width={150} height={150} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" unoptimized />
           <span className="absolute -left-16 text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white transition-colors">Julius</span>
         </div>
       </div>
@@ -119,8 +119,63 @@ export function LandingPage() {
 
         {/* Scroll Indicator */}
         <div className="relative z-10 pb-10 flex flex-col items-center animate-bounce text-zinc-600 mt-auto pointer-events-none">
-          <span className="text-[10px] uppercase tracking-widest font-bold mb-2">Meet the Collective</span>
+          <span className="text-[10px] uppercase tracking-widest font-bold mb-2">Our Story</span>
           <ArrowDown className="w-4 h-4" />
+        </div>
+      </section>
+
+      {/* ABOUT US SECTION */}
+      <section className="relative z-10 py-32 px-6 bg-black border-t border-zinc-900">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            {/* Text Side */}
+            <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-left-8 duration-1000">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-800 bg-zinc-900/50 w-fit">
+                <span className="text-xs font-medium uppercase tracking-widest text-zinc-400">
+                  Who we are
+                </span>
+              </div>
+              <h2 className="text-4xl md:text-5xl font-black tracking-tight leading-tight">
+                From Münster <br />
+                <span className="text-zinc-500">to the Cloud.</span>
+              </h2>
+              <div className="text-zinc-400 text-lg leading-relaxed space-y-6">
+                <p>
+                  We are a passionate team of three Wirtschaftsinformatik (WI) students from the University of Münster. What started as late-night coding sessions and a shared love for electronic music quickly evolved into a mission.
+                </p>
+                <p>
+                  Frustrated by the limitations of existing DJ platforms and cloud storage solutions, we decided to build our own. DJ-CLOUD is our vision of the perfect collaborative vault—engineered with German precision, designed for professional audio, and built to withstand the heaviest drops.
+                </p>
+              </div>
+              <div className="pt-4 flex gap-8">
+                <div>
+                  <h4 className="text-3xl font-black text-white">2026</h4>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mt-1">Founded</p>
+                </div>
+                <div>
+                  <h4 className="text-3xl font-black text-white">Uni MS</h4>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mt-1">Roots</p>
+                </div>
+                <div>
+                  <h4 className="text-3xl font-black text-white">100%</h4>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mt-1">Lossless</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Image Side */}
+            <div className="relative group rounded-[2rem] overflow-hidden border border-zinc-800/50 shadow-2xl animate-in fade-in slide-in-from-right-8 duration-1000">
+              <div className="absolute inset-0 bg-zinc-900/20 group-hover:bg-transparent transition-colors z-10 duration-500"></div>
+              <Image 
+                src="/images/team/Teamfoto_chillig.jpeg" 
+                alt="DJ-CLOUD Team Chill" 
+                width={800} 
+                height={800} 
+                className="w-full h-auto object-cover aspect-square md:aspect-[4/3] grayscale-[30%] group-hover:grayscale-0 group-hover:scale-105 transition-all duration-1000" 
+                unoptimized 
+              />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -142,7 +197,9 @@ export function LandingPage() {
             {/* TOM */}
             <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-8 hover:bg-zinc-900 transition-colors group relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-zinc-800/20 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-white/5 transition-colors"></div>
-              <div className="w-16 h-16 rounded-2xl bg-zinc-800 text-white flex items-center justify-center mb-6 text-2xl font-black border border-zinc-700 shadow-lg group-hover:scale-110 transition-transform">T</div>
+              <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center mb-6 overflow-hidden border border-zinc-700 shadow-lg group-hover:scale-110 transition-transform">
+                <Image src="/images/team/Tom_Protait_Professionell.jpeg" alt="Tom" width={64} height={64} className="w-full h-full object-cover" unoptimized />
+              </div>
               <h3 className="text-2xl font-bold mb-1">Tom</h3>
               <p className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase mb-4">The Architect • Traktor Pro</p>
               <p className="text-zinc-400 text-sm leading-relaxed mb-6">
@@ -158,7 +215,9 @@ export function LandingPage() {
             {/* CARLOS */}
             <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-8 hover:bg-zinc-900 transition-colors group relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-zinc-800/20 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-white/5 transition-colors"></div>
-              <div className="w-16 h-16 rounded-2xl bg-zinc-800 text-white flex items-center justify-center mb-6 text-2xl font-black border border-zinc-700 shadow-lg group-hover:scale-110 transition-transform">C</div>
+              <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center mb-6 overflow-hidden border border-zinc-700 shadow-lg group-hover:scale-110 transition-transform">
+                <Image src="/images/team/Carlos_Protait_Professionell.jpeg" alt="Carlos" width={64} height={64} className="w-full h-full object-cover" unoptimized />
+              </div>
               <h3 className="text-2xl font-bold mb-1">Carlos</h3>
               <p className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase mb-4">The Busy Bee • CDJ 400</p>
               <p className="text-zinc-400 text-sm leading-relaxed mb-6">
@@ -174,7 +233,9 @@ export function LandingPage() {
             {/* JULIUS */}
             <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-8 hover:bg-zinc-900 transition-colors group relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-zinc-800/20 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-white/5 transition-colors"></div>
-              <div className="w-16 h-16 rounded-2xl bg-zinc-800 text-white flex items-center justify-center mb-6 text-2xl font-black border border-zinc-700 shadow-lg group-hover:scale-110 transition-transform">J</div>
+              <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center mb-6 overflow-hidden border border-zinc-700 shadow-lg group-hover:scale-110 transition-transform">
+                <Image src="/images/team/Julius_Protait_Professionell.jpeg" alt="Julius" width={64} height={64} className="w-full h-full object-cover" unoptimized />
+              </div>
               <h3 className="text-2xl font-bold mb-1">Julius</h3>
               <p className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase mb-4">The Wildcard • Traktor</p>
               <p className="text-zinc-400 text-sm leading-relaxed mb-6">
@@ -188,12 +249,60 @@ export function LandingPage() {
             </div>
           </div>
 
-          <div className="mt-24 text-center">
-             <Link href="/login">
-               <Button 
-                className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-white h-14 px-10 rounded-full text-sm font-bold tracking-widest uppercase transition-all"
+          {/* TEAM PHOTO */}
+          <div className="mt-16 w-full max-w-5xl mx-auto rounded-[2rem] overflow-hidden relative group border border-zinc-800/50 shadow-2xl">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent z-10 transition-opacity group-hover:opacity-80"></div>
+            <Image 
+              src="/images/team/Teamsfoto_Studio.jpeg" 
+              alt="DJ-CLOUD Team" 
+              width={1200} 
+              height={600} 
+              className="w-full h-auto object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-1000" 
+              unoptimized 
+            />
+            <div className="absolute bottom-8 left-8 right-8 z-20 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 transition-transform duration-500 group-hover:translate-y-[-8px]">
+              <div>
+                <h3 className="text-2xl md:text-3xl font-black text-white mb-2 tracking-tight">The DJ-CLOUD Collective</h3>
+                <p className="text-zinc-300 text-sm md:text-base max-w-xl">
+                  Building the ultimate platform for DJs, producers, and audio enthusiasts. High quality, end-to-end.
+                </p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* BEHIND THE SCENES / CALL TO ACTION */}
+      <section className="relative z-10 py-32 md:py-48 px-6 border-t border-zinc-900 overflow-hidden flex flex-col items-center justify-center text-center">
+        {/* Background Image */}
+        <div className="absolute inset-0 z-0">
+          <Image 
+            src="/images/team/Teamsfoto_busy.jpeg" 
+            alt="Behind the scenes" 
+            fill 
+            className="object-cover opacity-50 scale-105" 
+            unoptimized 
+          />
+          {/* Gradient Overlays */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-transparent"></div>
+        </div>
+
+        {/* Content */}
+        <div className="relative z-10 max-w-2xl mx-auto flex flex-col items-center mb-10">
+          <span className="text-zinc-500 text-xs font-bold uppercase tracking-[0.3em] mb-4">Behind the Scenes</span>
+          <h2 className="text-4xl md:text-6xl font-black tracking-tight mb-6 text-white">Work Hard, <br /><span className="text-zinc-500">Play Harder.</span></h2>
+          <p className="text-zinc-400 text-lg mb-12">
+            Ready to join the session? Upload your tracks, sync your metadata, and collaborate with the crew in real-time.
+          </p>
+          <div className="pb-8">
+            <Link href="/login" className="inline-block">
+              <Button 
+                className="group bg-white hover:bg-zinc-200 text-black h-16 px-10 rounded-full text-lg font-bold tracking-wider uppercase transition-all shadow-[0_0_40px_-10px_rgba(255,255,255,0.2)] hover:shadow-[0_0_60px_-15px_rgba(255,255,255,0.4)] active:scale-95"
               >
                 Go to Shared Library
+                <ArrowRight className="w-5 h-5 ml-3 group-hover:translate-x-1 transition-transform" />
               </Button>
             </Link>
           </div>
