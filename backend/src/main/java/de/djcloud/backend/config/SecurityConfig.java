@@ -47,11 +47,23 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/tracks/recent").authenticated()
+                        // Downloading actual audio bytes is more sensitive than browsing metadata,
+                        // so these two are carved out of the broader permitAll rule below.
+                        .requestMatchers(HttpMethod.GET, "/api/tracks/*/download").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/genres/*/download").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/tracks/**", "/api/artists/**", "/api/genres/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/registration-codes").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/tracks/**", "/api/artists/**", "/api/genres/**").hasAnyRole("EDITOR", "ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/tracks/**", "/api/artists/**", "/api/genres/**").hasAnyRole("EDITOR", "ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/tracks/**", "/api/artists/**", "/api/genres/**").hasAnyRole("EDITOR", "ADMIN")
+                        // Subscribing is open to any authenticated role, so these more specific
+                        // matchers must be evaluated before the coarser EDITOR/ADMIN-only ones below.
+                        .requestMatchers(HttpMethod.POST, "/api/playlists/*/subscription").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/playlists/*/subscription").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/playlists/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/playlists/**").hasAnyRole("EDITOR", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/playlists/**").hasAnyRole("EDITOR", "ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/playlists/**").hasAnyRole("EDITOR", "ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -64,6 +76,10 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(List.of(allowedOrigin));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        // Download endpoints put the server-generated, sanitized filename in this header — without
+        // exposing it, browser JS can't read it cross-origin and a fetch-based download would fall
+        // back to a client-guessed name instead of the one the backend computed.
+        configuration.setExposedHeaders(List.of("Content-Disposition"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

@@ -1,37 +1,37 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Track } from "@/lib/data";
 import { useAuth } from "@/components/providers/auth-provider";
-import { tracksApi, ApiError } from "@/lib/api";
-import { Loader2, AlertCircle } from "lucide-react";
-import { usePlayer } from "@/components/providers/player-provider";
-import { useGenres } from "@/components/providers/genre-provider";
+import { usePlaylists } from "@/components/providers/playlist-provider";
+import { ApiError, playlistsApi } from "@/lib/api";
 
-interface TrackDeleteDialogProps {
-  track: Track | null;
+interface DeletePlaylistDialogProps {
+  playlistId: number;
+  playlistName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function TrackDeleteDialog({ track, open, onOpenChange }: TrackDeleteDialogProps) {
+export function DeletePlaylistDialog({ playlistId, playlistName, open, onOpenChange }: DeletePlaylistDialogProps) {
   const { token } = useAuth();
-  const { refreshTracks } = usePlayer();
-  const { refreshGenres } = useGenres();
+  const { refreshPlaylists } = usePlaylists();
+  const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleDelete = async () => {
-    if (!track || !token) return;
+    if (!token) return;
     setIsDeleting(true);
     setError(null);
     try {
-      await tracksApi.delete(track.id, token);
-      await refreshTracks();
-      await refreshGenres();
+      await playlistsApi.delete(playlistId, token);
+      await refreshPlaylists();
       onOpenChange(false);
+      router.push("/library");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Deletion failed. Please try again.");
     } finally {
@@ -43,11 +43,11 @@ export function TrackDeleteDialog({ track, open, onOpenChange }: TrackDeleteDial
     <Dialog open={open} onOpenChange={(val) => { if (!isDeleting) onOpenChange(val); if (!val) setError(null); }}>
       <DialogContent className="bg-zinc-950 border-zinc-900 text-white sm:max-w-sm rounded-xl p-6">
         <DialogHeader className="mb-4">
-          <DialogTitle className="text-xl font-semibold">Delete Track</DialogTitle>
+          <DialogTitle className="text-xl font-semibold">Delete Playlist</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-zinc-300">
-          Are you sure you want to delete <span className="font-medium text-white">{track?.title}</span>?
-          This action cannot be undone.
+          Are you sure you want to delete <span className="font-medium text-white">{playlistName}</span>?
+          This removes it for everyone, including its subscribers. This action cannot be undone.
         </p>
         {error && (
           <p className="text-sm text-red-400 mt-3 flex items-center gap-2" role="alert">

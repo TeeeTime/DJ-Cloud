@@ -18,7 +18,6 @@ export type Track = {
   durationSeconds: number;
   // Not modeled by the backend yet — kept optional so existing filter UI keeps compiling.
   genre?: string;
-  playlist?: string;
   audioUrl: string;
   // May 404 — not every track has embedded artwork. Consumers should fall back gracefully.
   coverUrl: string;
@@ -49,6 +48,17 @@ export function formatTimeAgo(addedAt: string): string {
   return `${days} days ago`;
 }
 
+export async function resolveTrack(id: number, knownTracks: Track[]): Promise<Track | null> {
+  const existing = knownTracks.find(t => t.id === id);
+  if (existing) return existing;
+  try {
+    const full = await tracksApi.get(id);
+    return mapTrackResponse(full);
+  } catch {
+    return null;
+  }
+}
+
 export function mapTrackResponse(t: TrackResponse): Track {
   return {
     id: t.id,
@@ -68,9 +78,6 @@ export function mapTrackResponse(t: TrackResponse): Track {
     coverUrl: tracksApi.coverUrl(t.id),
   };
 }
-
-export const playlists = ["Peak Time", "Warmup", "Classics"];
-export const genres = ["Tech House", "Deep House", "Progressive", "Dubstep"];
 
 export const colorThemes = [
   { name: 'Default', filter: 'none' },

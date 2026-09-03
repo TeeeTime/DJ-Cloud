@@ -124,15 +124,13 @@ export interface RecentTracksResponse {
   newCount: number;
 }
 
-export interface TracksPage {
-  content: TrackResponse[];
+export interface PageResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
   totalElements: number;
   totalPages: number;
-  size: number;
-  number: number;
-  first: boolean;
-  last: boolean;
-  numberOfElements: number;
+  hasNext: boolean;
 }
 
 export interface TrackUpdateRequest {
@@ -175,6 +173,19 @@ export const genresApi = {
   create: (name: string, token: string) =>
     request<GenreResponse>("/api/genres", { method: "POST", body: JSON.stringify({ name }) }, token),
   distribution: () => request<GenreDistributionResponse[]>("/api/genres/distribution", { method: "GET" }),
+
+  getTracks: (name: string, params: TrackListParams = {}) => {
+    const query = new URLSearchParams();
+    if (params.page !== undefined) query.set("page", String(params.page));
+    if (params.size !== undefined) query.set("size", String(params.size));
+    if (params.sortBy) query.set("sortBy", params.sortBy);
+    if (params.direction) query.set("direction", params.direction);
+    if (params.query) query.set("query", params.query);
+    const qs = query.toString();
+    return request<PageResponse<TrackResponse>>(`/api/genres/${encodeURIComponent(name)}/tracks${qs ? `?${qs}` : ""}`, { method: "GET" });
+  },
+
+  downloadUrl: (name: string) => `${API_BASE_URL}/api/genres/${encodeURIComponent(name)}/download`,
 };
 
 export interface GenreDistributionResponse {
@@ -189,14 +200,26 @@ export interface QueueStatus {
   processing: { trackId: number; step: AnalysisStep } | null;
 }
 
+export interface TrackListParams {
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  direction?: "asc" | "desc";
+  query?: string;
+  excludePlaylistId?: number;
+}
+
 export const tracksApi = {
-  list: (params: { page?: number; size?: number; sortBy?: string } = {}) => {
+  list: (params: TrackListParams = {}) => {
     const query = new URLSearchParams();
     if (params.page !== undefined) query.set("page", String(params.page));
     if (params.size !== undefined) query.set("size", String(params.size));
     if (params.sortBy) query.set("sortBy", params.sortBy);
+    if (params.direction) query.set("direction", params.direction);
+    if (params.query) query.set("query", params.query);
+    if (params.excludePlaylistId !== undefined) query.set("excludePlaylistId", String(params.excludePlaylistId));
     const qs = query.toString();
-    return request<TracksPage>(`/api/tracks${qs ? `?${qs}` : ""}`, { method: "GET" });
+    return request<PageResponse<TrackResponse>>(`/api/tracks${qs ? `?${qs}` : ""}`, { method: "GET" });
   },
 
   recent: (limit: number, token: string) =>
@@ -224,5 +247,86 @@ export const tracksApi = {
 
   coverUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/cover`,
 
+  downloadUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/download`,
+
   queue: () => request<QueueStatus>("/api/tracks/queue", { method: "GET" }),
+};
+
+export interface PlaylistResponse {
+  id: number;
+  name: string;
+  isPublic: boolean;
+  ownerUsername: string;
+  createdAt: string;
+  trackCount: number;
+  subscribed: boolean;
+}
+
+export interface PlaylistDetailResponse {
+  id: number;
+  name: string;
+  isPublic: boolean;
+  ownerUsername: string;
+  createdAt: string;
+  canEditTracks: boolean;
+  subscribed: boolean;
+  trackCount: number;
+}
+
+export const playlistsApi = {
+  list: (token: string, editableOnly = false) =>
+    request<PlaylistResponse[]>(`/api/playlists?editableOnly=${editableOnly}`, { method: "GET" }, token),
+
+  get: (id: number, token: string) =>
+    request<PlaylistDetailResponse>(`/api/playlists/${id}`, { method: "GET" }, token),
+
+  getTracks: (id: number, params: TrackListParams, token: string) => {
+    const query = new URLSearchParams();
+    if (params.page !== undefined) query.set("page", String(params.page));
+    if (params.size !== undefined) query.set("size", String(params.size));
+    if (params.sortBy) query.set("sortBy", params.sortBy);
+    if (params.direction) query.set("direction", params.direction);
+    if (params.query) query.set("query", params.query);
+    const qs = query.toString();
+    return request<PageResponse<TrackResponse>>(`/api/playlists/${id}/tracks${qs ? `?${qs}` : ""}`, { method: "GET" }, token);
+  },
+
+  create: (name: string, isPublic: boolean, token: string) =>
+    request<PlaylistResponse>(
+      "/api/playlists",
+      { method: "POST", body: JSON.stringify({ name, isPublic }) },
+      token
+    ),
+
+  update: (id: number, name: string, isPublic: boolean, token: string) =>
+    request<PlaylistResponse>(
+      `/api/playlists/${id}`,
+      { method: "PUT", body: JSON.stringify({ name, isPublic }) },
+      token
+    ),
+
+  delete: (id: number, token: string) =>
+    request<void>(`/api/playlists/${id}`, { method: "DELETE" }, token),
+
+  subscribe: (id: number, token: string) =>
+    request<PlaylistDetailResponse>(`/api/playlists/${id}/subscription`, { method: "POST" }, token),
+
+  unsubscribe: (id: number, token: string) =>
+    request<PlaylistDetailResponse>(`/api/playlists/${id}/subscription`, { method: "DELETE" }, token),
+
+  addTrack: (playlistId: number, trackId: number, token: string) =>
+    request<PlaylistDetailResponse>(
+      `/api/playlists/${playlistId}/tracks`,
+      { method: "POST", body: JSON.stringify({ trackId }) },
+      token
+    ),
+
+  removeTrack: (playlistId: number, trackId: number, token: string) =>
+    request<PlaylistDetailResponse>(
+      `/api/playlists/${playlistId}/tracks/${trackId}`,
+      { method: "DELETE" },
+      token
+    ),
+
+  downloadUrl: (id: number) => `${API_BASE_URL}/api/playlists/${id}/download`,
 };

@@ -17,6 +17,9 @@ spring:
       hibernate:
         dialect: org.hibernate.community.dialect.SQLiteDialect
         format_sql: true
+        # Batches loading each page's lazy artists/genres collections instead of one query per
+        # track, now that track listings are backend-paginated (see TrackService.search).
+        default_batch_fetch_size: 30
     show-sql: false
     open-in-view: false
   cache:

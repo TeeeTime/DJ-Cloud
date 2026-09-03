@@ -1,215 +1,92 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import { Play, Pause, Download, Pencil, Trash, Settings2, CloudUpload, Search, MoreHorizontal, ArrowUpDown, ChevronUp, ChevronDown, Menu, Loader2, AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Play, Pause, Download, Pencil, Trash, Settings2, MoreHorizontal, Loader2, AlertCircle, Lock, Globe, Bell, BellOff, Menu as MenuIcon, Search, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
-import { usePlayer } from "@/components/providers/player-provider";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/components/providers/auth-provider";
-import { useGenres } from "@/components/providers/genre-provider";
+import { usePlayer } from "@/components/providers/player-provider";
+import { usePlaylists } from "@/components/providers/playlist-provider";
 import { Track, formatDateAdded } from "@/lib/data";
-import { ApiError, tracksApi } from "@/lib/api";
+import { ApiError, PageResponse, PlaylistDetailResponse, TrackResponse, playlistsApi, tracksApi } from "@/lib/api";
 import { downloadFile } from "@/lib/download";
+import { usePagedTracks, FetchTracksPageParams } from "@/lib/use-paged-tracks";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { Sidebar } from "@/components/layout/sidebar";
-import { TrackEditDialog } from "./track-edit-dialog";
-import { TrackDeleteDialog } from "./track-delete-dialog";
 import { StatusBadge, TrackThumbnail } from "./track-row-parts";
 import { AddToPlaylistMenu } from "./add-to-playlist-menu";
+import { PlaylistTrackSearch } from "./playlist-track-search";
+import { TrackEditDialog } from "./track-edit-dialog";
+import { TrackDeleteDialog } from "./track-delete-dialog";
+import { EditPlaylistDialog } from "./edit-playlist-dialog";
+import { DeletePlaylistDialog } from "./delete-playlist-dialog";
 
-const ACCEPTED_EXTENSIONS = [".mp3", ".wav"];
-const MAX_FILE_SIZE = 200 * 1024 * 1024;
+type SortConfig = { key: keyof Track, direction: 'asc' | 'desc' } | null;
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+const DEFAULT_SORT_KEY = 'title';
+
+/** Never resolves — used while waiting for the auth token so no spurious error briefly flashes. */
+function pendingForever<T>(): Promise<T> {
+  return new Promise<T>(() => {});
 }
 
-function UploadDialog() {
-  const { token } = useAuth();
-  const { refreshTracks } = usePlayer();
-  const { refreshGenres } = useGenres();
-  const [open, setOpen] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const resetState = () => {
-    setSelectedFiles([]);
-    setError(null);
-    setIsDragging(false);
-    setProgress(0);
-  };
-
-  const validateAndAddFiles = (files: FileList | File[]) => {
-    const validFiles: File[] = [];
-    let hasError = false;
-    Array.from(files).forEach(file => {
-      const lowerName = file.name.toLowerCase();
-      if (!ACCEPTED_EXTENSIONS.some(ext => lowerName.endsWith(ext))) {
-        hasError = true;
-      } else if (file.size > MAX_FILE_SIZE) {
-        hasError = true;
-      } else {
-        validFiles.push(file);
-      }
-    });
-
-    if (hasError) {
-      setError("Some files were ignored (unsupported type or too large).");
-    } else {
-      setError(null);
-    }
-    
-    setSelectedFiles(prev => [...prev, ...validFiles]);
-  };
-
-  const handleUpload = async () => {
-    if (selectedFiles.length === 0 || !token) return;
-    setIsUploading(true);
-    setError(null);
-    setProgress(0);
-    try {
-      for (let i = 0; i < selectedFiles.length; i++) {
-        await tracksApi.upload(selectedFiles[i], token);
-        setProgress(i + 1);
-      }
-      await refreshTracks();
-      await refreshGenres();
-      setOpen(false);
-      resetState();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Upload failed. Please try again.");
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) resetState(); }}>
-      <DialogTrigger render={
-        <Button className="bg-white hover:bg-zinc-200 text-black gap-2 h-10 px-5 rounded-md font-medium transition-colors">
-          <CloudUpload className="w-4 h-4" />
-          Upload
-        </Button>
-      } />
-      <DialogContent className="bg-zinc-950 border-zinc-900 text-white sm:max-w-md rounded-xl p-6">
-        <DialogHeader className="mb-6">
-          <DialogTitle className="text-xl font-semibold">Add to Archive</DialogTitle>
-        </DialogHeader>
-        <div className="py-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".mp3,.wav"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files) validateAndAddFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragging(false);
-              if (e.dataTransfer.files) validateAndAddFiles(e.dataTransfer.files);
-            }}
-            className={`border border-dashed rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4 transition-all cursor-pointer group bg-black/50 ${isDragging ? 'border-zinc-400 bg-zinc-900/80' : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-900/80'}`}
-          >
-            <div className="w-10 h-10 rounded-full bg-zinc-900 flex items-center justify-center border border-zinc-800 group-hover:bg-zinc-800 transition-colors">
-              <CloudUpload className="w-5 h-5 text-zinc-400 group-hover:text-white" />
-            </div>
-            {selectedFiles.length > 0 ? (
-              <div>
-                <p className="text-sm font-medium text-zinc-200">{selectedFiles.length} file(s) selected</p>
-                <p className="text-xs text-zinc-600 mt-1">Total size: {formatFileSize(selectedFiles.reduce((acc, f) => acc + f.size, 0))} · Click to add more</p>
-              </div>
-            ) : (
-              <div>
-                <p className="text-sm font-medium text-zinc-300">Drag & drop a file, or click to browse</p>
-                <p className="text-xs text-zinc-600 mt-1">MP3 or WAV (max 200MB)</p>
-              </div>
-            )}
-          </div>
-          {error && (
-            <p className="text-sm text-red-400 mt-4 flex items-center gap-2" role="alert">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              {error}
-            </p>
-          )}
-        </div>
-        <DialogFooter className="mt-8">
-          <Button
-            onClick={handleUpload}
-            disabled={selectedFiles.length === 0 || isUploading}
-            className="w-full bg-white hover:bg-zinc-200 text-black rounded-md h-12 text-sm font-bold tracking-widest uppercase disabled:opacity-50"
-          >
-            {isUploading ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin" /> Uploading ({progress}/{selectedFiles.length})
-              </span>
-            ) : "Upload to Shared Library"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+interface PlaylistViewProps {
+  playlistId: number;
 }
 
-export function LibraryView() {
-  const {
-    activeFilter,
-    tracks,
-    tracksLoading,
-    tracksLoadingMore,
-    tracksError,
-    hasMoreTracks,
-    loadMoreTracks,
-    currentTrack,
-    setCurrentTrack,
-    isPlaying,
-    setIsPlaying,
-    handleSort,
-    sortConfig,
-    searchQuery,
-    setSearchQuery,
-  } = usePlayer();
-  const { user, token } = useAuth();
+// The 404 the backend returns for a private playlist you don't own is indistinguishable from
+// "doesn't exist" by design (see PlaylistService.assertCanView) — both get this friendlier message
+// rather than the raw "Playlist not found".
+function describeLoadError(err: unknown): string {
+  return err instanceof ApiError && err.status === 404
+    ? "You cannot access this playlist."
+    : "Could not load this playlist.";
+}
 
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+export function PlaylistView({ playlistId }: PlaylistViewProps) {
+  const { token, user } = useAuth();
+  const { currentTrack, setCurrentTrack, isPlaying, setIsPlaying, setActiveTrackOrder } = usePlayer();
+  const { refreshPlaylists } = usePlaylists();
   const canUpload = user?.role === 'EDITOR' || user?.role === 'ADMIN';
 
-  const [trackToEdit, setTrackToEdit] = useState<Track | null>(null);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [detail, setDetail] = useState<PlaylistDetailResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const [trackToDelete, setTrackToDelete] = useState<Track | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
+  const debouncedSearchQuery = useDebouncedValue(searchQuery);
 
-  const [downloadingTrackId, setDownloadingTrackId] = useState<number | null>(null);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const fetchPlaylistTracksPage = useCallback((params: FetchTracksPageParams): Promise<PageResponse<TrackResponse>> => {
+    if (!token) return pendingForever();
+    return playlistsApi.getTracks(playlistId, params, token);
+  }, [playlistId, token]);
 
-  const handleDownloadTrack = async (track: Track) => {
-    if (!token) return;
-    setDownloadingTrackId(track.id);
-    setDownloadError(null);
-    try {
-      await downloadFile(tracksApi.downloadUrl(track.id), token, `${track.title} - ${track.artist}.${track.format.toLowerCase()}`);
-    } catch (err) {
-      setDownloadError(err instanceof ApiError ? err.message : "Download failed. Please try again.");
-    } finally {
-      setDownloadingTrackId(null);
-    }
-  };
+  const {
+    tracks,
+    isLoading: tracksLoading,
+    isLoadingMore: tracksLoadingMore,
+    error: tracksListError,
+    hasMore: hasMoreTracks,
+    loadMore: loadMoreTracks,
+    reset: resetTracks,
+  } = usePagedTracks({
+    query: debouncedSearchQuery,
+    sortConfig,
+    defaultSortKey: DEFAULT_SORT_KEY,
+    fetchPage: fetchPlaylistTracksPage,
+  });
+
+  // Skip-forward/back in the bottom player should follow this playlist's own visible order while
+  // it's the active view, reverting to the library default when the user navigates away.
+  useEffect(() => {
+    setActiveTrackOrder(tracks);
+  }, [tracks, setActiveTrackOrder]);
+
+  useEffect(() => () => setActiveTrackOrder(null), [setActiveTrackOrder]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLTableRowElement>(null);
@@ -226,21 +103,122 @@ export function LibraryView() {
     return () => observer.disconnect();
   }, [hasMoreTracks, loadMoreTracks]);
 
+  const handleSort = (key: keyof Track) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
   const renderSortIcon = (key: keyof Track) => {
     if (sortConfig?.key !== key) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-20 group-hover:opacity-100 transition-opacity" />;
     if (sortConfig.direction === 'asc') return <ChevronUp className="w-3 h-3 ml-1 text-white" />;
     return <ChevronDown className="w-3 h-3 ml-1 text-white" />;
   };
 
+  const [trackToEdit, setTrackToEdit] = useState<Track | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+
+  const [trackToDelete, setTrackToDelete] = useState<Track | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const [editPlaylistOpen, setEditPlaylistOpen] = useState(false);
+  const [deletePlaylistOpen, setDeletePlaylistOpen] = useState(false);
+
+  const [downloadingTrackId, setDownloadingTrackId] = useState<number | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const [isDownloadingPlaylist, setIsDownloadingPlaylist] = useState(false);
+  const [playlistDownloadError, setPlaylistDownloadError] = useState<string | null>(null);
+
+  const isOwner = !!detail && !!user && detail.ownerUsername === user.username;
+
+  const handleDownloadTrack = async (track: Track) => {
+    if (!token) return;
+    setDownloadingTrackId(track.id);
+    setDownloadError(null);
+    try {
+      await downloadFile(tracksApi.downloadUrl(track.id), token, `${track.title} - ${track.artist}.${track.format.toLowerCase()}`);
+    } catch (err) {
+      setDownloadError(err instanceof ApiError ? err.message : "Download failed. Please try again.");
+    } finally {
+      setDownloadingTrackId(null);
+    }
+  };
+
+  const handleDownloadPlaylist = async () => {
+    if (!token || !detail) return;
+    setIsDownloadingPlaylist(true);
+    setPlaylistDownloadError(null);
+    try {
+      await downloadFile(playlistsApi.downloadUrl(playlistId), token, `${detail.name}.zip`);
+    } catch (err) {
+      setPlaylistDownloadError(err instanceof ApiError ? err.message : "Download failed. Please try again.");
+    } finally {
+      setIsDownloadingPlaylist(false);
+    }
+  };
+
+  const applyDetail = useCallback((result: PlaylistDetailResponse) => {
+    setDetail(result);
+    setError(null);
+  }, []);
+
+  // The .then/.catch/.finally chain must be written inline in the effect — delegating to a
+  // called function (even an async one) trips react-hooks/set-state-in-effect.
+  useEffect(() => {
+    if (!token) return;
+    playlistsApi.get(playlistId, token)
+      .then((result) => {
+        applyDetail(result);
+        refreshPlaylists();
+      })
+      .catch((err) => setError(describeLoadError(err)));
+  }, [playlistId, token, applyDetail, refreshPlaylists]);
+
+  const reload = useCallback(async () => {
+    if (!token) return;
+    try {
+      const result = await playlistsApi.get(playlistId, token);
+      applyDetail(result);
+    } catch (err) {
+      setError(describeLoadError(err));
+    }
+    resetTracks();
+  }, [playlistId, token, applyDetail, resetTracks]);
+
+  const handleRemove = async (trackId: number) => {
+    if (!token) return;
+    try {
+      const updated = await playlistsApi.removeTrack(playlistId, trackId, token);
+      setDetail(updated);
+      resetTracks();
+    } catch (err) {
+      console.error(err instanceof ApiError ? err.message : err);
+    }
+  };
+
+  const toggleSubscribe = async () => {
+    if (!token || !detail) return;
+    try {
+      const updated = detail.subscribed
+        ? await playlistsApi.unsubscribe(playlistId, token)
+        : await playlistsApi.subscribe(playlistId, token);
+      setDetail(updated);
+      refreshPlaylists();
+    } catch (err) {
+      console.error(err instanceof ApiError ? err.message : err);
+    }
+  };
+
   return (
     <main className="flex-1 flex flex-col min-w-0 bg-zinc-950/30 relative h-full">
-      {/* Header */}
       <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-10 shrink-0 gap-4">
         <div className="flex items-center gap-4 flex-1">
-          {/* Mobile Menu Trigger */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden text-zinc-400 hover:text-white shrink-0" />}>
-              <Menu className="w-5 h-5" />
+              <MenuIcon className="w-5 h-5" />
             </SheetTrigger>
             <SheetContent side="left" className="p-0 bg-black border-r border-zinc-900 w-64 sm:max-w-64">
               <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
@@ -248,52 +226,114 @@ export function LibraryView() {
             </SheetContent>
           </Sheet>
 
-          <div className="relative w-full max-w-md group">
+          <div className="relative w-full max-w-xs group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-white transition-colors" />
             <Input
-              placeholder="Search archive..."
+              placeholder="Search this playlist..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 bg-black border-zinc-800 text-white focus-visible:ring-1 focus-visible:ring-zinc-700 focus-visible:border-zinc-700 transition-all rounded-md h-10 placeholder:text-zinc-600"
             />
           </div>
+
+          {detail?.canEditTracks && <PlaylistTrackSearch playlistId={playlistId} onTrackAdded={reload} />}
         </div>
-        {canUpload && (
-          <div className="flex items-center gap-4 shrink-0">
-            <UploadDialog />
-          </div>
-        )}
       </header>
 
-      {/* Content Area */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto pb-6">
         <div className="px-8 py-8">
-          <h2 className="text-3xl font-bold text-white mb-8 tracking-tight">
-            {activeFilter.value}
-          </h2>
+          <div className="flex items-center gap-3 mb-8">
+            <h2 className="text-3xl font-bold text-white tracking-tight">
+              {detail?.name ?? "Playlist"}
+            </h2>
+            {detail && (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 border border-zinc-800 rounded-full px-2.5 py-1">
+                {detail.isPublic ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                {detail.isPublic ? "Public" : "Private"}
+              </span>
+            )}
+            {detail && (
+              <DropdownMenu>
+                <DropdownMenuTrigger render={
+                  <button className="ml-auto flex items-center justify-center h-8 w-8 text-zinc-500 hover:text-white hover:bg-zinc-800/50 data-[state=open]:bg-zinc-800/50 data-[state=open]:text-white rounded-md transition-colors outline-none cursor-pointer">
+                    <MoreHorizontal className="w-4 h-4" />
+                  </button>
+                } />
+                <DropdownMenuContent align="end" className="w-52 bg-zinc-950 border-zinc-800 text-zinc-300 rounded-lg p-1 shadow-2xl">
+                  <DropdownMenuItem
+                    onClick={handleDownloadPlaylist}
+                    disabled={isDownloadingPlaylist}
+                    className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
+                  >
+                    {isDownloadingPlaylist ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4 mr-2" />
+                    )}
+                    <span className="text-sm">{isDownloadingPlaylist ? "Preparing ZIP…" : "Download Playlist (ZIP)"}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-zinc-800 my-1" />
+                  <DropdownMenuItem
+                    onClick={toggleSubscribe}
+                    className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
+                  >
+                    {detail.subscribed ? <BellOff className="w-4 h-4 mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
+                    <span className="text-sm">{detail.subscribed ? "Unsubscribe" : "Subscribe"}</span>
+                  </DropdownMenuItem>
+                  {isOwner && (
+                    <>
+                      <DropdownMenuSeparator className="bg-zinc-800 my-1" />
+                      <DropdownMenuItem
+                        onClick={() => setEditPlaylistOpen(true)}
+                        className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
+                      >
+                        <Pencil className="w-4 h-4 mr-2" /> <span className="text-sm">Edit Playlist</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setDeletePlaylistOpen(true)}
+                        className="focus:!bg-red-950/50 focus:!text-red-400 hover:!bg-red-950/50 hover:!text-red-400 text-red-500 cursor-pointer rounded-md py-2"
+                      >
+                        <Trash className="w-4 h-4 mr-2" /> <span className="text-sm">Delete Playlist</span>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
 
-          {tracksError && (
+          {playlistDownloadError && (
             <div className="mb-6 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
               <AlertCircle className="w-4 h-4 shrink-0" />
-              {tracksError}
+              {playlistDownloadError}
             </div>
           )}
 
-          {downloadError && (
-            <div className="mb-6 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              {downloadError}
+          {error ? (
+            <div className="rounded-xl border border-zinc-900 bg-black/50 py-24 flex flex-col items-center justify-center gap-3 text-center">
+              <AlertCircle className="w-6 h-6 text-zinc-600" />
+              <p className="text-zinc-400 text-sm">{error}</p>
             </div>
-          )}
-
-          {/* Table */}
+          ) : (
           <div className="rounded-xl border border-zinc-900 bg-black/50 overflow-hidden w-full">
+            {tracksListError && (
+              <div className="m-4 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {tracksListError}
+              </div>
+            )}
+            {downloadError && (
+              <div className="m-4 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {downloadError}
+              </div>
+            )}
             <Table className="table-fixed w-full">
               <TableHeader className="bg-zinc-900/30 select-none">
                 <TableRow className="border-zinc-900 hover:bg-transparent">
                   <TableHead className="w-[4%] text-center h-11">#</TableHead>
                   <TableHead
-                    className="w-[22%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    className="w-[24%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
                     onClick={() => handleSort('title')}
                   >
                     <div className="flex items-center">Title {renderSortIcon('title')}</div>
@@ -418,7 +458,7 @@ export function LibraryView() {
                               >
                                 <Pencil className="w-4 h-4 mr-2" /> <span className="text-sm">Edit Info</span>
                               </DropdownMenuItem>
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 onClick={() => {
                                   setTrackToDelete(track);
                                   setDeleteDialogOpen(true);
@@ -426,6 +466,17 @@ export function LibraryView() {
                                 className="focus:!bg-red-950/50 focus:!text-red-400 hover:!bg-red-950/50 hover:!text-red-400 text-red-500 cursor-pointer rounded-md py-2"
                               >
                                 <Trash className="w-4 h-4 mr-2" /> <span className="text-sm">Delete</span>
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {detail?.canEditTracks && (
+                            <>
+                              <DropdownMenuSeparator className="bg-zinc-800 my-1" />
+                              <DropdownMenuItem
+                                onClick={() => handleRemove(track.id)}
+                                className="focus:!bg-red-950/50 focus:!text-red-400 hover:!bg-red-950/50 hover:!text-red-400 text-red-500 cursor-pointer rounded-md py-2"
+                              >
+                                <Trash className="w-4 h-4 mr-2" /> <span className="text-sm">Remove from Playlist</span>
                               </DropdownMenuItem>
                             </>
                           )}
@@ -439,7 +490,7 @@ export function LibraryView() {
                     <TableCell colSpan={9} className="h-32 text-center text-zinc-500">
                       <div className="flex items-center justify-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Loading tracks…
+                        Loading playlist…
                       </div>
                     </TableCell>
                   </TableRow>
@@ -447,7 +498,7 @@ export function LibraryView() {
                 {!tracksLoading && tracks.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={9} className="h-32 text-center text-zinc-500">
-                      No tracks found in this category.
+                      No tracks in this playlist yet.
                     </TableCell>
                   </TableRow>
                 )}
@@ -466,20 +517,41 @@ export function LibraryView() {
               </TableBody>
             </Table>
           </div>
+          )}
         </div>
       </div>
 
-      <TrackEditDialog 
-        track={trackToEdit} 
-        open={editDialogOpen} 
-        onOpenChange={setEditDialogOpen} 
+      <TrackEditDialog
+        track={trackToEdit}
+        open={editDialogOpen}
+        onOpenChange={(open) => { setEditDialogOpen(open); if (!open) reload(); }}
       />
-      
-      <TrackDeleteDialog 
-        track={trackToDelete} 
-        open={deleteDialogOpen} 
-        onOpenChange={setDeleteDialogOpen} 
+
+      <TrackDeleteDialog
+        track={trackToDelete}
+        open={deleteDialogOpen}
+        onOpenChange={(open) => { setDeleteDialogOpen(open); if (!open) reload(); }}
       />
+
+      {detail && (
+        <EditPlaylistDialog
+          playlistId={playlistId}
+          initialName={detail.name}
+          initialIsPublic={detail.isPublic}
+          open={editPlaylistOpen}
+          onOpenChange={setEditPlaylistOpen}
+          onSaved={() => { reload(); refreshPlaylists(); }}
+        />
+      )}
+
+      {detail && (
+        <DeletePlaylistDialog
+          playlistId={playlistId}
+          playlistName={detail.name}
+          open={deletePlaylistOpen}
+          onOpenChange={setDeletePlaylistOpen}
+        />
+      )}
     </main>
   );
 }

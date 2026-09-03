@@ -3,15 +3,29 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Library, ListMusic, Disc3 } from "lucide-react";
-import { playlists, genres } from "@/lib/data";
+import { LayoutGrid, Library, ListMusic, Disc3, Lock } from "lucide-react";
 import { usePlayer } from "@/components/providers/player-provider";
+import { usePlaylists } from "@/components/providers/playlist-provider";
+import { useGenres } from "@/components/providers/genre-provider";
+import { useAuth } from "@/components/providers/auth-provider";
 import { AuroraText } from "@/components/ui/aurora-text";
 import { ProfileMenu } from "@/components/layout/profile-menu";
+import { CreatePlaylistDialog } from "@/components/views/create-playlist-dialog";
 
 export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
   const { activeFilter, setActiveFilter } = usePlayer();
+  const { playlists, playlistsLoading } = usePlaylists();
+  const { genreNames, genresLoading } = useGenres();
+  const { user } = useAuth();
   const pathname = usePathname();
+
+  const canCreatePlaylist = user?.role === 'EDITOR' || user?.role === 'ADMIN';
+  // Subscribed playlists show in the sidebar, plus the user's own playlists regardless of
+  // subscription state (an owner can unsubscribe from their own playlist server-side without
+  // losing access to it — it should still be reachable from their sidebar). The rest of
+  // `playlists` (e.g. public ones the user hasn't subscribed to and doesn't own) still exists for
+  // the "Add to Playlist" submenu (see add-to-playlist-menu.tsx).
+  const sidebarPlaylists = playlists.filter(pl => pl.subscribed || pl.ownerUsername === user?.username);
   return (
     <aside className={`w-64 border-r border-zinc-900 bg-black flex-col z-20 shrink-0 h-full ${isMobile ? 'flex' : 'hidden md:flex'}`}>
       {/* Brand */}
@@ -49,43 +63,55 @@ export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
           </Link>
         </div>
 
-        {/* Playlists — not modeled by the backend yet, shown as a preview of what's coming */}
+        {/* Playlists */}
         <div>
           <div className="flex items-center justify-between px-3 mb-2">
             <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Playlists</h2>
-            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-wider">Soon</span>
+            {canCreatePlaylist && <CreatePlaylistDialog />}
           </div>
           <div className="space-y-0.5">
-            {playlists.map(pl => (
-              <div
-                key={pl}
-                title="Playlists aren't supported by the backend yet"
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-zinc-500 hover:text-zinc-400 hover:bg-zinc-900/30 transition-colors cursor-not-allowed"
-              >
-                <ListMusic className="w-4 h-4" />
-                {pl}
-              </div>
+            {sidebarPlaylists.map(pl => (
+              <Link key={pl.id} href={`/playlist/${pl.id}`}>
+                <button
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pathname === `/playlist/${pl.id}` ? 'bg-zinc-900 text-white' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}
+                >
+                  <ListMusic className="w-4 h-4 shrink-0" />
+                  <span className="truncate flex-1 text-left">{pl.name}</span>
+                  {!pl.isPublic && <Lock className="w-3 h-3 shrink-0 text-zinc-600" />}
+                </button>
+              </Link>
             ))}
+            {playlistsLoading && (
+              <div className="px-3 py-2 text-xs text-zinc-600">Loading…</div>
+            )}
+            {!playlistsLoading && sidebarPlaylists.length === 0 && (
+              <div className="px-3 py-2 text-xs text-zinc-600">No playlists yet</div>
+            )}
           </div>
         </div>
 
-        {/* Genres — not modeled by the backend yet, shown as a preview of what's coming */}
+        {/* Genres */}
         <div>
           <div className="flex items-center justify-between px-3 mb-2">
             <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Genres</h2>
-            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-wider">Soon</span>
           </div>
           <div className="space-y-0.5">
-            {genres.map(g => (
-              <div
-                key={g}
-                title="Genres aren't supported by the backend yet"
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-zinc-500 hover:text-zinc-400 hover:bg-zinc-900/30 transition-colors cursor-not-allowed"
-              >
-                <Disc3 className="w-4 h-4" />
-                {g}
-              </div>
+            {genreNames.map(name => (
+              <Link key={name} href={`/genre/${encodeURIComponent(name)}`}>
+                <button
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pathname === `/genre/${encodeURIComponent(name)}` ? 'bg-zinc-900 text-white' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}
+                >
+                  <Disc3 className="w-4 h-4 shrink-0" />
+                  <span className="truncate flex-1 text-left">{name}</span>
+                </button>
+              </Link>
             ))}
+            {genresLoading && (
+              <div className="px-3 py-2 text-xs text-zinc-600">Loading…</div>
+            )}
+            {!genresLoading && genreNames.length === 0 && (
+              <div className="px-3 py-2 text-xs text-zinc-600">No genres yet</div>
+            )}
           </div>
         </div>
       </div>

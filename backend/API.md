@@ -1,7 +1,8 @@
 # DJ Cloud Backend API
 
 Endpoints implemented so far: user auth (login/registration/persistent sessions/logout/password
-change), track upload/listing/editing, and artist search and management. Base URL for local dev:
+change), track upload/listing/editing, artist and genre search and management, and playlists
+(creation, editing, deletion, track membership, and subscriptions). Base URL for local dev:
 `http://localhost:8080`.
 
 **CORS**: only one origin is allowed to call this API from a browser, `http://localhost:3000` by
@@ -25,9 +26,17 @@ Three roles exist:
 
 | role     | can do                                                                 |
 |----------|--------------------------------------------------------------------------|
-| `USER`   | everything public, plus the account-management endpoints (`/me`, `/logout`, `/change-password`) |
-| `EDITOR` | everything `USER` can, plus create/edit/delete tracks and artists         |
+| `USER`   | everything public, plus the account-management endpoints (`/me`, `/logout`, `/change-password`), plus viewing public playlists (and any private playlist they own) and subscribing/unsubscribing to any playlist they can see |
+| `EDITOR` | everything `USER` can, plus create/edit/delete tracks and artists, plus creating playlists and adding/removing tracks on any playlist they're allowed to edit (see `GET /api/playlists/{id}` below) |
 | `ADMIN`  | everything `EDITOR` can, plus generate registration codes                 |
+
+Playlist visibility, track-edit rights, and playlist-edit rights are **not** purely role-based — they
+also depend on ownership and the playlist's public/private flag. There's no admin override: an `ADMIN`
+who doesn't own a private playlist can't see or edit it, same as anyone else. Renaming, changing
+visibility, or deleting a playlist is restricted to its owner alone — even an `ADMIN` can't do it for
+someone else's playlist. Subscribing is the one playlist action open to every role, including plain
+`USER`, since it's just a personal bookmark and doesn't grant any edit rights. See the playlist
+endpoints below.
 
 Accounts are invite-only: there is no open signup, only `POST /api/auth/register` with a valid,
 admin-issued, one-time registration code. The role an account gets is fixed on the code at the moment
@@ -190,17 +199,24 @@ Response `200`:
 
 ## `GET /api/tracks`
 
-**Public.** Paginated track listing.
+**Public.** Backend-driven, searchable, sortable, paginated track listing — search, sort, and paging
+all apply together against the whole library, not just whatever page happens to be loaded.
 
 Query params (all optional):
 
-| param    | default | notes                                   |
-|----------|---------|------------------------------------------|
-| `page`   | `0`     | zero-indexed                              |
-| `size`   | `30`    | page size                                 |
-| `sortBy` | `title` | any `Track` field name, ascending         |
+| param                | default | notes                                                                                          |
+|-----------------------|---------|--------------------------------------------------------------------------------------------------|
+| `page`                | `0`     | zero-indexed                                                                                      |
+| `size`                | `30`    | page size                                                                                          |
+| `sortBy`              | `title` | one of `title`, `artist`, `bpm`, `addedAt`, `dateAdded`, `durationSeconds`, `key`, `fileFormat`. `400` on an unknown value. |
+| `direction`           | `asc`   | `asc` or `desc` (case-insensitive). `400` on an unknown value.                                    |
+| `query`               | —       | case-insensitive substring match against title, artist name, **or** genre name. Blank/missing means no filter. |
+| `excludePlaylistId`   | —       | when set, tracks already in that playlist are omitted — used by the playlist "add tracks" search bar. |
 
-Response `200` — a Spring Data `Page`:
+`sortBy=artist` sorts by each track's alphabetically-first artist name (a track can have several);
+tracks with no artists sort last regardless of `direction`.
+
+Response `200`:
 ```json
 {
   "content": [
@@ -218,13 +234,11 @@ Response `200` — a Spring Data `Page`:
       "genres": ["Tech House", "Deep House"]
     }
   ],
+  "page": 0,
+  "size": 30,
   "totalElements": 1,
   "totalPages": 1,
-  "size": 30,
-  "number": 0,
-  "first": true,
-  "last": true,
-  "numberOfElements": 1
+  "hasNext": false
 }
 ```
 
@@ -332,6 +346,22 @@ Response `200`: the raw image bytes, `Content-Type` taken from the tag itself (t
 `image/png`).
 
 `404` if the track doesn't exist, has no file on disk, or the file has no embedded artwork.
+
+---
+
+## `GET /api/tracks/{id}/download`
+
+**Requires a valid JWT** (any role) — unlike the rest of `GET /api/tracks/**`, this isn't public,
+since actually downloading audio bytes is more sensitive than browsing metadata. Downloads the
+**original uploaded file** (never the streaming preview — contrast with `GET /{id}/audio` above).
+
+Response `200`: the raw audio bytes. `Content-Type` is `audio/mpeg` for an mp3 or `audio/wav` for a
+wav (based on `fileFormat`). `Content-Disposition: attachment; filename="..."` gives the file a
+human-readable name — `"{Title} - {Artist(s)}.{ext}"` — sanitized for both Windows and macOS
+filesystems (illegal characters replaced, trailing dots/spaces stripped, reserved device names like
+`CON` suffixed), instead of the internal UUID name it's stored under on disk.
+
+`404` if the track doesn't exist or has no audio file on disk. `401` if not authenticated.
 
 ---
 
@@ -542,6 +572,35 @@ Response `200`:
 
 ---
 
+## `GET /api/genres/{name}/tracks`
+
+**Public.** Same backend-driven search/sort/paging as `GET /api/tracks`, scoped to tracks tagged with
+this genre — `{name}` is matched case-insensitively against the genre's name (not an id). A track
+tagged with multiple genres appears under each of them.
+
+Query params (all optional, identical semantics to `GET /api/tracks`): `page`, `size`, `sortBy`,
+`direction`, `query` (further text-searches within this genre's tracks).
+
+Response `200`: same shape as `GET /api/tracks`. `404` if no genre with that name exists.
+
+---
+
+## `GET /api/genres/{name}/download`
+
+**Requires a valid JWT** (any role) — unlike the rest of `GET /api/genres/**`, this isn't public,
+since actually downloading audio bytes is more sensitive than browsing metadata. `{name}` is matched
+case-insensitively, same as `GET /{name}/tracks`. Streams every track tagged with this genre (the
+full set, not paged) as a single ZIP file.
+
+Response `200`: `Content-Type: application/zip`. `Content-Disposition: attachment;
+filename="{GenreName}.zip"` (sanitized for Windows/macOS). Same per-entry naming, duplicate-name
+suffixing, empty-genre, and missing-file-on-disk behavior as `GET /api/playlists/{id}/download`
+above.
+
+`404` if no genre with that name exists. `401` if not authenticated.
+
+---
+
 ## `POST /api/genres`
 
 **Requires a JWT with role `EDITOR` or `ADMIN`.** Creates a genre.
@@ -574,10 +633,219 @@ doesn't exist.
 
 ---
 
+## `GET /api/playlists`
+
+**Requires a valid JWT** (any role) — unlike track/artist/genre listing, this isn't public, since
+visibility is per-user (see below).
+
+Query params:
+
+| param          | default | notes                                                                 |
+|-----------------|---------|-------------------------------------------------------------------------|
+| `editableOnly` | `false` | when `true`, only playlists the caller can add/remove tracks on are returned (see `canEditTracks` below) |
+
+Returns every playlist visible to the caller: all public playlists, plus the caller's own private
+ones — **regardless of whether the caller is subscribed** (see `subscribed` below and the
+subscription endpoints further down). Ordered **most-recently-viewed-by-the-caller first** (viewing
+is recorded by `GET /api/playlists/{id}`, below); playlists the caller has never viewed sort after
+every viewed one, most-recently-created first among themselves.
+
+A frontend showing "my" playlists (e.g. a sidebar) should filter this list client-side to entries
+where `subscribed` is `true` **or** `ownerUsername` matches the caller — an owner isn't necessarily
+subscribed to their own playlist (they can unsubscribe from it like anyone else without losing
+ownership or access), so `subscribed` alone would incorrectly hide it. This endpoint intentionally
+returns the full visible set (subscribed or not) so callers can also use it to find playlists to
+subscribe to or add tracks to.
+
+Response `200`:
+```json
+[
+  {
+    "id": 1,
+    "name": "Peak Time",
+    "isPublic": true,
+    "ownerUsername": "tom",
+    "createdAt": "2026-08-29T14:03:11.123Z",
+    "trackCount": 12,
+    "subscribed": true
+  }
+]
+```
+
+---
+
+## `GET /api/playlists/{id}`
+
+**Requires a valid JWT.** Fetches a single playlist's metadata (not its tracks — see
+`GET /api/playlists/{id}/tracks` below for those). Also records that the caller viewed this playlist
+just now — this is what drives the ordering of `GET /api/playlists` above.
+
+A private playlist is only visible to its owner — **not** even to an `ADMIN`. Requesting one you can't
+see returns `404`, not `403`, so a non-owner can't distinguish "doesn't exist" from "exists but is
+private" by status code alone.
+
+Response `200`:
+```json
+{
+  "id": 1,
+  "name": "Peak Time",
+  "isPublic": true,
+  "ownerUsername": "tom",
+  "createdAt": "2026-08-29T14:03:11.123Z",
+  "canEditTracks": true,
+  "subscribed": true,
+  "trackCount": 12
+}
+```
+`canEditTracks` tells the frontend whether the caller is allowed to add/remove tracks on this
+playlist right now (see the rule under `POST .../tracks` below) — computed server-side so the
+frontend doesn't need to re-derive it. `subscribed` reflects the caller's own subscription (see
+`POST .../subscription` below) — unrelated to `canEditTracks` and to ownership.
+
+`404` if the playlist doesn't exist, or exists but is private and the caller isn't its owner.
+
+---
+
+## `GET /api/playlists/{id}/tracks`
+
+**Requires a valid JWT** (same visibility rule as `GET /api/playlists/{id}` above — `404` for a private
+playlist the caller doesn't own). Backend-driven search/sort/paging over this one playlist's tracks —
+same query params, same response shape, and same `sortBy`/`direction` semantics as `GET /api/tracks`,
+just scoped to this playlist instead of the whole library.
+
+Query params (all optional): `page`, `size`, `sortBy`, `direction`, `query` — identical to
+`GET /api/tracks` above.
+
+Response `200`: same shape as `GET /api/tracks`.
+
+---
+
+## `GET /api/playlists/{id}/download`
+
+**Requires a valid JWT** (same visibility rule as `GET /api/playlists/{id}` above — `404` for a
+private playlist the caller doesn't own). Streams every track in the playlist as a single ZIP file.
+
+Response `200`: `Content-Type: application/zip`. `Content-Disposition: attachment;
+filename="{PlaylistName}.zip"` (sanitized for Windows/macOS). Each entry inside the ZIP is named
+`"{Title} - {Artist(s)}.{ext}"`; two tracks that would produce the same name (e.g. duplicate
+title+artist) get a `" (2)"`, `" (3)"`, … suffix so neither overwrites the other. An empty playlist
+still produces a valid (empty) ZIP rather than an error. A track whose file is unexpectedly missing
+from disk is silently skipped rather than failing the whole download.
+
+`404` if the playlist doesn't exist, or is private and not owned by the caller (same privacy note as
+`GET /api/playlists/{id}`).
+
+---
+
+## `POST /api/playlists`
+
+**Requires a JWT with role `EDITOR` or `ADMIN`.** Creates a playlist owned by the caller. The owner is
+automatically subscribed to it (see `POST .../subscription` below), so it shows up in their own
+subscribed-playlists view right away.
+
+Request:
+```json
+{ "name": "Peak Time", "isPublic": true }
+```
+
+Response `201`: the created playlist, same shape as one entry from `GET /api/playlists`
+(`subscribed: true`).
+
+---
+
+## `PUT /api/playlists/{id}`
+
+**Requires a JWT with role `EDITOR` or `ADMIN`, and the caller must be the playlist's owner** — unlike
+track membership (`POST .../tracks` below), renaming or changing a playlist's public/private flag is
+**not** open to every `EDITOR`/`ADMIN` on a public playlist, only to whoever created it. There is no
+admin override.
+
+Request: same shape as `POST /api/playlists` — replaces both fields.
+```json
+{ "name": "New Name", "isPublic": false }
+```
+
+Response `200`: the updated playlist, same shape as one entry from `GET /api/playlists`.
+
+Errors:
+- `404` if the playlist doesn't exist, or is private and not owned by the caller (privacy note above).
+- `403` if the playlist is visible to the caller but they're not its owner.
+
+---
+
+## `DELETE /api/playlists/{id}`
+
+**Same permission rule as `PUT /api/playlists/{id}` above — owner only.** Deletes the playlist itself
+(not its tracks — the tracks stay in the library). Also removes every subscription and last-viewed
+record pointing at it.
+
+Response: `204 No Content`. Same `403`/`404` semantics as `PUT /api/playlists/{id}`.
+
+---
+
+## `POST /api/playlists/{id}/subscription`
+
+**Requires a valid JWT — any role.** Subscribes the caller to this playlist. This is what determines
+whether a playlist shows up in a caller-scoped view like a sidebar (via `subscribed` on
+`GET /api/playlists`/`GET /api/playlists/{id}`) — separate from visibility and from edit rights.
+Idempotent: subscribing twice is a no-op the second time.
+
+Response `200`: the playlist, same shape as `GET /api/playlists/{id}` (`subscribed: true`).
+
+`404` if the playlist doesn't exist, or is private and not owned by the caller (privacy note above) —
+you can't subscribe to a playlist you can't see.
+
+---
+
+## `DELETE /api/playlists/{id}/subscription`
+
+**Requires a valid JWT — any role.** Unsubscribes the caller. Idempotent: unsubscribing when not
+subscribed is a no-op. Note this applies even to a playlist's own owner — unsubscribing from your own
+playlist removes it from your subscribed-playlists view too (ownership is unaffected; you can still
+open and edit it directly).
+
+Response `200`: the playlist, same shape as `GET /api/playlists/{id}` (`subscribed: false`).
+
+---
+
+## `POST /api/playlists/{id}/tracks`
+
+**Requires a JWT with role `EDITOR` or `ADMIN`, and permission on this specific playlist** — allowed
+only if the playlist is public, **or** the caller owns it. (A plain role check isn't enough: an
+`EDITOR` who doesn't own a private playlist can't add tracks to it either.)
+
+Request:
+```json
+{ "trackId": 5 }
+```
+
+Response `200`: the updated playlist, same shape as `GET /api/playlists/{id}`.
+
+Errors:
+- `404` if the playlist doesn't exist or is private and not owned by the caller (see the privacy note
+  under `GET /api/playlists/{id}`).
+- `403` if the playlist is visible to the caller but they don't have edit rights on it (e.g. a public
+  playlist and the caller is only `USER`, or a private playlist they don't own even though they are
+  `EDITOR`/`ADMIN`).
+- `404` `"Track not found"` if `trackId` doesn't exist.
+
+---
+
+## `DELETE /api/playlists/{id}/tracks/{trackId}`
+
+**Same permission rule as `POST .../tracks` above.** Removes a track from the playlist; no error if
+the track wasn't in the playlist to begin with.
+
+Response `200`: the updated playlist, same shape as `GET /api/playlists/{id}`. Same `403`/`404`
+semantics as `POST .../tracks`.
+
+---
+
 ## Not yet implemented
 
 Flagging gaps a frontend might expect but that don't exist yet: no "forgot password" email flow (only
 `POST /api/auth/change-password` for a logged-in user — there's no mail service in this app), no way to
 list/revoke outstanding registration codes, no manual retry for a `FAILED` track (only restarting the
-server re-queues it — see `POST /api/tracks`), no cancelling a queued/in-progress analysis, and no
-push/WebSocket variant of `GET /api/tracks/queue` (polling only).
+server re-queues it — see `POST /api/tracks`), no cancelling a queued/in-progress analysis, no
+push/WebSocket variant of `GET /api/tracks/queue` (polling only), and no way to transfer a playlist's
+ownership to another user.

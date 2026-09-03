@@ -3,14 +3,16 @@ package de.djcloud.backend.track;
 import java.io.File;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import de.djcloud.backend.artist.Artist;
 import de.djcloud.backend.artist.ArtistRepository;
+import de.djcloud.backend.common.PageResponse;
 import de.djcloud.backend.genre.Genre;
 import de.djcloud.backend.genre.GenreRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,9 +36,35 @@ public class TrackService {
     private final TrackStorageService trackStorageService;
     private final AudioMetadataWriter audioMetadataWriter;
 
+    /**
+     * Backs every backend-driven track listing — the main library ({@code GET /api/tracks}), a single
+     * playlist's track list, and the add-track-to-playlist search — via {@link TrackSearchCriteria}.
+     * Plain scalar sort fields go through a real database-level {@code Page} query; sorting by artist
+     * needs its own path since {@code artists} is a many-to-many collection (see
+     * {@link TrackRepositoryCustom#findIdsSortedByArtist}).
+     */
     @Transactional(readOnly = true)
-    public Page<TrackResponse> findAll(Pageable pageable) {
-        return trackRepository.findAll(pageable).map(TrackResponse::fromEntity);
+    public PageResponse<TrackResponse> search(TrackSearchCriteria criteria) {
+        Specification<Track> spec = TrackSpecifications.fromCriteria(criteria);
+
+        if (criteria.sortBy() == TrackSortField.ARTIST) {
+            List<Long> ids = trackRepository.findIdsSortedByArtist(criteria);
+            long total = trackRepository.count(spec);
+
+            Map<Long, Track> byId = trackRepository.findAllById(ids).stream()
+                    .collect(Collectors.toMap(Track::getId, t -> t));
+            List<TrackResponse> content = ids.stream()
+                    .map(byId::get)
+                    .map(TrackResponse::fromEntity)
+                    .toList();
+
+            return PageResponse.of(content, criteria.page(), criteria.size(), total);
+        }
+
+        Sort sort = Sort.by(criteria.direction(), criteria.sortBy().property());
+        var page = trackRepository.findAll(spec, PageRequest.of(criteria.page(), criteria.size(), sort));
+
+        return PageResponse.of(page.map(TrackResponse::fromEntity));
     }
 
     @Transactional(readOnly = true)
@@ -156,6 +185,11 @@ public class TrackService {
     @Transactional
     public void delete(Long id) {
         Track track = findOrThrow(id);
+
+        // clear the join-table rows from the owning (Playlist) side first, so no playlist is left
+        // pointing at a track id that no longer exists
+        new HashSet<>(track.getPlaylists()).forEach(playlist -> playlist.getTracks().remove(track));
+
         trackRepository.delete(track);
         trackStorageService.deleteByFileName(track.getFileName());
         trackStorageService.deletePreviewByFileName(track.getPreviewFileName());

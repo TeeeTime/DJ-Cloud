@@ -1,12 +1,15 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { Track, mapTrackResponse } from "@/lib/data";
+import { Track } from "@/lib/data";
 import { tracksApi } from "@/lib/api";
+import { usePagedTracks, FetchTracksPageParams } from "@/lib/use-paged-tracks";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 
 type FilterType = { type: 'all' | 'playlist' | 'genre', value: string };
 type SortConfig = { key: keyof Track, direction: 'asc' | 'desc' } | null;
 
+const DEFAULT_SORT_KEY = 'title';
 const ACTIVE_TRACKS_POLL_INTERVAL_MS = 3000;
 
 interface PlayerContextType {
@@ -21,11 +24,19 @@ interface PlayerContextType {
   sortConfig: SortConfig;
   setSortConfig: React.Dispatch<React.SetStateAction<SortConfig>>;
   tracks: Track[];
+  activeTrackOrder: Track[];
+  setActiveTrackOrder: React.Dispatch<React.SetStateAction<Track[] | null>>;
+  // Lets the active view override what happens when skip-forward runs past the end of its order —
+  // e.g. the Overview page's "new tracks" list extends itself instead of looping. Returns the new,
+  // extended order, or null if there's genuinely nothing more (caller should then loop to the start).
+  onOrderExhausted: (() => Promise<Track[] | null>) | null;
+  setOnOrderExhausted: React.Dispatch<React.SetStateAction<(() => Promise<Track[] | null>) | null>>;
   tracksLoading: boolean;
+  tracksLoadingMore: boolean;
   tracksError: string | null;
+  hasMoreTracks: boolean;
+  loadMoreTracks: () => void;
   refreshTracks: () => Promise<void>;
-  filteredTracks: Track[];
-  sortedTracks: Track[];
   handleSort: (key: keyof Track) => void;
   themeIndex: number;
   setThemeIndex: React.Dispatch<React.SetStateAction<number>>;
@@ -36,6 +47,8 @@ interface PlayerContextType {
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
+const fetchLibraryPage = (params: FetchTracksPageParams) => tracksApi.list(params);
+
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
@@ -44,82 +57,47 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const [themeIndex, setThemeIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [tracksLoading, setTracksLoading] = useState(true);
-  const [tracksError, setTracksError] = useState<string | null>(null);
+  const debouncedSearchQuery = useDebouncedValue(searchQuery);
   const audioRef = React.useRef<HTMLAudioElement>(null);
+  const [registeredOrder, setRegisteredOrder] = useState<Track[] | null>(null);
+  const [onOrderExhausted, setOnOrderExhausted] = useState<(() => Promise<Track[] | null>) | null>(null);
 
-  const applyTracksPage = useCallback((page: Awaited<ReturnType<typeof tracksApi.list>>) => {
-    setTracks(page.content.map(mapTrackResponse));
-    setTracksError(null);
-  }, []);
-
-  // The .then/.catch/.finally chain must be written inline in the effect — delegating
-  // to a called function (even an async one) trips react-hooks/set-state-in-effect.
-  useEffect(() => {
-    tracksApi.list({ size: 200, sortBy: 'title' })
-      .then(applyTracksPage)
-      .catch(() => setTracksError("Could not load tracks from the server."))
-      .finally(() => setTracksLoading(false));
-  }, [applyTracksPage]);
+  const {
+    tracks,
+    isLoading: tracksLoading,
+    isLoadingMore: tracksLoadingMore,
+    error: tracksError,
+    hasMore: hasMoreTracks,
+    loadMore: loadMoreTracks,
+    reset: resetTracks,
+    refreshLoaded,
+  } = usePagedTracks({
+    query: debouncedSearchQuery,
+    sortConfig,
+    defaultSortKey: DEFAULT_SORT_KEY,
+    fetchPage: fetchLibraryPage,
+  });
 
   // While any track is still QUEUED/PROCESSING, its status can change server-side (via the
-  // analysis pipeline) without any user action here, so poll until nothing is left in flight —
-  // same inline-chain-in-effect shape as above, for the same lint reason.
+  // analysis pipeline) without any user action here, so poll until nothing is left in flight.
   const hasActiveTracks = tracks.some(t => t.status === 'QUEUED' || t.status === 'PROCESSING');
 
   useEffect(() => {
     if (!hasActiveTracks) return;
-    const interval = setInterval(() => {
-      tracksApi.list({ size: 200, sortBy: 'title' })
-        .then(applyTracksPage)
-        .catch(() => {});
-    }, ACTIVE_TRACKS_POLL_INTERVAL_MS);
+    const interval = setInterval(refreshLoaded, ACTIVE_TRACKS_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [hasActiveTracks, applyTracksPage]);
+  }, [hasActiveTracks, refreshLoaded]);
 
   const refreshTracks = useCallback(async () => {
-    setTracksLoading(true);
-    try {
-      const page = await tracksApi.list({ size: 200, sortBy: 'title' });
-      applyTracksPage(page);
-    } catch {
-      setTracksError("Could not load tracks from the server.");
-    } finally {
-      setTracksLoading(false);
-    }
-  }, [applyTracksPage]);
+    resetTracks();
+  }, [resetTracks]);
 
   // Default to the first track once the library loads, without forcing playback.
   const currentTrack = selectedTrack ?? tracks[0] ?? null;
 
-  // Filter tracks based on active selection and search query
-  const filteredTracks = tracks.filter(track => {
-    // 1. Search Query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesGenre = track.genres.some(genre => genre.toLowerCase().includes(query));
-      if (!track.title.toLowerCase().includes(query) && !track.artist.toLowerCase().includes(query) && !matchesGenre) {
-        return false;
-      }
-    }
-
-    // 2. Active Filter
-    if (activeFilter.type === 'all') return true;
-    if (activeFilter.type === 'playlist') return track.playlist === activeFilter.value;
-    if (activeFilter.type === 'genre') return track.genre === activeFilter.value;
-    return true;
-  });
-
-  const sortedTracks = [...filteredTracks].sort((a, b) => {
-    if (!sortConfig) return 0;
-    const { key, direction } = sortConfig;
-    const aVal = a[key] ?? '';
-    const bVal = b[key] ?? '';
-    if (aVal < bVal) return direction === 'asc' ? -1 : 1;
-    if (aVal > bVal) return direction === 'asc' ? 1 : -1;
-    return 0;
-  });
+  // Whichever view is currently mounted (genre/playlist/overview) can override this with its own
+  // visible order; falls back to the library list when nothing has registered one.
+  const activeTrackOrder = registeredOrder ?? tracks;
 
   const handleSort = (key: keyof Track) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -142,16 +120,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       sortConfig,
       setSortConfig,
       tracks,
+      activeTrackOrder,
+      setActiveTrackOrder: setRegisteredOrder,
+      onOrderExhausted,
+      setOnOrderExhausted,
       tracksLoading,
+      tracksLoadingMore,
       tracksError,
+      hasMoreTracks,
+      loadMoreTracks,
       refreshTracks,
       themeIndex,
       setThemeIndex,
       searchQuery,
       setSearchQuery,
       audioRef,
-      filteredTracks,
-      sortedTracks,
       handleSort,
     }}>
       {/* Hidden Audio Element for actual playback */}

@@ -10,6 +10,19 @@ import { QueueStatusWidget } from "@/components/layout/queue-status";
 import { usePlayer } from "@/components/providers/player-provider";
 import { usePathname } from "next/navigation";
 
+const VOLUME_STORAGE_KEY = "djcloud_volume";
+
+function loadStoredVolume(): number {
+  if (typeof window === "undefined") return 80;
+  try {
+    const saved = localStorage.getItem(VOLUME_STORAGE_KEY);
+    const parsed = saved !== null ? parseFloat(saved) : NaN;
+    return !isNaN(parsed) ? Math.max(0, Math.min(100, parsed)) : 80;
+  } catch {
+    return 80;
+  }
+}
+
 function TrackCover({ src, isPlaying, scratching }: { src: string; isPlaying: boolean; scratching: boolean }) {
   const [error, setError] = useState(false);
 
@@ -40,23 +53,14 @@ export function BottomPlayer() {
     scratching,
     setScratching,
     audioRef,
-    filteredTracks,
+    activeTrackOrder,
+    onOrderExhausted,
     setCurrentTrack
   } = usePlayer();
 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(80);
-
-  // Load volume from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem("djcloud_volume");
-    if (saved !== null) {
-      const parsed = parseFloat(saved);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (!isNaN(parsed)) setVolume(parsed);
-    }
-  }, []);
+  const [volume, setVolume] = useState(loadStoredVolume);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -113,7 +117,12 @@ export function BottomPlayer() {
   useEffect(() => {
     if (audioRef.current && typeof volume === 'number' && !isNaN(volume)) {
       audioRef.current.volume = Math.max(0, Math.min(1, volume / 100));
-      localStorage.setItem("djcloud_volume", volume.toString());
+      try {
+        localStorage.setItem(VOLUME_STORAGE_KEY, volume.toString());
+      } catch {
+        // Storage may be unavailable (private browsing, blocked site data, etc.) — volume
+        // still works for this session, it just won't persist.
+      }
     }
   }, [volume, audioRef]);
 
@@ -130,20 +139,41 @@ export function BottomPlayer() {
     audioRef.current.currentTime = (percent / 100) * duration;
   };
 
-  const playNext = () => {
-    if (!currentTrack) return;
-    const currentIndex = filteredTracks.findIndex(t => t.id === currentTrack.id);
-    if (currentIndex >= 0 && currentIndex < filteredTracks.length - 1) {
-      setCurrentTrack(filteredTracks[currentIndex + 1]);
+  const playNext = async () => {
+    if (!currentTrack || activeTrackOrder.length === 0) return;
+    const currentIndex = activeTrackOrder.findIndex(t => t.id === currentTrack.id);
+    // Not present in the current view's order? Start at its first track instead of no-op'ing.
+    const targetIndex = currentIndex === -1 ? 0 : currentIndex + 1;
+
+    if (targetIndex < activeTrackOrder.length) {
+      setCurrentTrack(activeTrackOrder[targetIndex]);
       setIsPlaying(true);
+      return;
     }
+
+    // Ran off the end of the order. Most views just loop back to the start; a view can override
+    // this (e.g. Overview's "new tracks" list extends itself with the next-newest tracks instead).
+    if (onOrderExhausted) {
+      const extended = await onOrderExhausted();
+      if (extended && targetIndex < extended.length) {
+        setCurrentTrack(extended[targetIndex]);
+        setIsPlaying(true);
+        return;
+      }
+    }
+
+    setCurrentTrack(activeTrackOrder[0]);
+    setIsPlaying(true);
   };
 
   const playPrev = () => {
-    if (!currentTrack) return;
-    const currentIndex = filteredTracks.findIndex(t => t.id === currentTrack.id);
-    if (currentIndex > 0) {
-      setCurrentTrack(filteredTracks[currentIndex - 1]);
+    if (!currentTrack || activeTrackOrder.length === 0) return;
+    const currentIndex = activeTrackOrder.findIndex(t => t.id === currentTrack.id);
+    if (currentIndex === -1) {
+      setCurrentTrack(activeTrackOrder[0]);
+      setIsPlaying(true);
+    } else if (currentIndex > 0) {
+      setCurrentTrack(activeTrackOrder[currentIndex - 1]);
       setIsPlaying(true);
     } else if (audioRef.current) {
       audioRef.current.currentTime = 0;
@@ -158,9 +188,13 @@ export function BottomPlayer() {
   const safeVolume = typeof volume === 'number' && !isNaN(volume) ? volume : 80;
 
   return (
-    <div className="h-24 shrink-0 bg-black border-t border-zinc-900 z-50 flex items-center px-4 md:px-8 gap-4 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+    // A fixed-width middle column (matching the old max-w-2xl cap) keeps Player Controls truly
+    // centered via the two equal 1fr side columns, while giving Right Controls a real, predictable
+    // gap-4 next to it — `justify-between` on a plain flex row pinned Right Controls to the bar's
+    // true right edge instead, which is what made that gap balloon out on wide screens.
+    <div className="h-24 shrink-0 bg-black border-t border-zinc-900 z-50 grid grid-cols-[1fr_42rem_1fr] items-center px-4 md:px-8 gap-4 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
       {/* Track Info */}
-      <div className="flex items-center gap-4 w-1/4 min-w-[280px]">
+      <div className="flex items-center gap-4 min-w-0">
         {/* Easter Egg 4: Vinyl Spinning & Scratching */}
         <div 
           className={`relative w-14 h-14 shrink-0 rounded-md bg-zinc-900 flex items-center justify-center border border-zinc-800 overflow-hidden cursor-pointer ${scratching ? 'scale-110 skew-x-12' : 'transition-transform'}`}
@@ -181,7 +215,7 @@ export function BottomPlayer() {
       </div>
 
       {/* Player Controls */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-2 max-w-2xl">
+      <div className="flex flex-col items-center justify-center gap-2">
         <div className="flex items-center gap-6">
           <button onClick={playPrev} className="text-zinc-500 hover:text-white transition-colors">
             <SkipBack className="w-4 h-4 fill-current" />
@@ -212,7 +246,7 @@ export function BottomPlayer() {
       </div>
 
       {/* Right Controls (Volume + Queue Status) */}
-      <div className="w-1/4 min-w-[280px] flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4 min-w-0">
         <div 
           className="flex items-center gap-3 w-32 group"
           onWheel={(e) => {

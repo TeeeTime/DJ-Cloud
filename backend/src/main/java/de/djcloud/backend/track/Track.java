@@ -2,6 +2,7 @@ package de.djcloud.backend.track;
 
 import de.djcloud.backend.artist.Artist;
 import de.djcloud.backend.genre.Genre;
+import de.djcloud.backend.playlist.Playlist;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -11,6 +12,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
+@Table(indexes = { @Index(name = "idx_track_title", columnList = "title") })
 @Getter
 @Setter
 @NoArgsConstructor
@@ -51,7 +53,9 @@ public class Track {
     @JoinTable(
             name = "track_artist",
             joinColumns = @JoinColumn(name = "track_id"),
-            inverseJoinColumns = @JoinColumn(name = "artist_id")
+            inverseJoinColumns = @JoinColumn(name = "artist_id"),
+            indexes = { @Index(name = "idx_track_artist_track_id", columnList = "track_id"),
+                    @Index(name = "idx_track_artist_artist_id", columnList = "artist_id") }
     )
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
@@ -61,9 +65,17 @@ public class Track {
     @JoinTable(
             name = "track_genre",
             joinColumns = @JoinColumn(name = "track_id"),
-            inverseJoinColumns = @JoinColumn(name = "genre_id")
+            inverseJoinColumns = @JoinColumn(name = "genre_id"),
+            indexes = { @Index(name = "idx_track_genre_track_id", columnList = "track_id"),
+                    @Index(name = "idx_track_genre_genre_id", columnList = "genre_id") }
     )
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     private Set<Genre> genres = new HashSet<>();
+
+    /** Inverse side of {@code Playlist.tracks} — lets a track's deletion clean up its memberships. */
+    @ManyToMany(mappedBy = "tracks")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private Set<Playlist> playlists = new HashSet<>();
 }
