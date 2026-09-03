@@ -1,0 +1,43 @@
+name: Build and Release Desktop Client
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+          - platform: 'windows-latest'
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: desktop
+
+      - name: Set version from release tag
+        shell: bash
+        run: npm pkg set version=${TAG#v}
+        working-directory: desktop
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          tagName: ${{ github.event.release.tag_name }}
+          releaseId: ${{ github.event.release.id }}
