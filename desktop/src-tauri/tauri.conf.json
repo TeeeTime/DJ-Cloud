@@ -50,7 +50,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU3RjlENDU3MkU0RjNBN0EKUldSNk9rOHVWOVQ1NS91aHg0U3U5SnMwN1ZSclBwMENiVGZPcE5TL0hiQ2NnWElzYnBnbXMycDgK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFBRkJFNEIyOTgxMDkzOTIKUldTU2t4Q1lzdVQ3cXZwWEpoYU0vOFBrM3haWnZFODJuNE5VdmhqQXFHT09VMXNiUjhQTGRHVFEK",
       "endpoints": [
         "https://github.com/TeeeTime/DJ-Cloud/releases/latest/download/latest.json"
       ]
