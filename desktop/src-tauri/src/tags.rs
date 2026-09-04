@@ -45,7 +45,10 @@ fn read_id3v2(path: &Path, extension: &str) -> Option<Id3v2Tag> {
     }
 }
 
-fn comment_by_description<'a>(tag: &'a Id3v2Tag, description: &str) -> Option<&'a lofty::id3::v2::CommentFrame<'a>> {
+fn comment_by_description<'a>(
+    tag: &'a Id3v2Tag,
+    description: &str,
+) -> Option<&'a lofty::id3::v2::CommentFrame<'a>> {
     tag.into_iter().find_map(|frame| match frame {
         Frame::Comment(comment) if comment.description == description => Some(comment),
         _ => None,
@@ -61,13 +64,19 @@ mod tests {
     // carrying a CUSTOM1 COMM frame, to confirm lofty reads back exactly what jaudiotagger wrote.
     #[test]
     fn reads_id_tag_written_by_jaudiotagger_mp3() {
-        let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../test-fixtures/fixture.mp3"));
+        let path = Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../test-fixtures/fixture.mp3"
+        ));
         assert_eq!(read_track_id_tag(path), Some(42424));
     }
 
     #[test]
     fn reads_id_tag_written_by_jaudiotagger_wav() {
-        let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../test-fixtures/fixture.wav"));
+        let path = Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../test-fixtures/fixture.wav"
+        ));
         assert_eq!(read_track_id_tag(path), Some(77777));
     }
 }

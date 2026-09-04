@@ -144,7 +144,8 @@ mod tests {
     }
 
     fn tempfile_dir() -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("djcloud-relocate-test-{}", std::process::id()))
+        let dir = std::env::temp_dir()
+            .join(format!("djcloud-relocate-test-{}", std::process::id()))
             .join(uuid_like());
         fs::create_dir_all(&dir).unwrap();
         dir
@@ -152,6 +153,12 @@ mod tests {
 
     fn uuid_like() -> String {
         use std::time::{SystemTime, UNIX_EPOCH};
-        format!("{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos())
+        format!(
+            "{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        )
     }
 }

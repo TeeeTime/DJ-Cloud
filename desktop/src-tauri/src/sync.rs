@@ -230,11 +230,21 @@ fn resolve_playlist_folder(
 fn sanitize_folder_name(name: &str) -> String {
     let cleaned: String = name
         .chars()
-        .map(|c| if r#"<>:"/\|?*"#.contains(c) || c.is_control() { '_' } else { c })
+        .map(|c| {
+            if r#"<>:"/\|?*"#.contains(c) || c.is_control() {
+                '_'
+            } else {
+                c
+            }
+        })
         .collect();
     let trimmed = cleaned.trim().trim_end_matches(['.', ' ']).to_string();
 
-    if trimmed.is_empty() { "Playlist".to_string() } else { trimmed }
+    if trimmed.is_empty() {
+        "Playlist".to_string()
+    } else {
+        trimmed
+    }
 }
 
 fn unique_folder_name(base: &str, used: &HashSet<String>) -> String {
@@ -252,14 +262,17 @@ fn unique_folder_name(base: &str, used: &HashSet<String>) -> String {
     }
 }
 
-async fn fetch_all_tracks(client: &Client, token: &str, playlist_id: i64) -> Result<Vec<TrackSummary>, String> {
+async fn fetch_all_tracks(
+    client: &Client,
+    token: &str,
+    playlist_id: i64,
+) -> Result<Vec<TrackSummary>, String> {
     let mut all = Vec::new();
     let mut page = 0u32;
 
     loop {
-        let path = format!(
-            "/api/playlists/{playlist_id}/tracks?page={page}&size={PLAYLISTS_PAGE_SIZE}"
-        );
+        let path =
+            format!("/api/playlists/{playlist_id}/tracks?page={page}&size={PLAYLISTS_PAGE_SIZE}");
         let response: Page<TrackSummary> = http::get_json(client, token, &path).await?;
         let has_next = response.has_next;
         all.extend(response.content);

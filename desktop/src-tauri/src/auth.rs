@@ -45,12 +45,17 @@ pub async fn validate_auth_token(app: AppHandle) -> Result<bool, String> {
     };
 
     let client = Client::new();
-    Ok(http::get(&client, &auth.token, "/api/auth/me").await.is_ok())
+    Ok(http::get(&client, &auth.token, "/api/auth/me")
+        .await
+        .is_ok())
 }
 
 fn store_auth(app: &AppHandle, info: &AuthInfo) -> Result<(), String> {
     let store = app.store(STORE_PATH).map_err(|err| err.to_string())?;
-    store.set(AUTH_KEY, serde_json::to_value(info).map_err(|err| err.to_string())?);
+    store.set(
+        AUTH_KEY,
+        serde_json::to_value(info).map_err(|err| err.to_string())?,
+    );
     store.save().map_err(|err| err.to_string())
 }
 

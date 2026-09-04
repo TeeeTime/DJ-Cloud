@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useCallback, useEffect, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, KeyRound, User, Loader2 } from "lucide-react";
@@ -24,17 +24,19 @@ function LoginPageContent() {
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [manualRedirect, setManualRedirect] = useState(false);
   const [handedOff, setHandedOff] = useState(false);
+  const hasAutoRedirected = useRef(false);
 
   // Navigating to a custom-scheme URL doesn't unload this tab the way a normal redirect would —
   // the OS hands off to the desktop app, but the browser tab itself just sits here afterward.
   // window.close() only works on a tab script itself opened (blocked by every modern browser for
   // a tab the user/OS opened, like this one), so it's attempted as a harmless best effort and
   // "you can close this window" is shown either way once enough time has passed for the OS to
-  // have acted on the redirect.
+  // have acted on the redirect. setHandedOff only ever runs inside this callback, never directly
+  // in the effect below, so it can't trigger the cascading-render issue synchronous setState
+  // calls in an effect body cause.
   const redirectToDesktop = useCallback((url: string) => {
-    setIsRedirecting(true);
     window.location.href = url;
     window.setTimeout(() => {
       window.close();
@@ -44,15 +46,19 @@ function LoginPageContent() {
 
   // A valid session already in localStorage means there's no reason to show the credentials
   // form at all — for the desktop handoff this makes "Log In" a single click whenever the
-  // user's browser is already signed in to the website.
+  // user's browser is already signed in to the website. Whether this is currently redirecting
+  // is derived below (isAutoRedirecting) rather than tracked in state set from this effect.
   useEffect(() => {
     if (isSessionLoading || !user || !token) return;
 
-    if (isDesktop) {
-      redirectToDesktop(buildDesktopRedirectUrl(token, user.username));
-    } else {
+    if (!isDesktop) {
       router.replace("/library");
+      return;
     }
+
+    if (hasAutoRedirected.current) return;
+    hasAutoRedirected.current = true;
+    redirectToDesktop(buildDesktopRedirectUrl(token, user.username));
   }, [isSessionLoading, user, token, isDesktop, router, redirectToDesktop]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -65,6 +71,7 @@ function LoginPageContent() {
         // localStorage session and doesn't return the token) — this is a one-time handoff to
         // the desktop app, not a new browser session.
         const res = await authApi.login(username, password);
+        setManualRedirect(true);
         redirectToDesktop(buildDesktopRedirectUrl(res.token, res.username));
         return;
       }
@@ -82,6 +89,8 @@ function LoginPageContent() {
   };
 
   const alreadyAuthenticated = !isSessionLoading && !!user && !!token;
+  const isAutoRedirecting = alreadyAuthenticated && isDesktop;
+  const isRedirecting = manualRedirect || isAutoRedirecting;
 
   if (isSessionLoading || isRedirecting || alreadyAuthenticated) {
     return (
@@ -91,7 +100,7 @@ function LoginPageContent() {
             <div className="w-12 h-12 rounded-full bg-zinc-900/80 border border-zinc-800 flex items-center justify-center">
               <CheckCircle2 className="w-6 h-6 text-zinc-300" />
             </div>
-            <p className="text-sm text-zinc-400">You're logged in — you can close this window now.</p>
+            <p className="text-sm text-zinc-400">You are logged in — you can close this window now.</p>
           </>
         ) : (
           <>
