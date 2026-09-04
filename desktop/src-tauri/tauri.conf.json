@@ -29,6 +29,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -45,6 +46,14 @@
         "bannerPath": "installer/wix-banner.bmp",
         "dialogImagePath": "installer/wix-dialog.bmp"
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU3RjlENDU3MkU0RjNBN0EKUldSNk9rOHVWOVQ1NS91aHg0U3U5SnMwN1ZSclBwMENiVGZPcE5TL0hiQ2NnWElzYnBnbXMycDgK",
+      "endpoints": [
+        "https://github.com/TeeeTime/DJ-Cloud/releases/latest/download/latest.json"
+      ]
     }
   }
 }
