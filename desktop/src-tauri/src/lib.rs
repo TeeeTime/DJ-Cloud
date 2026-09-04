@@ -1,5 +1,12 @@
 use std::sync::Mutex;
 
+mod auth;
+mod http;
+mod relocate;
+mod settings;
+mod sync;
+mod tags;
+
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -86,13 +93,37 @@ fn toggle_main_window(app: &tauri::AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Must be the first plugin registered — see https://v2.tauri.app/plugin/single-instance/.
+        // Windows/Linux hand a djcloud:// deep link to a *new* process launch (there's no OS-level
+        // "notify the running instance" for custom URL schemes), so without this every login
+        // handoff would spawn a second app instance instead of returning to the one the user
+        // already has open. The "deep-link" cargo feature makes this plugin forward the second
+        // launch's argv into tauri-plugin-deep-link's own event before this callback runs, so the
+        // existing auth::setup() listener picks it up exactly like a normal deep-link activation.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main_window(app);
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .invoke_handler(tauri::generate_handler![
+            auth::get_auth_token,
+            auth::clear_auth_token,
+            auth::validate_auth_token,
+            settings::get_settings,
+            settings::set_library_folder,
+            sync::sync_library,
+        ])
         .manage(TrayRect(Mutex::new(None)))
         .manage(PointerOverTray(Mutex::new(false)))
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+            auth::setup(app.handle());
 
             let show_item = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
