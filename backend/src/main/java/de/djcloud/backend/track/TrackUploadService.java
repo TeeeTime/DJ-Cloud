@@ -11,13 +11,16 @@ import org.springframework.web.server.ResponseStatusException;
 import de.djcloud.backend.artist.ArtistService;
 import de.djcloud.backend.genre.GenreService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TrackUploadService {
 
     private final TrackStorageService trackStorageService;
     private final AudioMetadataReader audioMetadataReader;
+    private final AudioMetadataWriter audioMetadataWriter;
     private final ArtistService artistService;
     private final GenreService genreService;
     private final TrackRepository trackRepository;
@@ -66,9 +69,16 @@ public class TrackUploadService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Track could not be saved", ex);
         }
 
-        // Outside the try/catch above on purpose: once the row is safely saved, a problem
-        // submitting it for analysis must never trigger the "delete the upload" cleanup meant for
-        // actual save failures.
+        // Outside the try/catch above on purpose: once the row is safely saved, a problem writing
+        // this tag or submitting the track for analysis must never trigger the "delete the upload"
+        // cleanup meant for actual save failures. A missing id tag is self-healed on the next
+        // backend restart by CustomIdBackfillRunner, so it's safe to just warn and move on here.
+        try {
+            audioMetadataWriter.writeInternalId(storedFile.file(), savedTrack.getId());
+        } catch (AudioMetadataException ex) {
+            log.warn("Could not embed internal id tag for track {}: {}", savedTrack.getId(), ex.getMessage());
+        }
+
         trackAnalysisQueue.enqueue(savedTrack.getId());
 
         return TrackResponse.fromEntity(savedTrack);

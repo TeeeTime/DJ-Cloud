@@ -1,28 +1,74 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { Suspense, useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, KeyRound, User, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, KeyRound, User, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuroraText } from "@/components/ui/aurora-text";
 import { useAuth } from "@/components/providers/auth-provider";
-import { ApiError } from "@/lib/api";
+import { ApiError, authApi } from "@/lib/api";
 
-export default function LoginPage() {
+function buildDesktopRedirectUrl(token: string, username: string) {
+  return `djcloud://auth?token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}`;
+}
+
+function LoginPageContent() {
   const router = useRouter();
-  const { login } = useAuth();
+  const searchParams = useSearchParams();
+  const isDesktop = searchParams.get("desktop") === "1";
+
+  const { user, token, isLoading: isSessionLoading, login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [handedOff, setHandedOff] = useState(false);
+
+  // Navigating to a custom-scheme URL doesn't unload this tab the way a normal redirect would —
+  // the OS hands off to the desktop app, but the browser tab itself just sits here afterward.
+  // window.close() only works on a tab script itself opened (blocked by every modern browser for
+  // a tab the user/OS opened, like this one), so it's attempted as a harmless best effort and
+  // "you can close this window" is shown either way once enough time has passed for the OS to
+  // have acted on the redirect.
+  const redirectToDesktop = useCallback((url: string) => {
+    setIsRedirecting(true);
+    window.location.href = url;
+    window.setTimeout(() => {
+      window.close();
+      setHandedOff(true);
+    }, 1200);
+  }, []);
+
+  // A valid session already in localStorage means there's no reason to show the credentials
+  // form at all — for the desktop handoff this makes "Log In" a single click whenever the
+  // user's browser is already signed in to the website.
+  useEffect(() => {
+    if (isSessionLoading || !user || !token) return;
+
+    if (isDesktop) {
+      redirectToDesktop(buildDesktopRedirectUrl(token, user.username));
+    } else {
+      router.replace("/library");
+    }
+  }, [isSessionLoading, user, token, isDesktop, router, redirectToDesktop]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
+      if (isDesktop) {
+        // Deliberately bypasses the context's login() (which is for the browser's own
+        // localStorage session and doesn't return the token) — this is a one-time handoff to
+        // the desktop app, not a new browser session.
+        const res = await authApi.login(username, password);
+        redirectToDesktop(buildDesktopRedirectUrl(res.token, res.username));
+        return;
+      }
+
       await login(username, password);
       router.push("/library");
     } catch (err) {
@@ -31,9 +77,31 @@ export default function LoginPage() {
       } else {
         setError("Something went wrong. Please try again.");
       }
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
+
+  const alreadyAuthenticated = !isSessionLoading && !!user && !!token;
+
+  if (isSessionLoading || isRedirecting || alreadyAuthenticated) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center gap-4">
+        {isRedirecting && handedOff ? (
+          <>
+            <div className="w-12 h-12 rounded-full bg-zinc-900/80 border border-zinc-800 flex items-center justify-center">
+              <CheckCircle2 className="w-6 h-6 text-zinc-300" />
+            </div>
+            <p className="text-sm text-zinc-400">You're logged in — you can close this window now.</p>
+          </>
+        ) : (
+          <>
+            <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
+            {isRedirecting && <p className="text-sm text-zinc-500">Redirecting to DJ Cloud Desktop…</p>}
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center relative overflow-hidden font-sans selection:bg-zinc-800">
@@ -98,10 +166,10 @@ export default function LoginPage() {
 
           <Button
             type="submit"
-            disabled={isLoading}
+            disabled={isSubmitting}
             className="w-full h-12 bg-white hover:bg-zinc-200 text-black font-bold tracking-widest uppercase rounded-xl transition-all hover:shadow-[0_0_30px_-5px_rgba(255,255,255,0.3)] active:scale-[0.98] disabled:opacity-70 disabled:hover:shadow-none"
           >
-            {isLoading ? (
+            {isSubmitting ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               "Enter Archive"
@@ -122,5 +190,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-black text-white flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
+        </div>
+      }
+    >
+      <LoginPageContent />
+    </Suspense>
   );
 }

@@ -14,8 +14,8 @@
       {
         "label": "main",
         "title": "DJ Cloud",
-        "width": 280,
-        "height": 360,
+        "width": 400,
+        "height": 240,
         "resizable": false,
         "decorations": false,
         "skipTaskbar": true,
@@ -54,6 +54,11 @@
       "endpoints": [
         "https://github.com/TeeeTime/DJ-Cloud/releases/latest/download/latest.json"
       ]
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["djcloud"]
+      }
     }
   }
 }

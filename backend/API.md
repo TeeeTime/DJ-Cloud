@@ -359,7 +359,9 @@ Response `200`: the raw audio bytes. `Content-Type` is `audio/mpeg` for an mp3 o
 wav (based on `fileFormat`). `Content-Disposition: attachment; filename="..."` gives the file a
 human-readable name — `"{Title} - {Artist(s)}.{ext}"` — sanitized for both Windows and macOS
 filesystems (illegal characters replaced, trailing dots/spaces stripped, reserved device names like
-`CON` suffixed), instead of the internal UUID name it's stored under on disk.
+`CON` suffixed), instead of the internal UUID name it's stored under on disk. The downloaded file's
+own tags also carry the track's numeric `id` (in a custom field, `FieldKey.CUSTOM1`) — a local sync
+client can read this back to identify which track a file is without relying on its filename.
 
 `404` if the track doesn't exist or has no audio file on disk. `401` if not authenticated.
 
@@ -387,6 +389,9 @@ Behavior:
 - `bpm` (`0`) and `key` (`null`) are placeholders until analysis finishes — see below.
 - `status` starts at `QUEUED`.
 - `fileFormat` is the file's extension (`mp3`/`wav`).
+- The track's own numeric `id` is embedded into the stored file's tags right after the row is saved
+  (see `GET /{id}/download` above) — best-effort; a failure here doesn't fail the upload and is
+  self-healed on the next server restart.
 - `dateAdded` is today's date (server-side, `yyyy-MM-dd`) — the day the track was uploaded. Not
   settable by the client and not part of `PUT /api/tracks/{id}`'s editable fields.
 - `addedAt` is the exact upload instant (server-side) — same purpose as `dateAdded` but precise to the
