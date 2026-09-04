@@ -44,4 +44,3 @@ jobs:
           projectPath: desktop
           tagName: ${{ github.event.release.tag_name }}
           releaseId: ${{ github.event.release.id }}
-          releaseAssetNamePattern: '[name]_[version]_[arch][_setup].[ext]'
