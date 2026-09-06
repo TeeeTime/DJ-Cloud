@@ -1,9 +1,12 @@
 use reqwest::{Client, Response};
 
-/// No desktop-side env var convention existed before this — mirrors the frontend's
-/// `NEXT_PUBLIC_API_URL` pattern (`frontend/lib/api.ts:1`) with the same localhost default.
+/// Read at compile time (not `std::env::var`, which would look for `DJCLOUD_API_URL` in the
+/// *running* user's environment, where it will never be set) so the release workflow can bake
+/// the production URL into the binary while `cargo tauri dev` keeps defaulting to localhost.
 pub fn base_url() -> String {
-    std::env::var("DJCLOUD_API_URL").unwrap_or_else(|_| "http://localhost:8080".to_string())
+    option_env!("DJCLOUD_API_URL")
+        .unwrap_or("http://localhost:8080")
+        .to_string()
 }
 
 /// Sends an authenticated GET and returns the raw response, checked for a success status but not
