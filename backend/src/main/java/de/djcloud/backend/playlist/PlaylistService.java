@@ -207,6 +207,30 @@ public class PlaylistService {
         return PlaylistDetailResponse.fromEntity(playlist, true, isSubscribed(playlistId, caller.getId()));
     }
 
+    /** A stale/nonexistent track id in {@code trackIds} is silently skipped, not an error. */
+    @Transactional
+    public PlaylistDetailResponse addTracks(Long playlistId, List<Long> trackIds, AppUserDetails caller) {
+        Playlist playlist = findOrThrow(playlistId);
+        assertCanEditTracks(playlist, caller);
+
+        playlist.getTracks().addAll(trackRepository.findAllById(trackIds));
+        playlistRepository.save(playlist);
+
+        return PlaylistDetailResponse.fromEntity(playlist, true, isSubscribed(playlistId, caller.getId()));
+    }
+
+    @Transactional
+    public PlaylistDetailResponse removeTracks(Long playlistId, List<Long> trackIds, AppUserDetails caller) {
+        Playlist playlist = findOrThrow(playlistId);
+        assertCanEditTracks(playlist, caller);
+
+        Set<Long> idsToRemove = new HashSet<>(trackIds);
+        playlist.getTracks().removeIf(t -> idsToRemove.contains(t.getId()));
+        playlistRepository.save(playlist);
+
+        return PlaylistDetailResponse.fromEntity(playlist, true, isSubscribed(playlistId, caller.getId()));
+    }
+
     private boolean isSubscribed(Long playlistId, Long userId) {
         return playlistSubscriptionRepository.findByPlaylistIdAndUserId(playlistId, userId).isPresent();
     }

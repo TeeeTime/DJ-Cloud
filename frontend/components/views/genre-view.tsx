@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/components/providers/auth-provider";
 import { usePlayer } from "@/components/providers/player-provider";
 import { Track, formatDateAdded } from "@/lib/data";
@@ -14,9 +15,14 @@ import { ApiError, genresApi, tracksApi } from "@/lib/api";
 import { downloadFile } from "@/lib/download";
 import { usePagedTracks, FetchTracksPageParams } from "@/lib/use-paged-tracks";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
+import { useTrackSelection } from "@/lib/use-track-selection";
 import { Sidebar } from "@/components/layout/sidebar";
 import { StatusBadge, TrackThumbnail } from "./track-row-parts";
 import { AddToPlaylistMenu } from "./add-to-playlist-menu";
+import { BulkAddToPlaylistMenu } from "./bulk-add-to-playlist-menu";
+import { BulkDeleteTracksDialog } from "./bulk-delete-tracks-dialog";
+import { SelectionControls } from "./selection-controls";
+import { SelectionActionBar } from "./selection-action-bar";
 import { TrackEditDialog } from "./track-edit-dialog";
 import { TrackDeleteDialog } from "./track-delete-dialog";
 
@@ -133,6 +139,24 @@ export function GenreView({ genreName }: GenreViewProps) {
     }
   };
 
+  const selection = useTrackSelection(tracks);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [isBulkDownloading, setIsBulkDownloading] = useState(false);
+  const [bulkDownloadError, setBulkDownloadError] = useState<string | null>(null);
+
+  const handleBulkDownload = async () => {
+    if (!token || selection.selectedCount === 0) return;
+    setIsBulkDownloading(true);
+    setBulkDownloadError(null);
+    try {
+      await downloadFile(tracksApi.bulkDownloadUrl([...selection.selectedIds]), token, "Selected Tracks.zip");
+    } catch (err) {
+      setBulkDownloadError(err instanceof ApiError ? err.message : "Download failed. Please try again.");
+    } finally {
+      setIsBulkDownloading(false);
+    }
+  };
+
   return (
     <main className="flex-1 flex flex-col min-w-0 bg-zinc-950/30 relative h-full">
       <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-10 shrink-0 gap-4">
@@ -202,6 +226,40 @@ export function GenreView({ genreName }: GenreViewProps) {
             </div>
           )}
 
+          {bulkDownloadError && (
+            <div className="mb-6 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {bulkDownloadError}
+            </div>
+          )}
+
+          {selection.selectMode && (
+            <SelectionActionBar selectedCount={selection.selectedCount} onSelectAll={selection.selectAll}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBulkDownload}
+                disabled={selection.selectedCount === 0 || isBulkDownloading}
+                className="text-zinc-400 hover:text-white hover:bg-zinc-800/50"
+              >
+                {isBulkDownloading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Download className="w-4 h-4 mr-1.5" />}
+                Download Selected
+              </Button>
+              {canUpload && <BulkAddToPlaylistMenu trackIds={[...selection.selectedIds]} />}
+              {canUpload && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setBulkDeleteOpen(true)}
+                  disabled={selection.selectedCount === 0}
+                  className="text-red-500 hover:text-red-400 hover:bg-red-950/50"
+                >
+                  <Trash className="w-4 h-4 mr-1.5" /> Delete Selected
+                </Button>
+              )}
+            </SelectionActionBar>
+          )}
+
           <div className="rounded-xl border border-zinc-900 bg-black/50 overflow-hidden w-full">
             <Table className="table-fixed w-full">
               <TableHeader className="bg-zinc-900/30 select-none">
@@ -219,7 +277,7 @@ export function GenreView({ genreName }: GenreViewProps) {
                   >
                     <div className="flex items-center">Artist {renderSortIcon('artist')}</div>
                   </TableHead>
-                  <TableHead className="w-[14%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Genre</TableHead>
+                  <TableHead className={`${selection.selectMode ? "w-[12%]" : "w-[14%]"} text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11`}>Genre</TableHead>
                   <TableHead
                     className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
                     onClick={() => handleSort('bpm')}
@@ -228,13 +286,32 @@ export function GenreView({ genreName }: GenreViewProps) {
                   </TableHead>
                   <TableHead className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Key</TableHead>
                   <TableHead
-                    className="w-[12%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    className={`${selection.selectMode ? "w-[10%]" : "w-[12%]"} text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11`}
                     onClick={() => handleSort('addedAt')}
                   >
                     <div className="flex items-center">Date Added {renderSortIcon('addedAt')}</div>
                   </TableHead>
                   <TableHead className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Status</TableHead>
-                  <TableHead className="w-[8%] text-right text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11"></TableHead>
+                  <TableHead className="w-[8%] text-right h-11">
+                    {!selection.selectMode && (
+                      <SelectionControls
+                        selectMode={false}
+                        totalCount={tracks.length}
+                        onEnter={selection.enterSelectMode}
+                        onCancel={selection.cancel}
+                      />
+                    )}
+                  </TableHead>
+                  {selection.selectMode && (
+                    <TableHead className="w-[4%] text-center h-11">
+                      <SelectionControls
+                        selectMode={true}
+                        totalCount={tracks.length}
+                        onEnter={selection.enterSelectMode}
+                        onCancel={selection.cancel}
+                      />
+                    </TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -243,6 +320,10 @@ export function GenreView({ genreName }: GenreViewProps) {
                     key={track.id}
                     className={`border-zinc-900 hover:bg-zinc-900/40 group transition-colors cursor-pointer ${currentTrack?.id === track.id ? 'bg-zinc-900/20' : ''}`}
                     onClick={() => {
+                      if (selection.selectMode) {
+                        selection.toggle(track.id);
+                        return;
+                      }
                       if (currentTrack?.id === track.id) {
                         setIsPlaying(!isPlaying);
                       } else {
@@ -347,11 +428,19 @@ export function GenreView({ genreName }: GenreViewProps) {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
+                    {selection.selectMode && (
+                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selection.isSelected(track.id)}
+                          onCheckedChange={() => selection.toggle(track.id)}
+                        />
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
                 {tracksLoading && (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-32 text-center text-zinc-500">
+                    <TableCell colSpan={selection.selectMode ? 10 : 9} className="h-32 text-center text-zinc-500">
                       <div className="flex items-center justify-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Loading tracks…
@@ -361,14 +450,14 @@ export function GenreView({ genreName }: GenreViewProps) {
                 )}
                 {!tracksLoading && tracks.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-32 text-center text-zinc-500">
+                    <TableCell colSpan={selection.selectMode ? 10 : 9} className="h-32 text-center text-zinc-500">
                       No tracks found in this genre.
                     </TableCell>
                   </TableRow>
                 )}
                 {!tracksLoading && hasMoreTracks && (
                   <TableRow ref={loadMoreRef} className="border-none hover:bg-transparent">
-                    <TableCell colSpan={9} className="h-16 text-center text-zinc-500">
+                    <TableCell colSpan={selection.selectMode ? 10 : 9} className="h-16 text-center text-zinc-500">
                       {tracksLoadingMore && (
                         <div className="flex items-center justify-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -394,6 +483,13 @@ export function GenreView({ genreName }: GenreViewProps) {
         track={trackToDelete}
         open={deleteDialogOpen}
         onOpenChange={(open) => { setDeleteDialogOpen(open); if (!open) resetTracks(); }}
+      />
+
+      <BulkDeleteTracksDialog
+        trackIds={[...selection.selectedIds]}
+        open={bulkDeleteOpen}
+        onOpenChange={(open) => { setBulkDeleteOpen(open); if (!open) resetTracks(); }}
+        onDeleted={selection.clearSelection}
       />
     </main>
   );

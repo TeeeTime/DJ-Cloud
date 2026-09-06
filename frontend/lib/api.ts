@@ -243,11 +243,16 @@ export const tracksApi = {
   delete: (id: number, token: string) =>
     request<void>(`/api/tracks/${id}`, { method: "DELETE" }, token),
 
+  bulkDelete: (trackIds: number[], token: string) =>
+    request<void>(`/api/tracks/bulk-delete`, { method: "DELETE", body: JSON.stringify({ trackIds }) }, token),
+
   audioUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/audio`,
 
   coverUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/cover`,
 
   downloadUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/download`,
+
+  bulkDownloadUrl: (trackIds: number[]) => `${API_BASE_URL}/api/tracks/bulk-download?trackIds=${trackIds.join(",")}`,
 
   queue: () => request<QueueStatus>("/api/tracks/queue", { method: "GET" }),
 };
@@ -328,6 +333,20 @@ export const playlistsApi = {
     request<PlaylistDetailResponse>(
       `/api/playlists/${playlistId}/tracks/${trackId}`,
       { method: "DELETE" },
+      token
+    ),
+
+  bulkAddTracks: (playlistId: number, trackIds: number[], token: string) =>
+    request<PlaylistDetailResponse>(
+      `/api/playlists/${playlistId}/tracks/bulk`,
+      { method: "POST", body: JSON.stringify({ trackIds }) },
+      token
+    ),
+
+  bulkRemoveTracks: (playlistId: number, trackIds: number[], token: string) =>
+    request<PlaylistDetailResponse>(
+      `/api/playlists/${playlistId}/tracks/bulk`,
+      { method: "DELETE", body: JSON.stringify({ trackIds }) },
       token
     ),
 

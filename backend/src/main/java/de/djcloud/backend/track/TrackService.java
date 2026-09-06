@@ -184,8 +184,19 @@ public class TrackService {
 
     @Transactional
     public void delete(Long id) {
-        Track track = findOrThrow(id);
+        deleteEntity(findOrThrow(id));
+    }
 
+    /**
+     * Deletes every track whose id is still found — a stale id (already deleted by another
+     * request in the meantime) is silently skipped rather than failing the whole batch.
+     */
+    @Transactional
+    public void bulkDelete(List<Long> ids) {
+        trackRepository.findAllById(ids).forEach(this::deleteEntity);
+    }
+
+    private void deleteEntity(Track track) {
         // clear the join-table rows from the owning (Playlist) side first, so no playlist is left
         // pointing at a track id that no longer exists
         new HashSet<>(track.getPlaylists()).forEach(playlist -> playlist.getTracks().remove(track));

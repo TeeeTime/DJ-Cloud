@@ -34,6 +34,7 @@ public class TrackDownloadService {
 
     private final TrackService trackService;
     private final TrackStorageService trackStorageService;
+    private final TrackRepository trackRepository;
 
     public record TrackFile(byte[] data, String fileName, String mediaType) {
     }
@@ -87,6 +88,17 @@ public class TrackDownloadService {
         }
 
         return entries;
+    }
+
+    /**
+     * Same as {@link #toDownloadEntries} but for an arbitrary, unbounded set of track ids (e.g. a
+     * frontend multi-select) rather than a playlist's/genre's own track collection — fetches and
+     * builds entries in one transaction so the lazy {@code artists} read stays inside a live
+     * session. A stale id is simply absent from {@code findAllById}'s result, not an error.
+     */
+    @Transactional(readOnly = true)
+    public List<TrackDownloadEntry> toDownloadEntriesForIds(List<Long> trackIds) {
+        return toDownloadEntries(trackRepository.findAllById(trackIds));
     }
 
     /**

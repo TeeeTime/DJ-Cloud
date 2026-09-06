@@ -48,8 +48,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/tracks/recent").authenticated()
                         // Downloading actual audio bytes is more sensitive than browsing metadata,
-                        // so these two are carved out of the broader permitAll rule below.
+                        // so these are carved out of the broader permitAll rule below.
                         .requestMatchers(HttpMethod.GET, "/api/tracks/*/download").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/tracks/bulk-download").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/genres/*/download").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/tracks/**", "/api/artists/**", "/api/genres/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/registration-codes").hasRole("ADMIN")

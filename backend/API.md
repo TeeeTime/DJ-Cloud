@@ -365,6 +365,22 @@ filesystems (illegal characters replaced, trailing dots/spaces stripped, reserve
 
 ---
 
+## `GET /api/tracks/bulk-download`
+
+**Requires a valid JWT** (any role) — same auth carve-out as `GET /{id}/download` above, for the same
+reason. Downloads an arbitrary set of tracks (e.g. a frontend multi-select) as a single ZIP, built the
+same way as `GET /api/playlists/{id}/download`/`GET /api/genres/{name}/download`.
+
+Request: `?trackIds=1,2,3` (comma-separated track ids).
+
+Response `200`: `application/zip`, `Content-Disposition: attachment; filename="Selected Tracks.zip"`.
+Each entry uses the same human-readable, collision-safe naming as the single-track download. A
+`trackIds` value that doesn't exist (or has no file on disk) is silently skipped, not an error.
+
+`404` `"No tracks found"` if none of the given ids resolve to a track with a file on disk.
+
+---
+
 ## `POST /api/tracks`
 
 **Requires a JWT with role `EDITOR` or `ADMIN`.** Uploads a track's audio file. This is the only way a
@@ -480,6 +496,22 @@ Errors:
 **Requires a JWT with role `EDITOR` or `ADMIN`.** Also deletes the track's audio file from disk, and its
 generated preview file if one exists.
 Response: `204 No Content`, or `404` if the track doesn't exist.
+
+---
+
+## `DELETE /api/tracks/bulk-delete`
+
+**Requires a JWT with role `EDITOR` or `ADMIN`.** Same deletion behavior as `DELETE /{id}` above,
+applied to a set of tracks — for a frontend multi-select. A stale/nonexistent id in the request is
+silently skipped rather than failing the whole batch (the caller's selection may simply be out of
+date by the time the request lands).
+
+Request:
+```json
+{ "trackIds": [1, 2, 3] }
+```
+
+Response: `204 No Content`. `400` if `trackIds` is empty.
 
 ---
 
@@ -838,6 +870,39 @@ the track wasn't in the playlist to begin with.
 
 Response `200`: the updated playlist, same shape as `GET /api/playlists/{id}`. Same `403`/`404`
 semantics as `POST .../tracks`.
+
+---
+
+## `POST /api/playlists/{id}/tracks/bulk`
+
+**Same permission rule as `POST .../tracks` above.** Adds a set of tracks to the playlist in one call
+— for a frontend multi-select. A stale/nonexistent id in `trackIds` is silently skipped rather than
+failing the whole batch.
+
+Request:
+```json
+{ "trackIds": [1, 2, 3] }
+```
+
+Response `200`: the updated playlist, same shape as `GET /api/playlists/{id}`.
+
+Errors: same `403`/`404` semantics as `POST .../tracks` (no per-id `404` — missing ids are skipped,
+not reported). `400` if `trackIds` is empty.
+
+---
+
+## `DELETE /api/playlists/{id}/tracks/bulk`
+
+**Same permission rule as `POST .../tracks` above.** Removes a set of tracks from the playlist in one
+call; ids not currently in the playlist are silently ignored, same as the single-track version.
+
+Request:
+```json
+{ "trackIds": [1, 2, 3] }
+```
+
+Response `200`: the updated playlist, same shape as `GET /api/playlists/{id}`. Same `403`/`404`
+semantics as `POST .../tracks`. `400` if `trackIds` is empty.
 
 ---
 

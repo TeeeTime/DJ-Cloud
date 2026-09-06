@@ -13,6 +13,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import de.djcloud.backend.auth.AppUserDetails;
+import de.djcloud.backend.common.BulkTrackIdsRequest;
 import de.djcloud.backend.common.PageResponse;
 import de.djcloud.backend.track.TrackDownloadService;
 import de.djcloud.backend.track.TrackResponse;
@@ -117,5 +118,17 @@ public class PlaylistController {
     public PlaylistDetailResponse removeTrack(@PathVariable Long id, @PathVariable Long trackId,
             Authentication authentication) {
         return playlistService.removeTrack(id, trackId, (AppUserDetails) authentication.getPrincipal());
+    }
+
+    @PostMapping("/{id}/tracks/bulk")
+    public PlaylistDetailResponse addTracksBulk(@PathVariable Long id, @Valid @RequestBody BulkTrackIdsRequest request,
+            Authentication authentication) {
+        return playlistService.addTracks(id, request.trackIds(), (AppUserDetails) authentication.getPrincipal());
+    }
+
+    @DeleteMapping("/{id}/tracks/bulk")
+    public PlaylistDetailResponse removeTracksBulk(@PathVariable Long id, @Valid @RequestBody BulkTrackIdsRequest request,
+            Authentication authentication) {
+        return playlistService.removeTracks(id, request.trackIds(), (AppUserDetails) authentication.getPrincipal());
     }
 }

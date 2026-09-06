@@ -31,6 +31,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import de.djcloud.backend.auth.AppUserDetails;
 import de.djcloud.backend.auth.AuthService;
+import de.djcloud.backend.common.BulkTrackIdsRequest;
 import de.djcloud.backend.common.PageResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -195,5 +196,31 @@ public class TrackController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteTrack(@PathVariable Long id) {
         trackService.delete(id);
+    }
+
+    /** Deletes every given track that still exists; a stale id in the list is silently skipped. */
+    @DeleteMapping("/bulk-delete")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void bulkDeleteTracks(@Valid @RequestBody BulkTrackIdsRequest request) {
+        trackService.bulkDelete(request.trackIds());
+    }
+
+    /** Same auth carve-out as {@code GET /{id}/download} — see {@code SecurityConfig}. */
+    @GetMapping("/bulk-download")
+    public ResponseEntity<byte[]> bulkDownloadTracks(@RequestParam List<Long> trackIds) {
+        List<TrackDownloadService.TrackDownloadEntry> entries = trackDownloadService.toDownloadEntriesForIds(trackIds);
+        if (entries.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No tracks found");
+        }
+
+        byte[] zip = trackDownloadService.buildZip(entries);
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename("Selected Tracks.zip", StandardCharsets.UTF_8)
+                .build();
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(zip);
     }
 }
