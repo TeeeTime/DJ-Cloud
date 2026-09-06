@@ -14,6 +14,7 @@ import { usePlayer } from "@/components/providers/player-provider";
 import { tracksApi, genresApi, authApi, RecentTrackResponse, GenreDistributionResponse } from "@/lib/api";
 import { Track, formatTimeAgo, resolveTrack } from "@/lib/data";
 import { motion } from "motion/react";
+import { UploadDialog } from "./upload-dialog";
 
 const RECENT_TRACKS_LIMIT = 7;
 const TOP_GENRES_COUNT = 4;
@@ -39,6 +40,7 @@ function toGenreBars(distribution: GenreDistributionResponse[]): GenreBar[] {
 export function OverviewView() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, token } = useAuth();
+  const canUpload = user?.role === 'EDITOR' || user?.role === 'ADMIN';
   const {
     tracks, currentTrack, isPlaying, setCurrentTrack, setIsPlaying, setActiveTrackOrder, setOnOrderExhausted
   } = usePlayer();
@@ -177,7 +179,7 @@ export function OverviewView() {
   return (
     <main className="flex-1 flex flex-col min-w-0 bg-black relative h-full">
       {/* Header */}
-      <header className="h-16 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-10 shrink-0 gap-4">
+      <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-10 shrink-0 gap-4">
         <div className="flex items-center gap-4 flex-1">
           {/* Mobile Menu Trigger */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -190,6 +192,11 @@ export function OverviewView() {
             </SheetContent>
           </Sheet>
         </div>
+        {canUpload && (
+          <div className="flex items-center gap-4 shrink-0">
+            <UploadDialog />
+          </div>
+        )}
       </header>
 
       {/* Content Area */}
