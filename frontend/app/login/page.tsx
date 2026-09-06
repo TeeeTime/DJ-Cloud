@@ -30,16 +30,14 @@ function LoginPageContent() {
 
   // Navigating to a custom-scheme URL doesn't unload this tab the way a normal redirect would —
   // the OS hands off to the desktop app, but the browser tab itself just sits here afterward.
-  // window.close() only works on a tab script itself opened (blocked by every modern browser for
-  // a tab the user/OS opened, like this one), so it's attempted as a harmless best effort and
-  // "you can close this window" is shown either way once enough time has passed for the OS to
-  // have acted on the redirect. setHandedOff only ever runs inside this callback, never directly
-  // in the effect below, so it can't trigger the cascading-render issue synchronous setState
-  // calls in an effect body cause.
+  // The OS's "Open DJ Cloud Desktop?" prompt resolves asynchronously and on its own schedule, so
+  // we must not auto-close this tab on a timer: closing before the user has accepted the prompt
+  // cancels the pending protocol navigation and the desktop app never receives the token. Instead
+  // we just flip to a confirmation state after a short delay and let the user close the tab
+  // themselves (see the "Close window" button below).
   const redirectToDesktop = useCallback((url: string) => {
     window.location.href = url;
     window.setTimeout(() => {
-      window.close();
       setHandedOff(true);
     }, 1200);
   }, []);
@@ -101,6 +99,13 @@ function LoginPageContent() {
               <CheckCircle2 className="w-6 h-6 text-zinc-300" />
             </div>
             <p className="text-sm text-zinc-400">You are logged in — you can close this window now.</p>
+            <Button
+              variant="ghost"
+              onClick={() => window.close()}
+              className="text-zinc-400 hover:text-white hover:bg-zinc-900/50 rounded-full h-9 px-4 text-sm font-medium transition-colors"
+            >
+              Close window
+            </Button>
           </>
         ) : (
           <>
