@@ -99,8 +99,18 @@ export function MainScreen({
     }
   }
 
+  function handleInstallLater() {
+    setUpdateStatus("idle");
+    setUpdateInfo(null);
+  }
+
   const isSyncing = status === "syncing";
   const isDownloadingUpdate = updateStatus === "downloading";
+  // A pending or in-flight update takes the Sync button off the table entirely (once one is
+  // found, install-or-dismiss is the only way back) so the two can never race against each other.
+  const updateBlocksSync = updateStatus === "available" || updateStatus === "downloading";
+  const showSyncButton = !updateBlocksSync;
+  const syncDisabled = isSyncing || updateStatus === "checking";
 
   const syncPercent =
     progress && progress.filesTotal > 0
@@ -158,7 +168,7 @@ export function MainScreen({
           <DropdownMenuContent align="end">
             <DropdownMenuItem
               onClick={handleCheckForUpdates}
-              disabled={import.meta.env.DEV}
+              disabled={import.meta.env.DEV || isSyncing}
               title={import.meta.env.DEV ? "Not available in development" : undefined}
             >
               <Download />
@@ -177,15 +187,22 @@ export function MainScreen({
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6">
-        <Button onClick={handleSync} disabled={isSyncing}>
-          <RefreshCw className={cn(isSyncing && "animate-spin")} />
-          Sync
-        </Button>
+        {showSyncButton && (
+          <Button onClick={handleSync} disabled={syncDisabled}>
+            <RefreshCw className={cn(isSyncing && "animate-spin")} />
+            Sync
+          </Button>
+        )}
 
         {updateStatus === "available" && (
-          <Button variant="outline" size="sm" onClick={handleInstallUpdate}>
-            Install v{updateInfo?.version}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleInstallUpdate}>
+              Install v{updateInfo?.version}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleInstallLater}>
+              Install later
+            </Button>
+          </div>
         )}
 
         {(showSyncBar || showUpdateBar) && (
