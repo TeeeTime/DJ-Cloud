@@ -1,62 +1,46 @@
-import { useState, type FormEvent } from "react";
-import { KeyRound, User } from "lucide-react";
+import { useState } from "react";
+import { KeyRound, ExternalLink, Loader2 } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
-interface LoginScreenProps {
-  onLogin: () => void;
-}
+const WEB_LOGIN_URL =
+  import.meta.env.VITE_WEB_LOGIN_URL ?? "http://localhost:3000/login?desktop=1";
 
-export function LoginScreen({ onLogin }: LoginScreenProps) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+export function LoginScreen() {
+  const [isWaiting, setIsWaiting] = useState(false);
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    onLogin();
+  async function handleLogin() {
+    setIsWaiting(true);
+    await openUrl(WEB_LOGIN_URL);
+    // No further action here — App.tsx's "auth-token-received" listener (fed by the Rust-side
+    // djcloud:// deep-link handler) is what actually advances past this screen.
   }
 
   return (
-    <div className="flex h-full flex-col items-center justify-center bg-black px-8 text-white">
-      <div className="flex w-full flex-col items-center text-center">
-        <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900/80 shadow-inner">
-          <KeyRound className="h-6 w-6 text-zinc-300" />
+    <div className="flex h-full flex-col items-center justify-center gap-4 bg-background px-8 text-foreground">
+      <div className="flex flex-col items-center text-center">
+        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-card shadow-inner">
+          <KeyRound className="h-5 w-5 text-muted-foreground" />
         </div>
-        <h1 className="mb-1 text-xl font-black tracking-tight">DJ CLOUD</h1>
-        <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-          Login
+        <h1 className="text-lg font-black tracking-tight">DJ CLOUD</h1>
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          Login Required
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-8 w-full space-y-3">
-        <div className="relative">
-          <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-          <Input
-            type="text"
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className="h-11 rounded-xl border-zinc-800 bg-black/60 pl-9 text-white placeholder:text-zinc-600 focus-visible:border-zinc-600 focus-visible:ring-zinc-600"
-          />
-        </div>
-        <div className="relative">
-          <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-          <Input
-            type="password"
-            placeholder="Passcode"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="h-11 rounded-xl border-zinc-800 bg-black/60 pl-9 text-white placeholder:text-zinc-600 focus-visible:border-zinc-600 focus-visible:ring-zinc-600"
-          />
-        </div>
-
-        <Button
-          type="submit"
-          className="h-11 w-full rounded-xl bg-white font-bold uppercase tracking-widest text-black hover:bg-zinc-200"
-        >
-          Enter Archive
-        </Button>
-      </form>
+      <Button type="button" className="w-48" onClick={handleLogin} disabled={isWaiting}>
+        {isWaiting ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <>
+            <ExternalLink className="h-4 w-4" />
+            Log In
+          </>
+        )}
+      </Button>
+      <p className="text-[10px] text-muted-foreground">
+        {isWaiting ? "Waiting for browser login…" : "Opens in your browser"}
+      </p>
     </div>
   );
 }

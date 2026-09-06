@@ -8,8 +8,10 @@ import org.jaudiotagger.audio.AudioFile;
 import org.jaudiotagger.audio.AudioFileIO;
 import org.jaudiotagger.tag.FieldKey;
 import org.jaudiotagger.tag.Tag;
+import org.jaudiotagger.tag.id3.AbstractID3v2Tag;
 import org.jaudiotagger.tag.images.Artwork;
 import org.jaudiotagger.tag.images.ArtworkFactory;
+import org.jaudiotagger.tag.wav.WavTag;
 import org.springframework.stereotype.Component;
 
 import de.djcloud.backend.artist.Artist;
@@ -43,6 +45,44 @@ class AudioMetadataWriter {
             // TagException, ReadOnlyFileException, InvalidAudioFrameException,
             // CannotWriteException, ...); callers only need to know the write failed
             throw new AudioMetadataException("Could not update audio file metadata", ex);
+        }
+    }
+
+    /**
+     * Embeds the track's own database id into the file's tags (a custom/user field, since no
+     * standard tag has a slot for this) so a client with a local copy of the file can identify
+     * which track it corresponds to without relying on the filename.
+     *
+     * <p>For WAV, this deliberately writes straight into the ID3 sub-tag ({@link
+     * WavTag#getID3Tag()}) rather than going through the generic {@code Tag} field API used
+     * elsewhere in this class. A WAV file that already carries a RIFF INFO chunk (common —
+     * ffmpeg and many DAWs write one automatically) makes jaudiotagger treat that INFO tag as
+     * the "active" one for generic field routing, and INFO has no slot for a custom field —
+     * confirmed by writing to a real ffmpeg-generated WAV with a pre-existing INFO chunk, where
+     * a generic {@code tag.setField(CUSTOM1, ...)} threw {@code UnsupportedOperationException}.
+     * Targeting the ID3 sub-tag directly (creating one if absent) sidesteps that INFO-vs-ID3
+     * routing entirely, leaving the INFO chunk and every other field's routing untouched.
+     */
+    void writeInternalId(File file, Long id) {
+        try {
+            AudioFile audioFile = AudioFileIO.read(file);
+            Tag tag = audioFile.getTagOrCreateAndSetDefault();
+
+            if (tag instanceof WavTag wavTag) {
+                AbstractID3v2Tag id3Tag = wavTag.getID3Tag();
+                if (id3Tag == null) {
+                    id3Tag = WavTag.createDefaultID3Tag();
+                    wavTag.setID3Tag(id3Tag);
+                }
+                id3Tag.setField(FieldKey.CUSTOM1, String.valueOf(id));
+                wavTag.setExistingId3Tag(true);
+            } else {
+                setField(tag, FieldKey.CUSTOM1, String.valueOf(id));
+            }
+
+            audioFile.commit();
+        } catch (Exception ex) {
+            throw new AudioMetadataException("Could not write internal id tag", ex);
         }
     }
 
