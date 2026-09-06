@@ -6,6 +6,7 @@ mod relocate;
 mod settings;
 mod sync;
 mod tags;
+mod uninstall;
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -116,6 +117,7 @@ pub fn run() {
             settings::get_settings,
             settings::set_library_folder,
             sync::sync_library,
+            uninstall::uninstall_app,
         ])
         .manage(TrayRect(Mutex::new(None)))
         .manage(PointerOverTray(Mutex::new(false)))

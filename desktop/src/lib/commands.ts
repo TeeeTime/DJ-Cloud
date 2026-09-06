@@ -35,6 +35,8 @@ export const commands = {
   setLibraryFolder: (folder: string) => invoke<void>("set_library_folder", { folder }),
 
   syncLibrary: () => invoke<SyncSummary>("sync_library"),
+
+  uninstall: () => invoke<void>("uninstall_app"),
 };
 
 export function onAuthTokenReceived(handler: (auth: AuthInfo) => void): Promise<UnlistenFn> {

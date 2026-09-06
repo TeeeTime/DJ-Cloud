@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { Download, FolderCog, LogOut, RefreshCw, Settings } from "lucide-react";
+import { Download, FolderCog, LogOut, RefreshCw, Settings, Trash2 } from "lucide-react";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { ask, message } from "@tauri-apps/plugin-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -104,6 +106,23 @@ export function MainScreen({
     setUpdateInfo(null);
   }
 
+  async function handleUninstall() {
+    const confirmed = await ask(
+      "This removes DJ Cloud Desktop from this computer and quits the app. Your synced music files are left in place.",
+      { title: "Uninstall DJ Cloud", kind: "warning", okLabel: "Uninstall", cancelLabel: "Cancel" }
+    );
+    if (!confirmed) return;
+
+    try {
+      await commands.uninstall();
+    } catch (err) {
+      await message(err instanceof Error ? err.message : String(err), {
+        title: "Uninstall failed",
+        kind: "error",
+      });
+    }
+  }
+
   const isSyncing = status === "syncing";
   const isDownloadingUpdate = updateStatus === "downloading";
   // A pending or in-flight update takes the Sync button off the table entirely (once one is
@@ -181,6 +200,11 @@ export function MainScreen({
             <DropdownMenuItem variant="destructive" onClick={onLogout}>
               <LogOut />
               Logout
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={handleUninstall}>
+              <Trash2 />
+              Uninstall
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
