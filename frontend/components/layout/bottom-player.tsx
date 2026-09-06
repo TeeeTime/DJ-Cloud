@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Play, Pause, SkipForward, SkipBack, Volume, Volume1, Volume2, VolumeX,
   Disc3, Music2
@@ -61,6 +61,7 @@ export function BottomPlayer() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(loadStoredVolume);
+  const previousVolumeRef = useRef(volume > 0 ? volume : 80);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -126,6 +127,12 @@ export function BottomPlayer() {
     }
   }, [volume, audioRef]);
 
+  // Remembers the last non-zero volume so the mute toggle has something to restore to,
+  // whether volume hit 0 via the icon or by dragging the slider down manually.
+  useEffect(() => {
+    if (volume > 0) previousVolumeRef.current = volume;
+  }, [volume]);
+
   const formatTime = (time: number) => {
     if (isNaN(time) || !isFinite(time)) return "0:00";
     const m = Math.floor(time / 60);
@@ -186,6 +193,10 @@ export function BottomPlayer() {
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   const safeVolume = typeof volume === 'number' && !isNaN(volume) ? volume : 80;
+
+  const toggleMute = () => {
+    setVolume(safeVolume === 0 ? previousVolumeRef.current : 0);
+  };
 
   return (
     // A fixed-width middle column (matching the old max-w-2xl cap) keeps Player Controls truly
@@ -256,15 +267,22 @@ export function BottomPlayer() {
             setVolume(nextVol);
           }}
         >
-          {safeVolume === 0 ? (
-            <VolumeX className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 transition-colors shrink-0" />
-          ) : safeVolume < 33 ? (
-            <Volume className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 transition-colors shrink-0" />
-          ) : safeVolume < 66 ? (
-            <Volume1 className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 transition-colors shrink-0" />
-          ) : (
-            <Volume2 className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 transition-colors shrink-0" />
-          )}
+          <button
+            type="button"
+            onClick={toggleMute}
+            aria-label={safeVolume === 0 ? "Unmute" : "Mute"}
+            className="shrink-0 cursor-pointer"
+          >
+            {safeVolume === 0 ? (
+              <VolumeX className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 transition-colors" />
+            ) : safeVolume < 33 ? (
+              <Volume className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 transition-colors" />
+            ) : safeVolume < 66 ? (
+              <Volume1 className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 transition-colors" />
+            ) : (
+              <Volume2 className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 transition-colors" />
+            )}
+          </button>
           <Slider
             value={[safeVolume]}
             max={100}
