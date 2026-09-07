@@ -1,6 +1,7 @@
 use std::sync::Mutex;
 
 mod auth;
+mod autostart;
 mod http;
 mod relocate;
 mod settings;
@@ -110,6 +111,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .invoke_handler(tauri::generate_handler![
             auth::get_auth_token,
             auth::clear_auth_token,
@@ -126,6 +131,7 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             auth::setup(app.handle());
+            autostart::ensure_enabled_on_first_run(app.handle());
 
             let show_item = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;

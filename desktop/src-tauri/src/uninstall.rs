@@ -1,5 +1,7 @@
 use tauri::AppHandle;
 
+use crate::autostart;
+
 #[cfg(target_os = "windows")]
 mod windows;
 
@@ -22,6 +24,7 @@ fn launch_uninstaller() -> Result<(), String> {
 /// use to remove them.
 #[tauri::command]
 pub fn uninstall_app(app: AppHandle) -> Result<(), String> {
+    autostart::disable_for_uninstall(&app);
     launch_uninstaller()?;
     app.exit(0);
     Ok(())

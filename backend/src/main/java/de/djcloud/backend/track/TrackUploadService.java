@@ -52,6 +52,7 @@ public class TrackUploadService {
             track.setDateAdded(LocalDate.now());
             track.setAddedAt(Instant.now());
             track.setFileName(storedFile.file().getName());
+            track.setSizeBytes(storedFile.file().length());
             track.setStatus(TrackStatus.QUEUED);
 
             if (metadata.artist() != null) {

@@ -32,6 +32,8 @@ reqwest = { version = "0.13.4", features = ["json", "stream"] }
 url = "2.5.8"
 tauri-plugin-single-instance = { version = "2.4.4", features = ["deep-link"] }
 tauri-plugin-process = "2.3.1"
+tauri-plugin-autostart = "2"
+fs4 = "1"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"

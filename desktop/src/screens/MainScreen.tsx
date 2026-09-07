@@ -30,6 +30,7 @@ export function MainScreen({
 }: MainScreenProps) {
   const [status, setStatus] = useState<SyncStatus>("idle");
   const [progress, setProgress] = useState<SyncProgressEvent | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
   const [updateInfo, setUpdateInfo] = useState<Update | null>(null);
@@ -50,10 +51,13 @@ export function MainScreen({
   async function handleSync() {
     setStatus("syncing");
     setProgress(null);
+    setSyncError(null);
     try {
       await commands.syncLibrary();
       setStatus("synced");
-    } catch {
+    } catch (err) {
+      console.error("Sync failed:", err);
+      setSyncError(err instanceof Error ? err.message : String(err));
       setStatus("error");
     }
   }
@@ -72,7 +76,8 @@ export function MainScreen({
         setUpdateInfo(null);
         setUpdateStatus("up-to-date");
       }
-    } catch {
+    } catch (err) {
+      console.error("Update check failed:", err);
       setUpdateStatus("error");
     }
   }
@@ -96,7 +101,8 @@ export function MainScreen({
       // No-op on Windows: downloadAndInstall already exits the app there once the installer
       // launches. Actually performs the relaunch on macOS, which requires it explicitly.
       await relaunch();
-    } catch {
+    } catch (err) {
+      console.error("Update install failed:", err);
       setUpdateStatus("error");
     }
   }
@@ -153,7 +159,7 @@ export function MainScreen({
   })();
 
   const syncStatusLabel = (() => {
-    if (status === "error") return "Sync failed";
+    if (status === "error") return syncError ?? "Sync failed";
     if (status === "synced") return "Up to date";
     if (!isSyncing) return "Idle";
     if (!progress || progress.filesTotal === 0) return "Checking library…";
