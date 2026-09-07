@@ -260,6 +260,7 @@ export interface PlaylistResponse {
   createdAt: string;
   trackCount: number;
   subscribed: boolean;
+  topGenres: string[];
 }
 
 export interface PlaylistDetailResponse {

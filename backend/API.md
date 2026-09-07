@@ -665,6 +665,10 @@ ownership or access), so `subscribed` alone would incorrectly hide it. This endp
 returns the full visible set (subscribed or not) so callers can also use it to find playlists to
 subscribe to or add tracks to.
 
+Each entry also includes `topGenres`: up to 3 genre names, ranked by how many of the playlist's
+tracks carry that genre (ties broken alphabetically); an empty array if the playlist has no tracks
+or none of its tracks have genres assigned.
+
 Response `200`:
 ```json
 [
@@ -675,7 +679,8 @@ Response `200`:
     "ownerUsername": "tom",
     "createdAt": "2026-08-29T14:03:11.123Z",
     "trackCount": 12,
-    "subscribed": true
+    "subscribed": true,
+    "topGenres": ["Techno", "House"]
   }
 ]
 ```
