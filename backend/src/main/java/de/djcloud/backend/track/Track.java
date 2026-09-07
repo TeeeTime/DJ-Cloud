@@ -28,6 +28,9 @@ public class Track {
     private int bpm;
     private String fileFormat;
 
+    /** Size of the stored audio file in bytes — lets clients estimate disk space before downloading. */
+    private long sizeBytes;
+
     /** Date the track was added to the library. Never set by the client — always the upload date. */
     private LocalDate dateAdded;
 

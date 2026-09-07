@@ -28,6 +28,7 @@ struct Playlist {
 struct TrackSummary {
     id: i64,
     file_format: String,
+    size_bytes: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -75,6 +76,7 @@ struct MissingTrack {
     playlist_name: String,
     track_id: i64,
     file_format: String,
+    size_bytes: u64,
 }
 
 #[tauri::command]
@@ -129,8 +131,23 @@ pub async fn sync_library(app: AppHandle) -> Result<SyncSummary, String> {
                     playlist_name: playlist.name.clone(),
                     track_id: track.id,
                     file_format: track.file_format,
+                    size_bytes: track.size_bytes,
                 });
             }
+        }
+    }
+
+    // Fail fast, before downloading anything, if the whole sync clearly won't fit — cheaper and
+    // clearer than letting it fail partway through one track at a time.
+    let needed: u64 = missing.iter().map(|item| item.size_bytes).sum();
+    if needed > 0 {
+        let available = fs4::available_space(&library_folder).map_err(|err| err.to_string())?;
+        if needed > available {
+            return Err(format!(
+                "Not enough disk space to sync: need {}, only {} available",
+                format_bytes(needed),
+                format_bytes(available)
+            ));
         }
     }
 
@@ -487,10 +504,46 @@ async fn download_track(
     // or the user's own file) and must be left alone.
     let final_path = unique_file_path(&item.playlist_folder, &filename);
     let temp_path = item.playlist_folder.join(format!("{filename}.part"));
-    fs::write(&temp_path, &bytes).map_err(|err| err.to_string())?;
+
+    // Re-check right before writing, using the exact size already in hand rather than trusting a
+    // header — catches free space having been consumed by something else since the upfront total
+    // check in `sync_library`.
+    let available = fs4::available_space(&item.playlist_folder).map_err(|err| err.to_string())?;
+    if bytes.len() as u64 > available {
+        return Err(format!(
+            "Not enough disk space for track {}: need {}, only {} available",
+            item.track_id,
+            format_bytes(bytes.len() as u64),
+            format_bytes(available)
+        ));
+    }
+
+    if let Err(err) = fs::write(&temp_path, &bytes) {
+        // Don't leave a partial download behind for a write that failed partway through.
+        let _ = fs::remove_file(&temp_path);
+        return Err(err.to_string());
+    }
     fs::rename(&temp_path, &final_path).map_err(|err| err.to_string())?;
 
     Ok(())
+}
+
+/// Human-readable `"1.2 GB"`-style rendering for disk-space error messages.
+fn format_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+
+    if unit == 0 {
+        format!("{bytes} {}", UNITS[unit])
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
+    }
 }
 
 /// Prefers the RFC 5987 extended form (`filename*=UTF-8''...`) Spring emits alongside the plain
@@ -539,18 +592,17 @@ fn percent_decode(input: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     fn tempfile_dir() -> PathBuf {
+        // An atomic counter, not just a nanosecond timestamp, since tests run in parallel threads
+        // within the same process and clock resolution alone isn't reliably fine enough to keep
+        // two near-simultaneous calls from colliding on the same directory.
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+
         let dir = std::env::temp_dir()
             .join(format!("djcloud-sync-test-{}", std::process::id()))
-            .join(
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_nanos()
-                    .to_string(),
-            );
+            .join(COUNTER.fetch_add(1, Ordering::Relaxed).to_string());
         fs::create_dir_all(&dir).unwrap();
         dir
     }

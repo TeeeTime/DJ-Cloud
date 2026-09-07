@@ -190,21 +190,16 @@ mod tests {
     }
 
     fn tempfile_dir() -> std::path::PathBuf {
+        // An atomic counter, not just a nanosecond timestamp, since tests run in parallel threads
+        // within the same process and clock resolution alone isn't reliably fine enough to keep
+        // two near-simultaneous calls from colliding on the same directory.
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+
         let dir = std::env::temp_dir()
             .join(format!("djcloud-relocate-test-{}", std::process::id()))
-            .join(uuid_like());
+            .join(COUNTER.fetch_add(1, Ordering::Relaxed).to_string());
         fs::create_dir_all(&dir).unwrap();
         dir
-    }
-
-    fn uuid_like() -> String {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        format!(
-            "{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        )
     }
 }

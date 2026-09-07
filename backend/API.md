@@ -227,6 +227,7 @@ Response `200`:
       "key": "8A",
       "bpm": 128,
       "fileFormat": "mp3",
+      "sizeBytes": 8421376,
       "dateAdded": "2026-08-28",
       "addedAt": "2026-08-28T23:11:12.605Z",
       "status": "READY",
@@ -389,6 +390,8 @@ Behavior:
 - `bpm` (`0`) and `key` (`null`) are placeholders until analysis finishes — see below.
 - `status` starts at `QUEUED`.
 - `fileFormat` is the file's extension (`mp3`/`wav`).
+- `sizeBytes` is the stored audio file's size in bytes — lets clients (e.g. the desktop sync client)
+  estimate required disk space before downloading.
 - The track's own numeric `id` is embedded into the stored file's tags right after the row is saved
   (see `GET /{id}/download` above) — best-effort; a failure here doesn't fail the upload and is
   self-healed on the next server restart.
