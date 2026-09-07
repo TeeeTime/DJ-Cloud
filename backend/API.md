@@ -849,6 +849,22 @@ semantics as `POST .../tracks`.
 
 ---
 
+## `GET /api/playlists/track/{trackId}`
+
+**Requires a valid JWT** — no role or ownership requirement beyond visibility. Returns the IDs of
+playlists that contain the given track, restricted to playlists visible to the caller (public, or
+owned by them) — the same visibility rule as `GET /api/playlists`. Used to drive checkmarks in the
+frontend's "Add to Playlist" menu.
+
+Response `200`:
+```json
+[1, 4, 9]
+```
+
+A `trackId` that doesn't exist, or that isn't in any visible playlist, simply returns `[]` — no `404`.
+
+---
+
 ## Not yet implemented
 
 Flagging gaps a frontend might expect but that don't exist yet: no "forgot password" email flow (only

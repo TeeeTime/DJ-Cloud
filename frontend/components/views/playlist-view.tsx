@@ -243,14 +243,35 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto pb-6">
         <div className="px-8 py-8">
           <div className="flex items-center gap-3 mb-8">
-            <h2 className="text-3xl font-bold text-white tracking-tight">
-              {detail?.name ?? "Playlist"}
-            </h2>
+            <div>
+              <h2 className="text-3xl font-bold text-white tracking-tight">
+                {detail?.name ?? "Playlist"}
+              </h2>
+              {detail && (
+                <p className="text-zinc-500 text-sm mt-0.5">By {detail.ownerUsername}</p>
+              )}
+            </div>
             {detail && (
               <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 border border-zinc-800 rounded-full px-2.5 py-1">
                 {detail.isPublic ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
                 {detail.isPublic ? "Public" : "Private"}
               </span>
+            )}
+            {detail && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleDownloadPlaylist}
+                disabled={isDownloadingPlaylist}
+                title="Download all tracks in this playlist (ZIP)"
+                className="text-zinc-500 hover:text-white hover:bg-zinc-800/50"
+              >
+                {isDownloadingPlaylist ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+              </Button>
             )}
             {detail && (
               <DropdownMenu>
@@ -260,29 +281,17 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                   </button>
                 } />
                 <DropdownMenuContent align="end" className="w-52 bg-zinc-950 border-zinc-800 text-zinc-300 rounded-lg p-1 shadow-2xl">
-                  <DropdownMenuItem
-                    onClick={handleDownloadPlaylist}
-                    disabled={isDownloadingPlaylist}
-                    className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
-                  >
-                    {isDownloadingPlaylist ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Download className="w-4 h-4 mr-2" />
-                    )}
-                    <span className="text-sm">{isDownloadingPlaylist ? "Preparing ZIP…" : "Download Playlist (ZIP)"}</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-zinc-800 my-1" />
-                  <DropdownMenuItem
-                    onClick={toggleSubscribe}
-                    className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
-                  >
-                    {detail.subscribed ? <BellOff className="w-4 h-4 mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
-                    <span className="text-sm">{detail.subscribed ? "Unsubscribe" : "Subscribe"}</span>
-                  </DropdownMenuItem>
+                  {!isOwner && detail.isPublic && (
+                    <DropdownMenuItem
+                      onClick={toggleSubscribe}
+                      className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
+                    >
+                      {detail.subscribed ? <BellOff className="w-4 h-4 mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
+                      <span className="text-sm">{detail.subscribed ? "Unsubscribe" : "Subscribe"}</span>
+                    </DropdownMenuItem>
+                  )}
                   {isOwner && (
                     <>
-                      <DropdownMenuSeparator className="bg-zinc-800 my-1" />
                       <DropdownMenuItem
                         onClick={() => setEditPlaylistOpen(true)}
                         className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"

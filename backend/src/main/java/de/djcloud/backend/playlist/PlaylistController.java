@@ -2,6 +2,7 @@ package de.djcloud.backend.playlist;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -36,6 +37,12 @@ public class PlaylistController {
     @GetMapping("/{id}")
     public PlaylistDetailResponse get(@PathVariable Long id, Authentication authentication) {
         return playlistService.findById(id, (AppUserDetails) authentication.getPrincipal());
+    }
+
+    /** IDs of playlists (visible to the caller) that already contain the given track. */
+    @GetMapping("/track/{trackId}")
+    public Set<Long> playlistsContainingTrack(@PathVariable Long trackId, Authentication authentication) {
+        return playlistService.findPlaylistIdsContainingTrack(trackId, (AppUserDetails) authentication.getPrincipal());
     }
 
     /** Same backend-driven search/sort/paging as {@code GET /api/tracks}, scoped to this playlist. */

@@ -11,6 +11,7 @@ public record TrackResponse(Long id, String title, int durationSeconds, String k
     public static TrackResponse fromEntity(Track track) {
         List<String> artistNames = track.getArtists().stream()
                 .map(artist -> artist.getName())
+                .sorted(String.CASE_INSENSITIVE_ORDER)
                 .toList();
         List<String> genreNames = track.getGenres().stream()
                 .map(genre -> genre.getName())

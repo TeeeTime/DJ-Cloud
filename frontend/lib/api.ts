@@ -280,6 +280,9 @@ export const playlistsApi = {
   get: (id: number, token: string) =>
     request<PlaylistDetailResponse>(`/api/playlists/${id}`, { method: "GET" }, token),
 
+  playlistIdsForTrack: (trackId: number, token: string) =>
+    request<number[]>(`/api/playlists/track/${trackId}`, { method: "GET" }, token),
+
   getTracks: (id: number, params: TrackListParams, token: string) => {
     const query = new URLSearchParams();
     if (params.page !== undefined) query.set("page", String(params.page));

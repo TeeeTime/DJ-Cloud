@@ -2,6 +2,7 @@ package de.djcloud.backend.playlist;
 
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -58,6 +59,12 @@ public class PlaylistService {
                 .filter(p -> !editableOnly || canEditTracks(p, caller))
                 .map(p -> PlaylistResponse.fromEntity(p, subscribedPlaylistIds.contains(p.getId())))
                 .toList();
+    }
+
+    /** IDs of playlists (visible to the caller) that already contain the given track. */
+    @Transactional(readOnly = true)
+    public Set<Long> findPlaylistIdsContainingTrack(Long trackId, AppUserDetails caller) {
+        return new HashSet<>(playlistRepository.findPlaylistIdsContainingTrack(trackId, caller.getId()));
     }
 
     @Transactional
