@@ -72,7 +72,8 @@ export function MainScreen({
         setUpdateInfo(null);
         setUpdateStatus("up-to-date");
       }
-    } catch {
+    } catch (err) {
+      console.error("Update check failed:", err);
       setUpdateStatus("error");
     }
   }
@@ -96,7 +97,8 @@ export function MainScreen({
       // No-op on Windows: downloadAndInstall already exits the app there once the installer
       // launches. Actually performs the relaunch on macOS, which requires it explicitly.
       await relaunch();
-    } catch {
+    } catch (err) {
+      console.error("Update install failed:", err);
       setUpdateStatus("error");
     }
   }
