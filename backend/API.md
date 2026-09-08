@@ -212,6 +212,9 @@ Query params (all optional):
 | `direction`           | `asc`   | `asc` or `desc` (case-insensitive). `400` on an unknown value.                                    |
 | `query`               | —       | case-insensitive substring match against title, artist name, **or** genre name. Blank/missing means no filter. |
 | `excludePlaylistId`   | —       | when set, tracks already in that playlist are omitted — used by the playlist "add tracks" search bar. |
+| `minBpm` / `maxBpm`   | —       | inclusive BPM range filter. Either can be given alone.                                            |
+| `minDurationSeconds` / `maxDurationSeconds` | — | inclusive track-length range filter, in seconds. Either can be given alone. |
+| `genres`              | —       | comma-separated list of genre names; matches a track tagged with **any** of them, case-insensitive. |
 
 `sortBy=artist` sorts by each track's alphabetically-first artist name (a track can have several);
 tracks with no artists sort last regardless of `direction`.

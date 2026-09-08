@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PageResponse, TrackResponse } from "@/lib/api";
+import { PageResponse, TrackFilters, TrackResponse } from "@/lib/api";
 import { Track, mapTrackResponse } from "@/lib/data";
 
 export type SortDirection = "asc" | "desc";
@@ -9,7 +9,7 @@ export type SortConfig = { key: string; direction: SortDirection } | null;
 
 const DEFAULT_PAGE_SIZE = 30;
 
-export interface FetchTracksPageParams {
+export interface FetchTracksPageParams extends TrackFilters {
   page: number;
   size: number;
   sortBy: string;
@@ -23,6 +23,7 @@ interface UsePagedTracksArgs {
   defaultSortKey: string;
   fetchPage: (params: FetchTracksPageParams) => Promise<PageResponse<TrackResponse>>;
   pageSize?: number;
+  filters?: TrackFilters;
 }
 
 /**
@@ -30,7 +31,7 @@ interface UsePagedTracksArgs {
  * used by both the main library and a single playlist's track list, against different endpoints.
  * A change to `query` or `sortConfig` resets back to page 0; `loadMore` appends the next page.
  */
-export function usePagedTracks({ query, sortConfig, defaultSortKey, fetchPage, pageSize = DEFAULT_PAGE_SIZE }: UsePagedTracksArgs) {
+export function usePagedTracks({ query, sortConfig, defaultSortKey, fetchPage, pageSize = DEFAULT_PAGE_SIZE, filters = {} }: UsePagedTracksArgs) {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -57,7 +58,7 @@ export function usePagedTracks({ query, sortConfig, defaultSortKey, fetchPage, p
     setIsLoading(true);
     setError(null);
 
-    fetchPage({ page: 0, size: pageSize, sortBy, direction, query: query || undefined })
+    fetchPage({ page: 0, size: pageSize, sortBy, direction, query: query || undefined, ...filters })
       .then((result) => {
         if (requestId !== requestIdRef.current) return;
         setTracks(result.content.map(mapTrackResponse));
@@ -72,14 +73,14 @@ export function usePagedTracks({ query, sortConfig, defaultSortKey, fetchPage, p
         if (requestId !== requestIdRef.current) return;
         setIsLoading(false);
       });
-  }, [fetchPage, pageSize, sortBy, direction, query]);
+  }, [fetchPage, pageSize, sortBy, direction, query, filters]);
 
   const reset = useCallback(() => {
     const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setError(null);
 
-    fetchPage({ page: 0, size: pageSize, sortBy, direction, query: query || undefined })
+    fetchPage({ page: 0, size: pageSize, sortBy, direction, query: query || undefined, ...filters })
       .then((result) => {
         if (requestId !== requestIdRef.current) return;
         setTracks(result.content.map(mapTrackResponse));
@@ -94,7 +95,7 @@ export function usePagedTracks({ query, sortConfig, defaultSortKey, fetchPage, p
         if (requestId !== requestIdRef.current) return;
         setIsLoading(false);
       });
-  }, [fetchPage, pageSize, sortBy, direction, query]);
+  }, [fetchPage, pageSize, sortBy, direction, query, filters]);
 
   const loadMore = useCallback(() => {
     if (isLoading || isLoadingMore || !hasMore) return;
@@ -103,7 +104,7 @@ export function usePagedTracks({ query, sortConfig, defaultSortKey, fetchPage, p
     const nextPage = page + 1;
     setIsLoadingMore(true);
 
-    fetchPage({ page: nextPage, size: pageSize, sortBy, direction, query: query || undefined })
+    fetchPage({ page: nextPage, size: pageSize, sortBy, direction, query: query || undefined, ...filters })
       .then((result) => {
         if (requestId !== requestIdRef.current) return;
         setTracks((prev) => [...prev, ...result.content.map(mapTrackResponse)]);
@@ -118,7 +119,7 @@ export function usePagedTracks({ query, sortConfig, defaultSortKey, fetchPage, p
         if (requestId !== requestIdRef.current) return;
         setIsLoadingMore(false);
       });
-  }, [isLoading, isLoadingMore, hasMore, page, fetchPage, pageSize, sortBy, direction, query]);
+  }, [isLoading, isLoadingMore, hasMore, page, fetchPage, pageSize, sortBy, direction, query, filters]);
 
   /**
    * Silently re-fetches just the window of tracks already loaded (page 0 at `tracks.length`
@@ -130,7 +131,7 @@ export function usePagedTracks({ query, sortConfig, defaultSortKey, fetchPage, p
     const size = tracks.length || pageSize;
     const requestId = ++requestIdRef.current;
 
-    fetchPage({ page: 0, size, sortBy, direction, query: query || undefined })
+    fetchPage({ page: 0, size, sortBy, direction, query: query || undefined, ...filters })
       .then((result) => {
         if (requestId !== requestIdRef.current) return;
         setTracks(result.content.map(mapTrackResponse));
@@ -138,7 +139,7 @@ export function usePagedTracks({ query, sortConfig, defaultSortKey, fetchPage, p
       .catch(() => {
         // Silent — this is a background poll, not a user-initiated fetch.
       });
-  }, [tracks.length, pageSize, fetchPage, sortBy, direction, query]);
+  }, [tracks.length, pageSize, fetchPage, sortBy, direction, query, filters]);
 
   return { tracks, isLoading, isLoadingMore, error, hasMore, loadMore, reset, refreshLoaded };
 }

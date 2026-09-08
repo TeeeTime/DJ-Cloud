@@ -18,6 +18,7 @@ import { TrackDeleteDialog } from "./track-delete-dialog";
 import { StatusBadge, TrackThumbnail } from "./track-row-parts";
 import { AddToPlaylistMenu } from "./add-to-playlist-menu";
 import { UploadDialog } from "./upload-dialog";
+import { TrackFilterMenu } from "./track-filter-menu";
 
 export function LibraryView() {
   const {
@@ -110,6 +111,8 @@ export function LibraryView() {
               className="pl-9 bg-black border-zinc-800 text-white focus-visible:ring-1 focus-visible:ring-zinc-700 focus-visible:border-zinc-700 transition-all rounded-md h-10 placeholder:text-zinc-600"
             />
           </div>
+
+          <TrackFilterMenu />
         </div>
         {canUpload && (
           <div className="flex items-center gap-4 shrink-0">

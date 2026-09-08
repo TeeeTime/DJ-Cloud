@@ -52,9 +52,12 @@ public class TrackController {
     public PageResponse<TrackResponse> getTracks(@RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int size, @RequestParam(defaultValue = "title") String sortBy,
             @RequestParam(defaultValue = "asc") String direction, @RequestParam(required = false) String query,
-            @RequestParam(required = false) Long excludePlaylistId) {
+            @RequestParam(required = false) Long excludePlaylistId, @RequestParam(required = false) Integer minBpm,
+            @RequestParam(required = false) Integer maxBpm, @RequestParam(required = false) Integer minDurationSeconds,
+            @RequestParam(required = false) Integer maxDurationSeconds,
+            @RequestParam(required = false) List<String> genres) {
         TrackSearchCriteria criteria = TrackSearchCriteria.fromParams(query, sortBy, direction, page, size,
-                excludePlaylistId);
+                excludePlaylistId, minBpm, maxBpm, minDurationSeconds, maxDurationSeconds, genres);
 
         return trackService.search(criteria);
     }
