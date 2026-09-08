@@ -326,14 +326,15 @@ endpoint on an interval — there's no push/WebSocket variant).
 Response `200`:
 ```json
 {
-  "queued": [5, 6, 7],
-  "processing": { "trackId": 4, "step": "BPM_ANALYSIS" }
+  "queued": [{ "trackId": 5, "title": "Song A" }, { "trackId": 6, "title": "Song B" }],
+  "processing": { "trackId": 4, "title": "Song C", "step": "BPM_ANALYSIS" }
 }
 ```
-`queued` is every track id waiting its turn, in the order they'll be processed. `processing` is `null`
+`queued` is every track waiting its turn, in the order they'll be processed. `processing` is `null`
 when the worker is idle; otherwise the track currently being analyzed and which of the three steps is
 running: `PREVIEW_GENERATION`, `BPM_ANALYSIS`, or `KEY_ANALYSIS`. Tracks are always processed one at a
-time, in the order they were queued.
+time, in the order they were queued. `title` is included on every entry so every client can render the
+same track names, regardless of who uploaded them.
 
 ---
 

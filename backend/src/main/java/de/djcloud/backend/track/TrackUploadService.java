@@ -80,7 +80,7 @@ public class TrackUploadService {
             log.warn("Could not embed internal id tag for track {}: {}", savedTrack.getId(), ex.getMessage());
         }
 
-        trackAnalysisQueue.enqueue(savedTrack.getId());
+        trackAnalysisQueue.enqueue(savedTrack.getId(), savedTrack.getTitle());
 
         return TrackResponse.fromEntity(savedTrack);
     }

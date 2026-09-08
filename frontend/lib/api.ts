@@ -196,8 +196,8 @@ export interface GenreDistributionResponse {
 export type AnalysisStep = "PREVIEW_GENERATION" | "BPM_ANALYSIS" | "KEY_ANALYSIS";
 
 export interface QueueStatus {
-  queued: number[];
-  processing: { trackId: number; step: AnalysisStep } | null;
+  queued: { trackId: number; title: string }[];
+  processing: { trackId: number; title: string; step: AnalysisStep } | null;
 }
 
 export interface TrackListParams {
