@@ -282,7 +282,7 @@ export function LandingPage() {
                 </span>
               </summary>
               <div className="p-6 pt-0 text-zinc-400 leading-relaxed border-t border-zinc-800/50 mt-2 pt-4">
-                Carlos is chronically "otherwise occupied." On the rare occasion he does find time, he first has to dust off his DDJ-400 and install a Rekordbox update, which takes up the rest of the evening.
+                Carlos is chronically &ldquo;otherwise occupied.&rdquo; On the rare occasion he does find time, he first has to dust off his DDJ-400 and install a Rekordbox update, which takes up the rest of the evening.
               </div>
             </details>
 
@@ -294,7 +294,7 @@ export function LandingPage() {
                 </span>
               </summary>
               <div className="p-6 pt-0 text-zinc-400 leading-relaxed border-t border-zinc-800/50 mt-2 pt-4">
-                Servers crash, databases catch fire, but somehow it works out in the end. Spring Boot's got this.
+                Servers crash, databases catch fire, but somehow it works out in the end. Spring Boot&apos;s got this.
               </div>
             </details>
 
@@ -318,7 +318,7 @@ export function LandingPage() {
                 </span>
               </summary>
               <div className="p-6 pt-0 text-zinc-400 leading-relaxed border-t border-zinc-800/50 mt-2 pt-4">
-                No. He plays anything that can theoretically be loaded into Traktor. Schranz, D&B, Hardtekk, or 90s Eurodance – you never know what drops next. It's Russian roulette for your ears.
+                No. He plays anything that can theoretically be loaded into Traktor. Schranz, D&B, Hardtekk, or 90s Eurodance – you never know what drops next. It&apos;s Russian roulette for your ears.
               </div>
             </details>
 
@@ -330,7 +330,7 @@ export function LandingPage() {
                 </span>
               </summary>
               <div className="p-6 pt-0 text-zinc-400 leading-relaxed border-t border-zinc-800/50 mt-2 pt-4">
-                The limit is reached exactly when Tom's personal VPS goes up in flames. So we recommend uploading nothing but certified bangers.
+                The limit is reached exactly when Tom&apos;s personal VPS goes up in flames. So we recommend uploading nothing but certified bangers.
               </div>
             </details>
           </div>
