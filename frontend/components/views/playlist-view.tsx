@@ -37,12 +37,10 @@ interface PlaylistViewProps {
   playlistId: number;
 }
 
-// The 404 the backend returns for a private playlist you don't own is indistinguishable from
-// "doesn't exist" by design (see PlaylistService.assertCanView) — both get this friendlier message
-// rather than the raw "Playlist not found".
+// A 404 here only ever means the playlist doesn't exist — visibility no longer gates access.
 function describeLoadError(err: unknown): string {
   return err instanceof ApiError && err.status === 404
-    ? "You cannot access this playlist."
+    ? "Playlist not found."
     : "Could not load this playlist.";
 }
 
@@ -281,7 +279,7 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                   </button>
                 } />
                 <DropdownMenuContent align="end" className="w-52 bg-zinc-950 border-zinc-800 text-zinc-300 rounded-lg p-1 shadow-2xl">
-                  {!isOwner && detail.isPublic && (
+                  {!isOwner && (
                     <DropdownMenuItem
                       onClick={toggleSubscribe}
                       className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"

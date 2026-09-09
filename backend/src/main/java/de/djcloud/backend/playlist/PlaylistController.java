@@ -31,7 +31,7 @@ public class PlaylistController {
     @GetMapping
     public List<PlaylistResponse> list(Authentication authentication,
             @RequestParam(defaultValue = "false") boolean editableOnly) {
-        return playlistService.findAllVisible((AppUserDetails) authentication.getPrincipal(), editableOnly);
+        return playlistService.findAll((AppUserDetails) authentication.getPrincipal(), editableOnly);
     }
 
     @GetMapping("/{id}")
@@ -39,10 +39,10 @@ public class PlaylistController {
         return playlistService.findById(id, (AppUserDetails) authentication.getPrincipal());
     }
 
-    /** IDs of playlists (visible to the caller) that already contain the given track. */
+    /** IDs of playlists that already contain the given track. */
     @GetMapping("/track/{trackId}")
-    public Set<Long> playlistsContainingTrack(@PathVariable Long trackId, Authentication authentication) {
-        return playlistService.findPlaylistIdsContainingTrack(trackId, (AppUserDetails) authentication.getPrincipal());
+    public Set<Long> playlistsContainingTrack(@PathVariable Long trackId) {
+        return playlistService.findPlaylistIdsContainingTrack(trackId);
     }
 
     /** Same backend-driven search/sort/paging as {@code GET /api/tracks}, scoped to this playlist. */
@@ -59,8 +59,7 @@ public class PlaylistController {
 
     /**
      * Streams every track in the playlist as a single ZIP, named after the playlist, with each
-     * entry under a human-readable "{Title} - {Artist(s)}.{ext}" filename. Same visibility rule as
-     * every other playlist read (404 for a private playlist the caller doesn't own).
+     * entry under a human-readable "{Title} - {Artist(s)}.{ext}" filename.
      */
     @GetMapping("/{id}/download")
     public ResponseEntity<byte[]> downloadPlaylist(@PathVariable Long id, Authentication authentication) {

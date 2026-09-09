@@ -26,17 +26,17 @@ Three roles exist:
 
 | role     | can do                                                                 |
 |----------|--------------------------------------------------------------------------|
-| `USER`   | everything public, plus the account-management endpoints (`/me`, `/logout`, `/change-password`), plus viewing public playlists (and any private playlist they own) and subscribing/unsubscribing to any playlist they can see |
+| `USER`   | everything public, plus the account-management endpoints (`/me`, `/logout`, `/change-password`), plus viewing and subscribing/unsubscribing to any playlist |
 | `EDITOR` | everything `USER` can, plus create/edit/delete tracks and artists, plus creating playlists and adding/removing tracks on any playlist they're allowed to edit (see `GET /api/playlists/{id}` below) |
 | `ADMIN`  | everything `EDITOR` can, plus generate registration codes                 |
 
-Playlist visibility, track-edit rights, and playlist-edit rights are **not** purely role-based — they
-also depend on ownership and the playlist's public/private flag. There's no admin override: an `ADMIN`
-who doesn't own a private playlist can't see or edit it, same as anyone else. Renaming, changing
-visibility, or deleting a playlist is restricted to its owner alone — even an `ADMIN` can't do it for
-someone else's playlist. Subscribing is the one playlist action open to every role, including plain
-`USER`, since it's just a personal bookmark and doesn't grant any edit rights. See the playlist
-endpoints below.
+Every playlist is viewable and subscribable by any authenticated user, regardless of its
+public/private flag — the flag no longer gates *visibility*, only whether a non-owner `EDITOR`/`ADMIN`
+can add/remove tracks (see `canEditTracks` under `GET /api/playlists/{id}` below). Track-edit rights
+still depend on ownership, role, and that flag; there's no admin override: an `ADMIN` who doesn't own a
+private playlist still can't add/remove its tracks, same as anyone else. Renaming, changing the
+public/private flag, or deleting a playlist is restricted to its owner alone — even an `ADMIN` can't
+do it for someone else's playlist. See the playlist endpoints below.
 
 Accounts are invite-only: there is no open signup, only `POST /api/auth/register` with a valid,
 admin-issued, one-time registration code. The role an account gets is fixed on the code at the moment
@@ -647,8 +647,9 @@ doesn't exist.
 
 ## `GET /api/playlists`
 
-**Requires a valid JWT** (any role) — unlike track/artist/genre listing, this isn't public, since
-visibility is per-user (see below).
+**Requires a valid JWT** (any role) — unlike track/artist/genre listing, this isn't public, since the
+result is personalized (viewing order, `subscribed`) even though the playlist set itself isn't
+caller-specific (see below).
 
 Query params:
 
@@ -656,18 +657,18 @@ Query params:
 |-----------------|---------|-------------------------------------------------------------------------|
 | `editableOnly` | `false` | when `true`, only playlists the caller can add/remove tracks on are returned (see `canEditTracks` below) |
 
-Returns every playlist visible to the caller: all public playlists, plus the caller's own private
-ones — **regardless of whether the caller is subscribed** (see `subscribed` below and the
-subscription endpoints further down). Ordered **most-recently-viewed-by-the-caller first** (viewing
-is recorded by `GET /api/playlists/{id}`, below); playlists the caller has never viewed sort after
-every viewed one, most-recently-created first among themselves.
+Returns every playlist that exists, regardless of its public/private flag or the caller's
+subscription status (see `subscribed` below and the subscription endpoints further down). Ordered
+**most-recently-viewed-by-the-caller first** (viewing is recorded by `GET /api/playlists/{id}`,
+below); playlists the caller has never viewed sort after every viewed one, most-recently-created
+first among themselves.
 
 A frontend showing "my" playlists (e.g. a sidebar) should filter this list client-side to entries
 where `subscribed` is `true` **or** `ownerUsername` matches the caller — an owner isn't necessarily
 subscribed to their own playlist (they can unsubscribe from it like anyone else without losing
 ownership or access), so `subscribed` alone would incorrectly hide it. This endpoint intentionally
-returns the full visible set (subscribed or not) so callers can also use it to find playlists to
-subscribe to or add tracks to.
+returns the full set (subscribed or not) so callers can also use it to find playlists to subscribe
+to or add tracks to.
 
 Each entry also includes `topGenres`: up to 3 genre names, ranked by how many of the playlist's
 tracks carry that genre (ties broken alphabetically); an empty array if the playlist has no tracks
@@ -697,9 +698,8 @@ Response `200`:
 `GET /api/playlists/{id}/tracks` below for those). Also records that the caller viewed this playlist
 just now — this is what drives the ordering of `GET /api/playlists` above.
 
-A private playlist is only visible to its owner — **not** even to an `ADMIN`. Requesting one you can't
-see returns `404`, not `403`, so a non-owner can't distinguish "doesn't exist" from "exists but is
-private" by status code alone.
+Any playlist is viewable by any authenticated user, regardless of its public/private flag — the flag
+only gates edit rights (see `canEditTracks` below), not visibility.
 
 Response `200`:
 ```json
@@ -719,14 +719,14 @@ playlist right now (see the rule under `POST .../tracks` below) — computed ser
 frontend doesn't need to re-derive it. `subscribed` reflects the caller's own subscription (see
 `POST .../subscription` below) — unrelated to `canEditTracks` and to ownership.
 
-`404` if the playlist doesn't exist, or exists but is private and the caller isn't its owner.
+`404` if the playlist doesn't exist.
 
 ---
 
 ## `GET /api/playlists/{id}/tracks`
 
-**Requires a valid JWT** (same visibility rule as `GET /api/playlists/{id}` above — `404` for a private
-playlist the caller doesn't own). Backend-driven search/sort/paging over this one playlist's tracks —
+**Requires a valid JWT** (same as `GET /api/playlists/{id}` above — `404` only if the playlist doesn't
+exist). Backend-driven search/sort/paging over this one playlist's tracks —
 same query params, same response shape, and same `sortBy`/`direction` semantics as `GET /api/tracks`,
 just scoped to this playlist instead of the whole library.
 
@@ -739,8 +739,8 @@ Response `200`: same shape as `GET /api/tracks`.
 
 ## `GET /api/playlists/{id}/download`
 
-**Requires a valid JWT** (same visibility rule as `GET /api/playlists/{id}` above — `404` for a
-private playlist the caller doesn't own). Streams every track in the playlist as a single ZIP file.
+**Requires a valid JWT** (same as `GET /api/playlists/{id}` above — `404` only if the playlist doesn't
+exist). Streams every track in the playlist as a single ZIP file.
 
 Response `200`: `Content-Type: application/zip`. `Content-Disposition: attachment;
 filename="{PlaylistName}.zip"` (sanitized for Windows/macOS). Each entry inside the ZIP is named
@@ -749,8 +749,7 @@ title+artist) get a `" (2)"`, `" (3)"`, … suffix so neither overwrites the oth
 still produces a valid (empty) ZIP rather than an error. A track whose file is unexpectedly missing
 from disk is silently skipped rather than failing the whole download.
 
-`404` if the playlist doesn't exist, or is private and not owned by the caller (same privacy note as
-`GET /api/playlists/{id}`).
+`404` if the playlist doesn't exist.
 
 ---
 
@@ -785,8 +784,8 @@ Request: same shape as `POST /api/playlists` — replaces both fields.
 Response `200`: the updated playlist, same shape as one entry from `GET /api/playlists`.
 
 Errors:
-- `404` if the playlist doesn't exist, or is private and not owned by the caller (privacy note above).
-- `403` if the playlist is visible to the caller but they're not its owner.
+- `404` if the playlist doesn't exist.
+- `403` if the caller isn't its owner.
 
 ---
 
@@ -804,13 +803,13 @@ Response: `204 No Content`. Same `403`/`404` semantics as `PUT /api/playlists/{i
 
 **Requires a valid JWT — any role.** Subscribes the caller to this playlist. This is what determines
 whether a playlist shows up in a caller-scoped view like a sidebar (via `subscribed` on
-`GET /api/playlists`/`GET /api/playlists/{id}`) — separate from visibility and from edit rights.
-Idempotent: subscribing twice is a no-op the second time.
+`GET /api/playlists`/`GET /api/playlists/{id}`) — separate from visibility and from edit rights. Any
+authenticated user can subscribe to any playlist, public or private. Idempotent: subscribing twice is
+a no-op the second time.
 
 Response `200`: the playlist, same shape as `GET /api/playlists/{id}` (`subscribed: true`).
 
-`404` if the playlist doesn't exist, or is private and not owned by the caller (privacy note above) —
-you can't subscribe to a playlist you can't see.
+`404` if the playlist doesn't exist.
 
 ---
 
@@ -839,11 +838,9 @@ Request:
 Response `200`: the updated playlist, same shape as `GET /api/playlists/{id}`.
 
 Errors:
-- `404` if the playlist doesn't exist or is private and not owned by the caller (see the privacy note
-  under `GET /api/playlists/{id}`).
-- `403` if the playlist is visible to the caller but they don't have edit rights on it (e.g. a public
-  playlist and the caller is only `USER`, or a private playlist they don't own even though they are
-  `EDITOR`/`ADMIN`).
+- `404` if the playlist doesn't exist.
+- `403` if the caller doesn't have edit rights on it (e.g. a public playlist and the caller is only
+  `USER`, or a private playlist they don't own even though they are `EDITOR`/`ADMIN`).
 - `404` `"Track not found"` if `trackId` doesn't exist.
 
 ---
@@ -860,9 +857,8 @@ semantics as `POST .../tracks`.
 
 ## `GET /api/playlists/track/{trackId}`
 
-**Requires a valid JWT** — no role or ownership requirement beyond visibility. Returns the IDs of
-playlists that contain the given track, restricted to playlists visible to the caller (public, or
-owned by them) — the same visibility rule as `GET /api/playlists`. Used to drive checkmarks in the
+**Requires a valid JWT** — no role or ownership requirement. Returns the IDs of all playlists that
+contain the given track, regardless of public/private status. Used to drive checkmarks in the
 frontend's "Add to Playlist" menu.
 
 Response `200`:
@@ -870,7 +866,7 @@ Response `200`:
 [1, 4, 9]
 ```
 
-A `trackId` that doesn't exist, or that isn't in any visible playlist, simply returns `[]` — no `404`.
+A `trackId` that doesn't exist, or that isn't in any playlist, simply returns `[]` — no `404`.
 
 ---
 
