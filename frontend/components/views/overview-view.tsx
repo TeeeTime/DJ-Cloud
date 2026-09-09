@@ -3,8 +3,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Menu, Music2, Users, HardDrive, Play, Pause, Ban,
-  Disc3, ListMusic, Activity, Loader2
+  Menu, Play, Pause, Ban,
+  Disc3, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -43,7 +43,11 @@ function RecentTrackCover({ src }: { src: string }) {
 
   // A cover that previously 404'd must be re-attempted once `src` actually changes (e.g. after
   // editing the cover) — mirrors TrackThumbnail/TrackCover's own fix for the same issue.
-  useEffect(() => setError(false), [src]);
+  const [prevSrc, setPrevSrc] = useState(src);
+  if (src !== prevSrc) {
+    setPrevSrc(src);
+    setError(false);
+  }
 
   return (
     <div className="w-10 h-10 rounded-md bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 overflow-hidden group-hover:bg-zinc-800 group-hover:border-zinc-700 transition-all">

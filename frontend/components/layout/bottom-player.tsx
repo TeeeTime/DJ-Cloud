@@ -29,7 +29,11 @@ function TrackCover({ src, isPlaying, scratching }: { src: string; isPlaying: bo
 
   // A cover that previously 404'd must be re-attempted once `src` actually changes (e.g. after
   // editing the cover) — otherwise this instance stays stuck on the fallback icon forever.
-  useEffect(() => setError(false), [src]);
+  const [prevSrc, setPrevSrc] = useState(src);
+  if (src !== prevSrc) {
+    setPrevSrc(src);
+    setError(false);
+  }
 
   if (error) {
     return isPlaying ? (
