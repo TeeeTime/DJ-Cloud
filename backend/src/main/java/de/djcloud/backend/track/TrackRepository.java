@@ -20,6 +20,8 @@ public interface TrackRepository extends JpaRepository<Track, Long>, JpaSpecific
 
     List<Track> findByAddedAtIsNullOrderById();
 
+    List<Track> findBySizeBytes(long sizeBytes);
+
     List<Track> findAllByOrderByAddedAtDesc(Pageable pageable);
 
     long countByAddedAtAfter(Instant instant);

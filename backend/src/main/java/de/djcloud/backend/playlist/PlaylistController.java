@@ -2,6 +2,7 @@ package de.djcloud.backend.playlist;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -30,12 +31,18 @@ public class PlaylistController {
     @GetMapping
     public List<PlaylistResponse> list(Authentication authentication,
             @RequestParam(defaultValue = "false") boolean editableOnly) {
-        return playlistService.findAllVisible((AppUserDetails) authentication.getPrincipal(), editableOnly);
+        return playlistService.findAll((AppUserDetails) authentication.getPrincipal(), editableOnly);
     }
 
     @GetMapping("/{id}")
     public PlaylistDetailResponse get(@PathVariable Long id, Authentication authentication) {
         return playlistService.findById(id, (AppUserDetails) authentication.getPrincipal());
+    }
+
+    /** IDs of playlists that already contain the given track. */
+    @GetMapping("/track/{trackId}")
+    public Set<Long> playlistsContainingTrack(@PathVariable Long trackId) {
+        return playlistService.findPlaylistIdsContainingTrack(trackId);
     }
 
     /** Same backend-driven search/sort/paging as {@code GET /api/tracks}, scoped to this playlist. */
@@ -44,15 +51,15 @@ public class PlaylistController {
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "30") int size,
             @RequestParam(defaultValue = "title") String sortBy, @RequestParam(defaultValue = "asc") String direction,
             @RequestParam(required = false) String query) {
-        TrackSearchCriteria criteria = TrackSearchCriteria.fromParams(query, sortBy, direction, page, size, null);
+        TrackSearchCriteria criteria = TrackSearchCriteria.fromParams(query, sortBy, direction, page, size, null,
+                null, null, null, null, null);
 
         return playlistService.getTracks(id, (AppUserDetails) authentication.getPrincipal(), criteria);
     }
 
     /**
      * Streams every track in the playlist as a single ZIP, named after the playlist, with each
-     * entry under a human-readable "{Title} - {Artist(s)}.{ext}" filename. Same visibility rule as
-     * every other playlist read (404 for a private playlist the caller doesn't own).
+     * entry under a human-readable "{Title} - {Artist(s)}.{ext}" filename.
      */
     @GetMapping("/{id}/download")
     public ResponseEntity<byte[]> downloadPlaylist(@PathVariable Long id, Authentication authentication) {
@@ -76,6 +83,13 @@ public class PlaylistController {
     @ResponseStatus(HttpStatus.CREATED)
     public PlaylistResponse create(@Valid @RequestBody PlaylistRequest request, Authentication authentication) {
         return playlistService.create(request, (AppUserDetails) authentication.getPrincipal());
+    }
+
+    @PostMapping("/{id}/copy")
+    @ResponseStatus(HttpStatus.CREATED)
+    public PlaylistResponse copy(@PathVariable Long id, @Valid @RequestBody PlaylistRequest request,
+            Authentication authentication) {
+        return playlistService.copy(id, request, (AppUserDetails) authentication.getPrincipal());
     }
 
     @PutMapping("/{id}")

@@ -3,8 +3,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Menu, Music2, Users, HardDrive, Play, Pause,
-  Disc3, ListMusic, Activity, Loader2
+  Menu, Play, Pause, Ban,
+  Disc3, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -12,8 +12,10 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/providers/auth-provider";
 import { usePlayer } from "@/components/providers/player-provider";
 import { tracksApi, genresApi, authApi, RecentTrackResponse, GenreDistributionResponse } from "@/lib/api";
-import { Track, formatTimeAgo, resolveTrack } from "@/lib/data";
+import { Track, buildCoverUrl, formatTimeAgo, isPlayableStatus, resolveTrack } from "@/lib/data";
 import { motion } from "motion/react";
+import { UploadDialog } from "./upload-dialog";
+import { DesktopDownloadCard } from "./desktop-download-card";
 
 const RECENT_TRACKS_LIMIT = 7;
 const TOP_GENRES_COUNT = 4;
@@ -36,9 +38,32 @@ function toGenreBars(distribution: GenreDistributionResponse[]): GenreBar[] {
   return bars;
 }
 
+function RecentTrackCover({ src }: { src: string }) {
+  const [error, setError] = useState(false);
+
+  // A cover that previously 404'd must be re-attempted once `src` actually changes (e.g. after
+  // editing the cover) — mirrors TrackThumbnail/TrackCover's own fix for the same issue.
+  const [prevSrc, setPrevSrc] = useState(src);
+  if (src !== prevSrc) {
+    setPrevSrc(src);
+    setError(false);
+  }
+
+  return (
+    <div className="w-10 h-10 rounded-md bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 overflow-hidden group-hover:bg-zinc-800 group-hover:border-zinc-700 transition-all">
+      {error ? (
+        <Disc3 className="w-5 h-5 text-zinc-500 group-hover:text-white transition-colors" />
+      ) : (
+        <img src={src} alt="" onError={() => setError(true)} className="w-full h-full object-cover" />
+      )}
+    </div>
+  );
+}
+
 export function OverviewView() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, token } = useAuth();
+  const canUpload = user?.role === 'EDITOR' || user?.role === 'ADMIN';
   const {
     tracks, currentTrack, isPlaying, setCurrentTrack, setIsPlaying, setActiveTrackOrder, setOnOrderExhausted
   } = usePlayer();
@@ -157,6 +182,7 @@ export function OverviewView() {
   const moreNewCount = Math.max(0, newCount - visibleNewCount);
 
   const playRecentTrack = async (recentTrack: RecentTrackResponse) => {
+    if (!isPlayableStatus(recentTrack.status)) return;
     if (currentTrack?.id === recentTrack.id) {
       setIsPlaying(!isPlaying);
       return;
@@ -177,7 +203,7 @@ export function OverviewView() {
   return (
     <main className="flex-1 flex flex-col min-w-0 bg-black relative h-full">
       {/* Header */}
-      <header className="h-16 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-10 shrink-0 gap-4">
+      <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-10 shrink-0 gap-4">
         <div className="flex items-center gap-4 flex-1">
           {/* Mobile Menu Trigger */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -190,6 +216,11 @@ export function OverviewView() {
             </SheetContent>
           </Sheet>
         </div>
+        {canUpload && (
+          <div className="flex items-center gap-4 shrink-0">
+            <UploadDialog />
+          </div>
+        )}
       </header>
 
       {/* Content Area */}
@@ -238,12 +269,10 @@ export function OverviewView() {
                       <div
                         key={track.id}
                         onClick={() => playRecentTrack(track)}
-                        className={`relative flex items-center justify-between p-3 rounded-lg hover:bg-zinc-900/60 transition-colors group cursor-pointer ${currentTrack?.id === track.id ? 'bg-zinc-900/40' : ''}`}
+                        className={`relative flex items-center justify-between p-3 rounded-lg hover:bg-zinc-900/60 transition-colors group ${isPlayableStatus(track.status) ? 'cursor-pointer' : 'cursor-not-allowed'} ${currentTrack?.id === track.id ? 'bg-zinc-900/40' : ''}`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-md bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 group-hover:bg-zinc-800 group-hover:border-zinc-700 transition-all">
-                            <Disc3 className="w-5 h-5 text-zinc-500 group-hover:text-white transition-colors" />
-                          </div>
+                          <RecentTrackCover src={buildCoverUrl(track.id)} />
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-medium text-zinc-200 group-hover:text-white transition-colors truncate">{track.title}</p>
@@ -257,8 +286,10 @@ export function OverviewView() {
                         <div className="flex items-center gap-4">
                           <span className={`text-xs text-zinc-500 hidden sm:block transition-opacity duration-200 ${currentTrack?.id === track.id ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'}`}>{formatTimeAgo(track.addedAt)}</span>
                           <div className={`absolute right-9 transition-all duration-300 ${currentTrack?.id === track.id ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0'}`}>
-                            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-md">
-                              {currentTrack?.id === track.id && isPlaying ? (
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-md ${isPlayableStatus(track.status) ? 'bg-white' : 'bg-zinc-300'}`}>
+                              {!isPlayableStatus(track.status) ? (
+                                <Ban className="w-3.5 h-3.5 text-zinc-500" />
+                              ) : currentTrack?.id === track.id && isPlaying ? (
                                 <Pause className="w-3.5 h-3.5 text-black fill-current" />
                               ) : (
                                 <Play className="w-3.5 h-3.5 text-black fill-current ml-0.5" />
@@ -278,12 +309,13 @@ export function OverviewView() {
               </div>
             </motion.div>
 
-            {/* Top Genres Breakdown - Takes 4 grid cells */}
-            <motion.div 
+            {/* Top Genres Breakdown + Desktop App - share one column, Top Genres above */}
+            <div className="md:col-span-4 flex flex-col gap-6">
+            <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
-              className="md:col-span-4 self-start bg-zinc-950 border border-zinc-900 rounded-xl p-6 hover:border-zinc-800 transition-all duration-300 flex flex-col"
+              className="bg-zinc-950 border border-zinc-900 rounded-xl p-6 hover:border-zinc-800 transition-all duration-300 flex flex-col"
             >
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-base font-semibold text-white">Top Genres</h3>
@@ -316,6 +348,9 @@ export function OverviewView() {
                 )}
               </div>
             </motion.div>
+
+            <DesktopDownloadCard />
+            </div>
 
           </motion.div>
         </div>

@@ -117,6 +117,7 @@ export interface RecentTrackResponse {
   artists: string[];
   addedAt: string;
   isNew: boolean;
+  status: TrackStatus;
 }
 
 export interface RecentTracksResponse {
@@ -196,11 +197,29 @@ export interface GenreDistributionResponse {
 export type AnalysisStep = "PREVIEW_GENERATION" | "BPM_ANALYSIS" | "KEY_ANALYSIS";
 
 export interface QueueStatus {
-  queued: number[];
-  processing: { trackId: number; step: AnalysisStep } | null;
+  queued: { trackId: number; title: string }[];
+  processing: { trackId: number; title: string; step: AnalysisStep } | null;
 }
 
-export interface TrackListParams {
+export interface TrackFilters {
+  minBpm?: number;
+  maxBpm?: number;
+  minDurationSeconds?: number;
+  maxDurationSeconds?: number;
+  genres?: string[];
+}
+
+export function hasActiveTrackFilters(filters: TrackFilters): boolean {
+  return (
+    filters.minBpm !== undefined ||
+    filters.maxBpm !== undefined ||
+    filters.minDurationSeconds !== undefined ||
+    filters.maxDurationSeconds !== undefined ||
+    (filters.genres !== undefined && filters.genres.length > 0)
+  );
+}
+
+export interface TrackListParams extends TrackFilters {
   page?: number;
   size?: number;
   sortBy?: string;
@@ -218,6 +237,11 @@ export const tracksApi = {
     if (params.direction) query.set("direction", params.direction);
     if (params.query) query.set("query", params.query);
     if (params.excludePlaylistId !== undefined) query.set("excludePlaylistId", String(params.excludePlaylistId));
+    if (params.minBpm !== undefined) query.set("minBpm", String(params.minBpm));
+    if (params.maxBpm !== undefined) query.set("maxBpm", String(params.maxBpm));
+    if (params.minDurationSeconds !== undefined) query.set("minDurationSeconds", String(params.minDurationSeconds));
+    if (params.maxDurationSeconds !== undefined) query.set("maxDurationSeconds", String(params.maxDurationSeconds));
+    if (params.genres && params.genres.length > 0) query.set("genres", params.genres.join(","));
     const qs = query.toString();
     return request<PageResponse<TrackResponse>>(`/api/tracks${qs ? `?${qs}` : ""}`, { method: "GET" });
   },
@@ -240,6 +264,15 @@ export const tracksApi = {
       token
     ),
 
+  updateCover: (id: number, file: File, token: string) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request<void>(`/api/tracks/${id}/cover`, { method: "PUT", body: formData }, token);
+  },
+
+  removeCover: (id: number, token: string) =>
+    request<void>(`/api/tracks/${id}/cover`, { method: "DELETE" }, token),
+
   delete: (id: number, token: string) =>
     request<void>(`/api/tracks/${id}`, { method: "DELETE" }, token),
 
@@ -260,6 +293,7 @@ export interface PlaylistResponse {
   createdAt: string;
   trackCount: number;
   subscribed: boolean;
+  topGenres: string[];
 }
 
 export interface PlaylistDetailResponse {
@@ -280,6 +314,9 @@ export const playlistsApi = {
   get: (id: number, token: string) =>
     request<PlaylistDetailResponse>(`/api/playlists/${id}`, { method: "GET" }, token),
 
+  playlistIdsForTrack: (trackId: number, token: string) =>
+    request<number[]>(`/api/playlists/track/${trackId}`, { method: "GET" }, token),
+
   getTracks: (id: number, params: TrackListParams, token: string) => {
     const query = new URLSearchParams();
     if (params.page !== undefined) query.set("page", String(params.page));
@@ -294,6 +331,13 @@ export const playlistsApi = {
   create: (name: string, isPublic: boolean, token: string) =>
     request<PlaylistResponse>(
       "/api/playlists",
+      { method: "POST", body: JSON.stringify({ name, isPublic }) },
+      token
+    ),
+
+  copy: (sourcePlaylistId: number, name: string, isPublic: boolean, token: string) =>
+    request<PlaylistResponse>(
+      `/api/playlists/${sourcePlaylistId}/copy`,
       { method: "POST", body: JSON.stringify({ name, isPublic }) },
       token
     ),

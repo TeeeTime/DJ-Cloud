@@ -12,7 +12,9 @@ import org.jaudiotagger.audio.AudioFileIO;
 import org.jaudiotagger.audio.AudioHeader;
 import org.jaudiotagger.tag.FieldKey;
 import org.jaudiotagger.tag.Tag;
+import org.jaudiotagger.tag.id3.AbstractID3v2Tag;
 import org.jaudiotagger.tag.images.Artwork;
+import org.jaudiotagger.tag.wav.WavTag;
 import org.springframework.stereotype.Component;
 
 /** Thin wrapper so the rest of the app never touches jaudiotagger's types (or its exception zoo) directly. */
@@ -62,6 +64,44 @@ class AudioMetadataReader {
         }
 
         return new CoverArt(artwork.getBinaryData(), artwork.getMimeType());
+    }
+
+    /**
+     * Reads back the track id previously embedded by {@link AudioMetadataWriter#writeInternalId}.
+     * Returns null if the file is unreadable, untagged, or holds something that isn't a valid id
+     * (e.g. a file never written by this app) — callers treat all of those the same way: "no id".
+     *
+     * <p>Mirrors {@code writeInternalId}'s WAV handling: reads the ID3 sub-tag directly rather
+     * than the generic {@code Tag} field API, since a WAV with a pre-existing RIFF INFO chunk
+     * would otherwise route the read through INFO (which never holds this field) instead of ID3.
+     */
+    Long readInternalId(File file) {
+        AudioFile audioFile;
+
+        try {
+            audioFile = AudioFileIO.read(file);
+        } catch (Exception ex) {
+            return null;
+        }
+
+        Tag tag = audioFile.getTag();
+        String raw;
+        if (tag instanceof WavTag wavTag) {
+            AbstractID3v2Tag id3Tag = wavTag.getID3Tag();
+            raw = id3Tag == null ? null : readField(id3Tag, FieldKey.CUSTOM1);
+        } else {
+            raw = readField(tag, FieldKey.CUSTOM1);
+        }
+
+        if (raw == null) {
+            return null;
+        }
+
+        try {
+            return Long.valueOf(raw);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     private String readField(Tag tag, FieldKey key) {

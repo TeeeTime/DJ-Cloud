@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react";
 import { tracksApi, QueueStatus, AnalysisStep } from "@/lib/api";
-import { usePlayer } from "@/components/providers/player-provider";
 
 const POLL_INTERVAL_MS = 2500;
 const HOVER_PREVIEW_COUNT = 5;
@@ -16,7 +15,6 @@ const STEP_LABELS: Record<AnalysisStep, string> = {
 const STEP_ORDER: AnalysisStep[] = ["PREVIEW_GENERATION", "BPM_ANALYSIS", "KEY_ANALYSIS"];
 
 export function QueueStatusWidget() {
-  const { tracks } = usePlayer();
   const [status, setStatus] = useState<QueueStatus | null>(null);
 
   useEffect(() => {
@@ -36,11 +34,13 @@ export function QueueStatusWidget() {
     return null;
   }
 
-  const { trackId, step } = status.processing;
+  const { trackId, title, step } = status.processing;
   const stepIndex = STEP_ORDER.indexOf(step);
   const progressPercent = ((stepIndex + 1) / STEP_ORDER.length) * 100;
 
-  const titleFor = (id: number) => tracks.find(t => t.id === id)?.title ?? `Track #${id}`;
+  // Defensive fallback only — the backend always sends a title, this just guards against an
+  // unexpected empty string.
+  const displayTitle = title || `Track #${trackId}`;
 
   const upNext = status.queued.slice(0, HOVER_PREVIEW_COUNT);
   const extraCount = status.queued.length - upNext.length;
@@ -51,8 +51,8 @@ export function QueueStatusWidget() {
         <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-56 bg-zinc-900 border border-zinc-800 rounded-md shadow-lg p-2 z-10">
           <p className="text-[10px] uppercase tracking-wide text-zinc-500 px-1 pb-1">Up next</p>
           <ul className="space-y-0.5">
-            {upNext.map(id => (
-              <li key={id} className="text-xs text-zinc-300 truncate px-1 py-0.5">{titleFor(id)}</li>
+            {upNext.map(q => (
+              <li key={q.trackId} className="text-xs text-zinc-300 truncate px-1 py-0.5">{q.title || `Track #${q.trackId}`}</li>
             ))}
           </ul>
           {extraCount > 0 && (
@@ -62,7 +62,7 @@ export function QueueStatusWidget() {
       )}
 
       <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="text-zinc-300 truncate" title={titleFor(trackId)}>{titleFor(trackId)}</span>
+        <span className="text-zinc-300 truncate" title={displayTitle}>{displayTitle}</span>
         {status.queued.length > 0 && (
           <span className="text-zinc-500 flex items-center gap-1 shrink-0">
             <span className="w-1 h-1 rounded-full bg-zinc-400 animate-pulse" />

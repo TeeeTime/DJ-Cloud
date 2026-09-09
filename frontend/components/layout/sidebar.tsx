@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Library, ListMusic, Disc3, Lock } from "lucide-react";
+import { LayoutGrid, Library, ListMusic, Disc3, Lock, Globe } from "lucide-react";
 import { usePlayer } from "@/components/providers/player-provider";
 import { usePlaylists } from "@/components/providers/playlist-provider";
 import { useGenres } from "@/components/providers/genre-provider";
@@ -61,6 +61,14 @@ export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
               All Tracks
             </button>
           </Link>
+          <Link href="/playlists">
+            <button
+              className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pathname === '/playlists' ? 'bg-zinc-900 text-white' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}
+            >
+              <Globe className="w-4 h-4" />
+              All Playlists
+            </button>
+          </Link>
         </div>
 
         {/* Playlists */}
@@ -77,7 +85,7 @@ export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
                 >
                   <ListMusic className="w-4 h-4 shrink-0" />
                   <span className="truncate flex-1 text-left">{pl.name}</span>
-                  {!pl.isPublic && <Lock className="w-3 h-3 shrink-0 text-zinc-600" />}
+                  {pl.isPublic ? <Globe className="w-3 h-3 shrink-0 text-zinc-600" /> : <Lock className="w-3 h-3 shrink-0 text-zinc-600" />}
                 </button>
               </Link>
             ))}

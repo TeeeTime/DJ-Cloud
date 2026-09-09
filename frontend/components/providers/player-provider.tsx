@@ -1,8 +1,8 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { Track } from "@/lib/data";
-import { tracksApi } from "@/lib/api";
+import { Track, isPlayableStatus } from "@/lib/data";
+import { tracksApi, TrackFilters } from "@/lib/api";
 import { usePagedTracks, FetchTracksPageParams } from "@/lib/use-paged-tracks";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 
@@ -42,6 +42,8 @@ interface PlayerContextType {
   setThemeIndex: React.Dispatch<React.SetStateAction<number>>;
   searchQuery: string;
   setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
+  trackFilters: TrackFilters;
+  setTrackFilters: React.Dispatch<React.SetStateAction<TrackFilters>>;
   audioRef: React.RefObject<HTMLAudioElement | null>;
 }
 
@@ -58,6 +60,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [themeIndex, setThemeIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebouncedValue(searchQuery);
+  const [trackFilters, setTrackFilters] = useState<TrackFilters>({});
   const audioRef = React.useRef<HTMLAudioElement>(null);
   const [registeredOrder, setRegisteredOrder] = useState<Track[] | null>(null);
   const [onOrderExhausted, setOnOrderExhausted] = useState<(() => Promise<Track[] | null>) | null>(null);
@@ -76,6 +79,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     sortConfig,
     defaultSortKey: DEFAULT_SORT_KEY,
     fetchPage: fetchLibraryPage,
+    filters: trackFilters,
   });
 
   // While any track is still QUEUED/PROCESSING, its status can change server-side (via the
@@ -92,8 +96,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     resetTracks();
   }, [resetTracks]);
 
-  // Default to the first track once the library loads, without forcing playback.
-  const currentTrack = selectedTrack ?? tracks[0] ?? null;
+  // Default to the first ready track once the library loads, without forcing playback — a
+  // not-yet-processed track (no preview available yet) must never be auto-selected.
+  const currentTrack = selectedTrack ?? tracks.find(t => isPlayableStatus(t.status)) ?? null;
 
   // Whichever view is currently mounted (genre/playlist/overview) can override this with its own
   // visible order; falls back to the library list when nothing has registered one.
@@ -134,6 +139,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setThemeIndex,
       searchQuery,
       setSearchQuery,
+      trackFilters,
+      setTrackFilters,
       audioRef,
       handleSort,
     }}>
