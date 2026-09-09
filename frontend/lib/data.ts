@@ -74,7 +74,7 @@ export function bumpCoverVersion(id: number) {
   coverVersions.set(id, Date.now());
 }
 
-function buildCoverUrl(id: number): string {
+export function buildCoverUrl(id: number): string {
   const version = coverVersions.get(id);
   return version === undefined ? tracksApi.coverUrl(id) : `${tracksApi.coverUrl(id)}?v=${version}`;
 }
