@@ -84,7 +84,7 @@ fn handle_deep_link_url(app: &AppHandle, url: &Url) {
 
 /// Registers the deep-link listener. Also re-registers the `djcloud` scheme with Windows on every
 /// debug-build startup, pointed at the current dev binary — release builds rely on the installer
-/// for this instead (see `tauri.conf.json`'s NSIS/WiX config), so it's skipped there.
+/// for this instead (see `tauri.conf.json`'s NSIS config), so it's skipped there.
 pub fn setup(app: &AppHandle) {
     #[cfg(debug_assertions)]
     {
