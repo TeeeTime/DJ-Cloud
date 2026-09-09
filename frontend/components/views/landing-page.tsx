@@ -6,6 +6,7 @@ import Image from "next/image";
 import { ArrowRight, ArrowDown, CloudUpload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuroraText } from "@/components/ui/aurora-text";
+import { ScrollVelocityContainer, ScrollVelocityRow } from "@/components/ui/scroll-based-velocity";
 import { AnimatedBeam } from "@/components/ui/animated-beam";
 import { colorThemes } from "@/lib/data";
 import { usePlayer } from "@/components/providers/player-provider";
@@ -21,16 +22,16 @@ function NetworkAnimation() {
     <div ref={containerRef} className="relative flex w-full max-w-3xl items-center justify-between p-8 h-64 mx-auto mb-16 bg-zinc-900/20 rounded-[2rem] border border-zinc-800/50 backdrop-blur-sm">
       {/* Left side: DJs */}
       <div className="flex flex-col justify-between h-full gap-6 z-10">
-        <div ref={tomRef} className="w-14 h-14 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center overflow-hidden z-10 relative group cursor-pointer hover:border-white transition-colors">
-          <Image src="/images/team/Tom_Protait_Professionell.jpeg" alt="Tom" width={150} height={150} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" unoptimized />
+        <div ref={tomRef} className="w-14 h-14 rounded-2xl bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center overflow-hidden z-10 relative group cursor-pointer hover:border-white transition-colors">
+          <Image src="/images/team/Tom_Protait_Professionell.png" alt="Tom" width={150} height={150} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" unoptimized />
           <span className="absolute -left-14 text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white transition-colors">Tom</span>
         </div>
-        <div ref={carlosRef} className="w-14 h-14 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center overflow-hidden z-10 relative group cursor-pointer hover:border-white transition-colors">
-          <Image src="/images/team/Carlos_Protait_Professionell.jpeg" alt="Carlos" width={150} height={150} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" unoptimized />
+        <div ref={carlosRef} className="w-14 h-14 rounded-2xl bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center overflow-hidden z-10 relative group cursor-pointer hover:border-white transition-colors">
+          <Image src="/images/team/Carlos_Protait_Professionell.png" alt="Carlos" width={150} height={150} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" unoptimized />
           <span className="absolute -left-16 text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white transition-colors">Carlos</span>
         </div>
-        <div ref={juliusRef} className="w-14 h-14 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center overflow-hidden z-10 relative group cursor-pointer hover:border-white transition-colors">
-          <Image src="/images/team/Julius_Protait_Professionell.jpeg" alt="Julius" width={150} height={150} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" unoptimized />
+        <div ref={juliusRef} className="w-14 h-14 rounded-2xl bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center overflow-hidden z-10 relative group cursor-pointer hover:border-white transition-colors">
+          <Image src="/images/team/Julius_Protait_Professionell.png" alt="Julius" width={150} height={150} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" unoptimized />
           <span className="absolute -left-16 text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white transition-colors">Julius</span>
         </div>
       </div>
@@ -60,7 +61,24 @@ export function LandingPage() {
         {/* Background glow */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-zinc-900/30 via-black to-black z-0 pointer-events-none"></div>
 
-        {/* Background glow removed scrolling text to clean up design */}
+        {/* Diagonal Scrolling Text Background */}
+        <div className="absolute inset-0 z-0 flex flex-col justify-center opacity-20 rotate-[-5deg] scale-110 pointer-events-none gap-8">
+            <ScrollVelocityContainer>
+              <ScrollVelocityRow className="text-6xl md:text-9xl font-black text-transparent tracking-tighter uppercase" style={{ WebkitTextStroke: '2px #52525b' }} baseVelocity={-1}>
+                &nbsp;• HIGH QUALITY AUDIO • KEY ANALYSIS • LOSSLESS PLAYBACK
+              </ScrollVelocityRow>
+            </ScrollVelocityContainer>
+            <ScrollVelocityContainer>
+              <ScrollVelocityRow className="text-6xl md:text-9xl font-black text-zinc-800 tracking-tighter uppercase" baseVelocity={1.5}>
+                &nbsp;• COLLABORATIVE LIBRARY • BPM DETECTION • MP3 • WAV
+              </ScrollVelocityRow>
+            </ScrollVelocityContainer>
+            <ScrollVelocityContainer>
+              <ScrollVelocityRow className="text-6xl md:text-9xl font-black text-transparent tracking-tighter uppercase" style={{ WebkitTextStroke: '2px #52525b' }} baseVelocity={-1.2}>
+                &nbsp;• CLOUD SYNC • METADATA EDITOR • PRO DJ TOOLS
+              </ScrollVelocityRow>
+            </ScrollVelocityContainer>
+        </div>
 
         {/* Foreground Content */}
         <div className="relative z-10 flex flex-col items-center justify-center flex-1 w-full px-6 pt-10">
@@ -68,7 +86,6 @@ export function LandingPage() {
             
             {/* Easter Egg 3: Glitch Badge */}
             <div className="relative group/badge mb-8 cursor-pointer" onMouseEnter={() => setIsGlitching(true)} onMouseLeave={() => setIsGlitching(false)}>
-              <div className={`absolute -inset-0.5 rounded-full blur opacity-30 group-hover/badge:opacity-100 transition duration-1000 group-hover/badge:duration-200 ${isGlitching ? 'bg-red-500' : 'bg-zinc-500'}`}></div>
               <div className={`relative inline-flex items-center gap-2 px-4 py-1.5 rounded-full border bg-black transition-all ${isGlitching ? 'border-red-500 scale-110 skew-x-12' : 'border-zinc-800'}`}>
                 <span className="relative flex h-2 w-2">
                   <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isGlitching ? 'bg-red-500' : 'bg-zinc-400'}`}></span>
@@ -80,12 +97,12 @@ export function LandingPage() {
               </div>
             </div>
 
-            <h1 className="text-6xl md:text-[8rem] font-black tracking-tighter leading-none mb-6 group cursor-default">
-              <span className="inline-block hover:scale-105 transition-transform duration-500"><AuroraText colors={["#ffffff", "#d4d4d8", "#52525b", "#ffffff"]}>DJ-CLOUD</AuroraText></span>
+            <h1 className="text-6xl md:text-[8rem] font-black tracking-tighter leading-none mb-6">
+              <AuroraText colors={["#ffffff", "#d4d4d8", "#52525b", "#ffffff"]}>DJ-CLOUD</AuroraText>
             </h1>
             
             <p className="text-zinc-400 text-lg md:text-xl font-medium tracking-[0.2em] uppercase mb-12 max-w-2xl leading-relaxed">
-                The next-generation collaborative vault for professional audio and stems.
+                The next-generation collaborative library for professional audio and playlists.
             </p>
 
             <div className="mt-8">
@@ -125,10 +142,10 @@ export function LandingPage() {
               </h2>
               <div className="text-zinc-400 text-lg leading-relaxed space-y-6">
                 <p>
-                  We are a passionate team of three Wirtschaftsinformatik (WI) students from the University of Münster. What started as late-night coding sessions and a shared love for electronic music quickly evolved into a mission.
+                  We are a passionate team of three Information Systems students from the University of Münster. What started as late-night coding sessions and a shared love for electronic music quickly evolved into a mission.
                 </p>
                 <p>
-                  Frustrated by the limitations of existing DJ platforms and cloud storage solutions, we decided to build our own. DJ-CLOUD is our vision of the perfect collaborative vault—engineered with German precision, designed for professional audio, and built to withstand the heaviest drops.
+                  Frustrated by the limitations of existing DJ platforms and cloud storage solutions, we decided to build our own. DJ-CLOUD is our vision of the perfect collaborative library — engineered with German precision, designed for professional audio, and built to withstand the heaviest drops.
                 </p>
               </div>
               <div className="pt-4 flex gap-8">
@@ -137,7 +154,7 @@ export function LandingPage() {
                   <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mt-1">Founded</p>
                 </div>
                 <div>
-                  <h4 className="text-3xl font-black text-white">Uni MS</h4>
+                  <h4 className="text-3xl font-black text-white">Uni Münster</h4>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mt-1">Roots</p>
                 </div>
                 <div>
@@ -150,13 +167,13 @@ export function LandingPage() {
             {/* Image Side */}
             <div className="relative group rounded-[2rem] overflow-hidden border border-zinc-800/50 shadow-2xl animate-in fade-in slide-in-from-right-8 duration-1000">
               <div className="absolute inset-0 bg-zinc-900/20 group-hover:bg-transparent transition-colors z-10 duration-500"></div>
-              <Image 
-                src="/images/team/Teamfoto_chillig.jpeg" 
-                alt="DJ-CLOUD Team Chill" 
-                width={800} 
-                height={800} 
-                className="w-full h-auto object-cover aspect-square md:aspect-[4/3] grayscale-[30%] group-hover:grayscale-0 group-hover:scale-105 transition-all duration-1000" 
-                unoptimized 
+              <Image
+                src="/images/team/Team_Backstage.png"
+                alt="Tom, Carlos and Julius"
+                width={800}
+                height={600}
+                className="w-full h-auto object-cover aspect-square md:aspect-[4/3] grayscale-[30%] group-hover:grayscale-0 group-hover:scale-105 transition-all duration-1000"
+                unoptimized
               />
             </div>
           </div>
@@ -181,8 +198,8 @@ export function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-24">
             {/* TOM */}
             <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-8 hover:bg-zinc-900 transition-all duration-500 group relative overflow-hidden hover:-translate-y-4 hover:shadow-2xl hover:border-zinc-600">
-              <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center mb-6 overflow-hidden border border-zinc-700 shadow-lg group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500">
-                <Image src="/images/team/Tom_Protait_Professionell.jpeg" alt="Tom" width={64} height={64} className="w-full h-full object-cover" unoptimized />
+              <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center mb-6 overflow-hidden border border-zinc-700 shadow-lg group-hover:scale-110 transition-transform duration-500">
+                <Image src="/images/team/Tom_Protait_Professionell.png" alt="Tom" width={64} height={64} className="w-full h-full object-cover" unoptimized />
               </div>
               <h3 className="text-2xl font-bold mb-1">Tom</h3>
               <p className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase mb-4">The Architect • Traktor Pro</p>
@@ -198,8 +215,8 @@ export function LandingPage() {
 
             {/* CARLOS */}
             <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-8 hover:bg-zinc-900 transition-all duration-500 group relative overflow-hidden hover:-translate-y-4 hover:shadow-2xl hover:border-zinc-600 delay-75">
-              <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center mb-6 overflow-hidden border border-zinc-700 shadow-lg group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-500">
-                <Image src="/images/team/Carlos_Protait_Professionell.jpeg" alt="Carlos" width={64} height={64} className="w-full h-full object-cover" unoptimized />
+              <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center mb-6 overflow-hidden border border-zinc-700 shadow-lg group-hover:scale-110 transition-transform duration-500">
+                <Image src="/images/team/Carlos_Protait_Professionell.png" alt="Carlos" width={64} height={64} className="w-full h-full object-cover" unoptimized />
               </div>
               <h3 className="text-2xl font-bold mb-1">Carlos</h3>
               <p className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase mb-4">The Busy Bee • DDJ 400</p>
@@ -215,11 +232,11 @@ export function LandingPage() {
 
             {/* JULIUS */}
             <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-8 hover:bg-zinc-900 transition-all duration-500 group relative overflow-hidden hover:-translate-y-4 hover:shadow-2xl hover:border-zinc-600 delay-150">
-              <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center mb-6 overflow-hidden border border-zinc-700 shadow-lg group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500">
-                <Image src="/images/team/Julius_Protait_Professionell.jpeg" alt="Julius" width={64} height={64} className="w-full h-full object-cover" unoptimized />
+              <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center mb-6 overflow-hidden border border-zinc-700 shadow-lg group-hover:scale-110 transition-transform duration-500">
+                <Image src="/images/team/Julius_Protait_Professionell.png" alt="Julius" width={64} height={64} className="w-full h-full object-cover" unoptimized />
               </div>
               <h3 className="text-2xl font-bold mb-1">Julius</h3>
-              <p className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase mb-4">The Wildcard • Traktor</p>
+              <p className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase mb-4">The Wildcard • Traktor Pro</p>
               <p className="text-zinc-400 text-sm leading-relaxed mb-6">
                 The newest member to join the decks, but don&apos;t let that fool you. Armed with a solid Traktor setup, he&apos;s an absolute wildcard who will seamlessly mix literally anything that makes the crowd move.
               </p>
@@ -247,73 +264,73 @@ export function LandingPage() {
           <div className="space-y-4">
             <details className="group border border-zinc-800/80 bg-zinc-900/40 rounded-2xl overflow-hidden [&_summary::-webkit-details-marker]:hidden">
               <summary className="flex items-center justify-between p-6 cursor-pointer font-bold text-lg hover:bg-zinc-800/50 transition-colors text-white">
-                <span>Darf ich auch Schlager hochladen?</span>
+                <span>Can I upload Schlager too?</span>
                 <span className="transition group-open:rotate-180">
                   <ArrowDown className="w-5 h-5 text-zinc-500" />
                 </span>
               </summary>
               <div className="p-6 pt-0 text-zinc-400 leading-relaxed border-t border-zinc-800/50 mt-2 pt-4">
-                Nein. Wer Schlager in die Cloud lädt, dessen Account wird permanent gesperrt und sein USB-Stick formatiert. Keine Diskussion.
+                No. Anyone who uploads Schlager to the cloud gets their account permanently banned and their USB stick formatted. No discussion.
               </div>
             </details>
 
             <details className="group border border-zinc-800/80 bg-zinc-900/40 rounded-2xl overflow-hidden [&_summary::-webkit-details-marker]:hidden">
               <summary className="flex items-center justify-between p-6 cursor-pointer font-bold text-lg hover:bg-zinc-800/50 transition-colors text-white">
-                <span>Warum ist Carlos nie am Pult zu sehen?</span>
+                <span>Why is Carlos never actually seen behind the decks?</span>
                 <span className="transition group-open:rotate-180">
                   <ArrowDown className="w-5 h-5 text-zinc-500" />
                 </span>
               </summary>
               <div className="p-6 pt-0 text-zinc-400 leading-relaxed border-t border-zinc-800/50 mt-2 pt-4">
-                Carlos ist chronisch "anderweitig beschäftigt". Wenn er doch mal Zeit findet, muss er erst seinen DDJ 400 entstauben und ein Rekordbox-Update installieren, was den restlichen Abend in Anspruch nimmt.
+                Carlos is chronically "otherwise occupied." On the rare occasion he does find time, he first has to dust off his DDJ-400 and install a Rekordbox update, which takes up the rest of the evening.
               </div>
             </details>
 
             <details className="group border border-zinc-800/80 bg-zinc-900/40 rounded-2xl overflow-hidden [&_summary::-webkit-details-marker]:hidden">
               <summary className="flex items-center justify-between p-6 cursor-pointer font-bold text-lg hover:bg-zinc-800/50 transition-colors text-white">
-                <span>Was passiert, wenn Tom anfängt zu coden?</span>
+                <span>What happens when Tom starts coding?</span>
                 <span className="transition group-open:rotate-180">
                   <ArrowDown className="w-5 h-5 text-zinc-500" />
                 </span>
               </summary>
               <div className="p-6 pt-0 text-zinc-400 leading-relaxed border-t border-zinc-800/50 mt-2 pt-4">
-                Server stürzen ab, Datenbanken brennen, aber am Ende funktioniert es meistens irgendwie. Spring Boot regelt das schon.
+                Servers crash, databases catch fire, but somehow it works out in the end. Spring Boot's got this.
               </div>
             </details>
 
             <details className="group border border-zinc-800/80 bg-zinc-900/40 rounded-2xl overflow-hidden [&_summary::-webkit-details-marker]:hidden">
               <summary className="flex items-center justify-between p-6 cursor-pointer font-bold text-lg hover:bg-zinc-800/50 transition-colors text-white">
-                <span>Wie viele BPM braucht Tom um wach zu werden?</span>
+                <span>How many BPM does Tom need to wake up?</span>
                 <span className="transition group-open:rotate-180">
                   <ArrowDown className="w-5 h-5 text-zinc-500" />
                 </span>
               </summary>
               <div className="p-6 pt-0 text-zinc-400 leading-relaxed border-t border-zinc-800/50 mt-2 pt-4">
-                Alles unter 150 BPM ist für Tom Ambient. Sein Morgenkaffee wird stilecht von harten Schranz-Kicks umgerührt.
+                Anything under 150 BPM is basically ambient to Tom. His morning coffee gets stirred, appropriately, by some hard Schranz kicks.
               </div>
             </details>
-            
+
             <details className="group border border-zinc-800/80 bg-zinc-900/40 rounded-2xl overflow-hidden [&_summary::-webkit-details-marker]:hidden">
               <summary className="flex items-center justify-between p-6 cursor-pointer font-bold text-lg hover:bg-zinc-800/50 transition-colors text-white">
-                <span>Hat Julius eigentlich einen festen Musikgeschmack?</span>
+                <span>Does Julius actually have a main genre?</span>
                 <span className="transition group-open:rotate-180">
                   <ArrowDown className="w-5 h-5 text-zinc-500" />
                 </span>
               </summary>
               <div className="p-6 pt-0 text-zinc-400 leading-relaxed border-t border-zinc-800/50 mt-2 pt-4">
-                Nein. Er spielt alles, was man theoretisch in Traktor laden kann. Schranz, D&B, Hardtekk oder 90er Eurodance – du weißt nie, was als nächstes droppt. Es ist wie russisches Roulette für die Ohren.
+                No. He plays anything that can theoretically be loaded into Traktor. Schranz, D&B, Hardtekk, or 90s Eurodance – you never know what drops next. It's Russian roulette for your ears.
               </div>
             </details>
-            
+
             <details className="group border border-zinc-800/80 bg-zinc-900/40 rounded-2xl overflow-hidden [&_summary::-webkit-details-marker]:hidden">
               <summary className="flex items-center justify-between p-6 cursor-pointer font-bold text-lg hover:bg-zinc-800/50 transition-colors text-white">
-                <span>Gibt es ein Speicherlimit in der Cloud?</span>
+                <span>Is there a storage limit on the cloud?</span>
                 <span className="transition group-open:rotate-180">
                   <ArrowDown className="w-5 h-5 text-zinc-500" />
                 </span>
               </summary>
               <div className="p-6 pt-0 text-zinc-400 leading-relaxed border-t border-zinc-800/50 mt-2 pt-4">
-                Das Limit ist exakt dann erreicht, wenn Toms privates NAS im Wohnzimmer abraucht. Wir empfehlen daher, ausschließlich echte Banger hochzuladen.
+                The limit is reached exactly when Tom's personal VPS goes up in flames. So we recommend uploading nothing but certified bangers.
               </div>
             </details>
           </div>
@@ -329,7 +346,7 @@ export function LandingPage() {
             <div className="relative group rounded-[2rem] overflow-hidden border border-zinc-800/50 shadow-2xl order-2 lg:order-1">
               <div className="absolute inset-0 bg-zinc-900/20 group-hover:bg-transparent transition-colors z-10 duration-500"></div>
               <Image 
-                src="/images/team/Teamsfoto_busy.jpeg" 
+                src="/images/team/Teamsfoto_busy.png"
                 alt="Behind the scenes" 
                 width={800} 
                 height={1000} 
@@ -363,14 +380,14 @@ export function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-6 px-8 text-center border-t border-zinc-900 text-[10px] text-zinc-600 uppercase tracking-widest font-black bg-black flex justify-between items-center flex-col md:flex-row gap-4 relative z-10">
+      <footer className="py-3 px-8 text-center border-t border-zinc-900 text-[10px] text-zinc-600 uppercase tracking-widest font-black bg-black flex justify-between items-center flex-col md:flex-row gap-2 relative z-10">
         <span>DJ-CLOUD © 2026</span>
         {/* Hidden Theme Switcher Trigger */}
-        <span 
+        <span
           className="cursor-crosshair hover:text-zinc-400 transition-colors"
           onClick={() => setThemeIndex((prev) => (prev + 1) % colorThemes.length)}
         >
-          v2.0.4 Beta • End-To-End Encrypted
+          v{process.env.NEXT_PUBLIC_APP_VERSION}
         </span>
       </footer>
     </div>
