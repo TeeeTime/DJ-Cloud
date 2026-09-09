@@ -14,6 +14,14 @@ export function StatusBadge({ status }: { status: Track["status"] }) {
 export function TrackThumbnail({ src }: { src: string }) {
   const [error, setError] = useState(false);
 
+  // A cover that previously 404'd must be re-attempted once `src` actually changes (e.g. after
+  // editing the cover) — otherwise this instance stays stuck on the fallback icon forever.
+  const [prevSrc, setPrevSrc] = useState(src);
+  if (src !== prevSrc) {
+    setPrevSrc(src);
+    setError(false);
+  }
+
   if (error) {
     return (
       <div className="w-8 h-8 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">

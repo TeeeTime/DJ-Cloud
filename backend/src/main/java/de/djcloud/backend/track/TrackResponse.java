@@ -5,19 +5,20 @@ import java.time.LocalDate;
 import java.util.List;
 
 public record TrackResponse(Long id, String title, int durationSeconds, String key, int bpm, String fileFormat,
-                             LocalDate dateAdded, Instant addedAt, TrackStatus status, List<String> artists,
-                             List<String> genres) {
+                             long sizeBytes, LocalDate dateAdded, Instant addedAt, TrackStatus status,
+                             List<String> artists, List<String> genres) {
 
     public static TrackResponse fromEntity(Track track) {
         List<String> artistNames = track.getArtists().stream()
                 .map(artist -> artist.getName())
+                .sorted(String.CASE_INSENSITIVE_ORDER)
                 .toList();
         List<String> genreNames = track.getGenres().stream()
                 .map(genre -> genre.getName())
                 .toList();
 
         return new TrackResponse(track.getId(), track.getTitle(), track.getDurationSeconds(), track.getKey(),
-                track.getBpm(), track.getFileFormat(), track.getDateAdded(), track.getAddedAt(), track.getStatus(),
-                artistNames, genreNames);
+                track.getBpm(), track.getFileFormat(), track.getSizeBytes(), track.getDateAdded(),
+                track.getAddedAt(), track.getStatus(), artistNames, genreNames);
     }
 }

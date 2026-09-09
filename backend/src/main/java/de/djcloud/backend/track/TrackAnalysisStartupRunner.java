@@ -35,7 +35,7 @@ public class TrackAnalysisStartupRunner implements ApplicationRunner {
         needsAnalysis.forEach(track -> track.setStatus(TrackStatus.QUEUED));
         trackRepository.saveAll(needsAnalysis);
 
-        needsAnalysis.forEach(track -> trackAnalysisQueue.enqueue(track.getId()));
+        needsAnalysis.forEach(track -> trackAnalysisQueue.enqueue(track.getId(), track.getTitle()));
 
         log.info("Requeued {} track(s) for analysis on startup", needsAnalysis.size());
     }

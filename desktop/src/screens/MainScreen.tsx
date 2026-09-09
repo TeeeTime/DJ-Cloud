@@ -1,0 +1,253 @@
+import { useEffect, useState } from "react";
+import { Download, FolderCog, LogOut, RefreshCw, Settings, Trash2 } from "lucide-react";
+import { check, type Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { ask, message } from "@tauri-apps/plugin-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { commands, onSyncProgress, type SyncProgressEvent } from "@/lib/commands";
+
+type SyncStatus = "idle" | "syncing" | "synced" | "error";
+type UpdateStatus = "idle" | "checking" | "up-to-date" | "available" | "downloading" | "error";
+
+interface MainScreenProps {
+  targetFolder: string | null;
+  onChangeFolder: () => void;
+  onLogout: () => void;
+}
+
+export function MainScreen({
+  targetFolder,
+  onChangeFolder,
+  onLogout,
+}: MainScreenProps) {
+  const [status, setStatus] = useState<SyncStatus>("idle");
+  const [progress, setProgress] = useState<SyncProgressEvent | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
+  const [updateInfo, setUpdateInfo] = useState<Update | null>(null);
+  const [updateProgress, setUpdateProgress] = useState<{ downloaded: number; total: number | null }>({
+    downloaded: 0,
+    total: null,
+  });
+
+  useEffect(() => {
+    const unlistenPromise = onSyncProgress((event) => {
+      setProgress(event);
+    });
+    return () => {
+      unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, []);
+
+  async function handleSync() {
+    setStatus("syncing");
+    setProgress(null);
+    setSyncError(null);
+    try {
+      await commands.syncLibrary();
+      setStatus("synced");
+    } catch (err) {
+      console.error("Sync failed:", err);
+      setSyncError(err instanceof Error ? err.message : String(err));
+      setStatus("error");
+    }
+  }
+
+  // Disabled in dev builds: the version dev builds report is a static placeholder (CI sets the
+  // real one from the release tag right before packaging), so a real check here would almost
+  // always find a genuine release and could try to install a production build over the dev app.
+  async function handleCheckForUpdates() {
+    setUpdateStatus("checking");
+    try {
+      const update = await check();
+      if (update) {
+        setUpdateInfo(update);
+        setUpdateStatus("available");
+      } else {
+        setUpdateInfo(null);
+        setUpdateStatus("up-to-date");
+      }
+    } catch (err) {
+      console.error("Update check failed:", err);
+      setUpdateStatus("error");
+    }
+  }
+
+  async function handleInstallUpdate() {
+    if (!updateInfo) return;
+
+    setUpdateStatus("downloading");
+    setUpdateProgress({ downloaded: 0, total: null });
+
+    try {
+      let downloaded = 0;
+      await updateInfo.downloadAndInstall((event) => {
+        if (event.event === "Started") {
+          setUpdateProgress({ downloaded: 0, total: event.data.contentLength ?? null });
+        } else if (event.event === "Progress") {
+          downloaded += event.data.chunkLength;
+          setUpdateProgress((prev) => ({ downloaded, total: prev.total }));
+        }
+      });
+      // No-op on Windows: downloadAndInstall already exits the app there once the installer
+      // launches. Actually performs the relaunch on macOS, which requires it explicitly.
+      await relaunch();
+    } catch (err) {
+      console.error("Update install failed:", err);
+      setUpdateStatus("error");
+    }
+  }
+
+  function handleInstallLater() {
+    setUpdateStatus("idle");
+    setUpdateInfo(null);
+  }
+
+  async function handleUninstall() {
+    const confirmed = await ask(
+      "This removes DJ Cloud Desktop from this computer and quits the app. Your synced music files are left in place.",
+      { title: "Uninstall DJ Cloud", kind: "warning", okLabel: "Uninstall", cancelLabel: "Cancel" }
+    );
+    if (!confirmed) return;
+
+    try {
+      await commands.uninstall();
+    } catch (err) {
+      await message(err instanceof Error ? err.message : String(err), {
+        title: "Uninstall failed",
+        kind: "error",
+      });
+    }
+  }
+
+  const isSyncing = status === "syncing";
+  const isDownloadingUpdate = updateStatus === "downloading";
+  // A pending or in-flight update takes the Sync button off the table entirely (once one is
+  // found, install-or-dismiss is the only way back) so the two can never race against each other.
+  const updateBlocksSync = updateStatus === "available" || updateStatus === "downloading";
+  const showSyncButton = !updateBlocksSync;
+  const syncDisabled = isSyncing || updateStatus === "checking";
+
+  const syncPercent =
+    progress && progress.filesTotal > 0
+      ? Math.round((progress.filesCompleted / progress.filesTotal) * 100)
+      : 0;
+  const updatePercent =
+    updateProgress.total != null && updateProgress.total > 0
+      ? Math.round((updateProgress.downloaded / updateProgress.total) * 100)
+      : 0;
+
+  const showSyncBar = isSyncing && progress && progress.filesTotal > 0;
+  const showUpdateBar = isDownloadingUpdate && updateProgress.total != null;
+
+  const updateStatusLabel = (() => {
+    if (updateStatus === "checking") return "Checking for updates…";
+    if (updateStatus === "up-to-date") return "App is up to date";
+    if (updateStatus === "available" && updateInfo) return `Update available: v${updateInfo.version}`;
+    if (updateStatus === "downloading") return showUpdateBar ? `Downloading update… ${updatePercent}%` : "Downloading update…";
+    if (updateStatus === "error") return "Update check failed";
+    return null;
+  })();
+
+  const syncStatusLabel = (() => {
+    if (status === "error") return syncError ?? "Sync failed";
+    if (status === "synced") return "Up to date";
+    if (!isSyncing) return "Idle";
+    if (!progress || progress.filesTotal === 0) return "Checking library…";
+    if (progress.phase === "done") return "Finishing…";
+    return `${progress.currentFile ?? "…"} (${progress.filesCompleted}/${progress.filesTotal})`;
+  })();
+
+  // Update status takes priority over sync status when there's something to report — the two
+  // share one status/progress area rather than each getting dedicated UI space.
+  const statusLabel = updateStatusLabel ?? syncStatusLabel;
+  const barPercent = showSyncBar ? syncPercent : showUpdateBar ? updatePercent : 0;
+
+  return (
+    <div className="flex h-full flex-col bg-background">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <span
+          className="truncate text-xs text-muted-foreground"
+          title={targetFolder ?? undefined}
+        >
+          {targetFolder ?? "No folder selected"}
+        </span>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground">
+                <Settings className="h-4 w-4" />
+              </button>
+            }
+          />
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={handleCheckForUpdates}
+              disabled={import.meta.env.DEV || isSyncing}
+              title={import.meta.env.DEV ? "Not available in development" : undefined}
+            >
+              <Download />
+              Check for Updates
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onChangeFolder}>
+              <FolderCog />
+              Change target folder
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onClick={onLogout}>
+              <LogOut />
+              Logout
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={handleUninstall}>
+              <Trash2 />
+              Uninstall
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6">
+        {showSyncButton && (
+          <Button onClick={handleSync} disabled={syncDisabled}>
+            <RefreshCw className={cn(isSyncing && "animate-spin")} />
+            Sync
+          </Button>
+        )}
+
+        {updateStatus === "available" && (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleInstallUpdate}>
+              Install v{updateInfo?.version}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleInstallLater}>
+              Install later
+            </Button>
+          </div>
+        )}
+
+        {(showSyncBar || showUpdateBar) && (
+          <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-[width]"
+              style={{ width: `${barPercent}%` }}
+            />
+          </div>
+        )}
+
+        <p className="w-full truncate text-center text-xs text-muted-foreground" title={statusLabel}>
+          {statusLabel}
+        </p>
+      </div>
+    </div>
+  );
+}

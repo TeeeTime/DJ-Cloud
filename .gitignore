@@ -1,3 +1,6 @@
 .idea
 data/
 .vscode/
+*.key
+*.key.pub
+.updater-keys/

@@ -23,6 +23,13 @@ export type Track = {
   coverUrl: string;
 };
 
+// A track is only actually streamable once its analysis pipeline finishes successfully —
+// GET /api/tracks/{id}/audio 404s for anything else. Every playback trigger must check this
+// before starting/continuing playback.
+export function isPlayableStatus(status: TrackStatus): boolean {
+  return status === 'READY';
+}
+
 function formatDuration(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60);
   const s = Math.floor(totalSeconds % 60);
@@ -59,6 +66,19 @@ export async function resolveTrack(id: number, knownTracks: Track[]): Promise<Tr
   }
 }
 
+const coverVersions = new Map<number, number>();
+
+/** Called right after a cover upload/removal succeeds, so every coverUrl built afterward for this
+ * track gets a different query string — otherwise the URL never changes and <img> never re-fetches. */
+export function bumpCoverVersion(id: number) {
+  coverVersions.set(id, Date.now());
+}
+
+export function buildCoverUrl(id: number): string {
+  const version = coverVersions.get(id);
+  return version === undefined ? tracksApi.coverUrl(id) : `${tracksApi.coverUrl(id)}?v=${version}`;
+}
+
 export function mapTrackResponse(t: TrackResponse): Track {
   return {
     id: t.id,
@@ -75,7 +95,7 @@ export function mapTrackResponse(t: TrackResponse): Track {
     duration: formatDuration(t.durationSeconds),
     durationSeconds: t.durationSeconds,
     audioUrl: tracksApi.audioUrl(t.id),
-    coverUrl: tracksApi.coverUrl(t.id),
+    coverUrl: buildCoverUrl(t.id),
   };
 }
 

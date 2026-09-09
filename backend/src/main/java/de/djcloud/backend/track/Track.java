@@ -5,6 +5,7 @@ import de.djcloud.backend.genre.Genre;
 import de.djcloud.backend.playlist.Playlist;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -27,6 +28,17 @@ public class Track {
     private String key;
     private int bpm;
     private String fileFormat;
+
+    /**
+     * Size of the stored audio file in bytes — lets clients estimate disk space before downloading.
+     * {@code @ColumnDefault("0")} is required, not cosmetic: without it, SQLite rejects the
+     * {@code ALTER TABLE ... ADD COLUMN} this field's introduction triggers on any database that
+     * already has track rows (a NOT NULL column with no default can only be added to an empty
+     * table), and Hibernate logs that failure as a non-fatal warning rather than crashing startup —
+     * so the column silently never gets added and every later query on Track fails instead.
+     */
+    @ColumnDefault("0")
+    private long sizeBytes;
 
     /** Date the track was added to the library. Never set by the client — always the upload date. */
     private LocalDate dateAdded;

@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { ListMusic } from "lucide-react";
 import {
+  DropdownMenuCheckboxItem,
   DropdownMenuItem,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -9,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/components/providers/auth-provider";
 import { usePlaylists } from "@/components/providers/playlist-provider";
-import { playlistsApi } from "@/lib/api";
+import { ApiError, playlistsApi } from "@/lib/api";
 
 interface AddToPlaylistMenuProps {
   trackId: number;
@@ -18,6 +20,9 @@ interface AddToPlaylistMenuProps {
 export function AddToPlaylistMenu({ trackId }: AddToPlaylistMenuProps) {
   const { user, token } = useAuth();
   const { playlists } = usePlaylists();
+
+  const [memberPlaylistIds, setMemberPlaylistIds] = useState<Set<number> | null>(null);
+  const [pendingPlaylistIds, setPendingPlaylistIds] = useState<Set<number>>(new Set());
 
   const canUpload = user?.role === 'EDITOR' || user?.role === 'ADMIN';
   if (!canUpload) return null;
@@ -30,8 +35,44 @@ export function AddToPlaylistMenu({ trackId }: AddToPlaylistMenuProps) {
     (p.subscribed || p.ownerUsername === user?.username)
   );
 
+  const handleOpenChange = async (open: boolean) => {
+    if (!open || !token) return;
+    try {
+      const ids = await playlistsApi.playlistIdsForTrack(trackId, token);
+      setMemberPlaylistIds(new Set(ids));
+    } catch (err) {
+      console.error(err instanceof ApiError ? err.message : err);
+    }
+  };
+
+  const handleToggle = async (playlistId: number, adding: boolean) => {
+    if (!token) return;
+    setPendingPlaylistIds(prev => new Set(prev).add(playlistId));
+    try {
+      if (adding) {
+        await playlistsApi.addTrack(playlistId, trackId, token);
+      } else {
+        await playlistsApi.removeTrack(playlistId, trackId, token);
+      }
+      setMemberPlaylistIds(prev => {
+        const next = new Set(prev);
+        if (adding) next.add(playlistId);
+        else next.delete(playlistId);
+        return next;
+      });
+    } catch (err) {
+      console.error(err instanceof ApiError ? err.message : err);
+    } finally {
+      setPendingPlaylistIds(prev => {
+        const next = new Set(prev);
+        next.delete(playlistId);
+        return next;
+      });
+    }
+  };
+
   return (
-    <DropdownMenuSub>
+    <DropdownMenuSub onOpenChange={handleOpenChange}>
       <DropdownMenuSubTrigger className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2">
         <ListMusic className="w-4 h-4 mr-2" /> <span className="text-sm">Add to Playlist</span>
       </DropdownMenuSubTrigger>
@@ -42,15 +83,16 @@ export function AddToPlaylistMenu({ trackId }: AddToPlaylistMenuProps) {
           </DropdownMenuItem>
         )}
         {editablePlaylists.map(playlist => (
-          <DropdownMenuItem
+          <DropdownMenuCheckboxItem
             key={playlist.id}
-            onClick={() => {
-              if (token) playlistsApi.addTrack(playlist.id, trackId, token);
-            }}
+            checked={memberPlaylistIds?.has(playlist.id) ?? false}
+            disabled={pendingPlaylistIds.has(playlist.id)}
+            closeOnClick={false}
+            onCheckedChange={checked => handleToggle(playlist.id, checked)}
             className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
           >
             <span className="text-sm truncate">{playlist.name}</span>
-          </DropdownMenuItem>
+          </DropdownMenuCheckboxItem>
         ))}
       </DropdownMenuSubContent>
     </DropdownMenuSub>

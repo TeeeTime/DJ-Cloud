@@ -51,7 +51,8 @@ public class GenreController {
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "30") int size,
             @RequestParam(defaultValue = "title") String sortBy, @RequestParam(defaultValue = "asc") String direction,
             @RequestParam(required = false) String query) {
-        TrackSearchCriteria criteria = TrackSearchCriteria.fromParams(query, sortBy, direction, page, size, null);
+        TrackSearchCriteria criteria = TrackSearchCriteria.fromParams(query, sortBy, direction, page, size, null,
+                null, null, null, null, null);
 
         return genreService.getTracks(name, criteria);
     }
