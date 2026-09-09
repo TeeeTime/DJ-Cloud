@@ -15,6 +15,7 @@ import { tracksApi, genresApi, authApi, RecentTrackResponse, GenreDistributionRe
 import { Track, formatTimeAgo, resolveTrack } from "@/lib/data";
 import { motion } from "motion/react";
 import { UploadDialog } from "./upload-dialog";
+import { DesktopDownloadCard } from "./desktop-download-card";
 
 const RECENT_TRACKS_LIMIT = 7;
 const TOP_GENRES_COUNT = 4;
@@ -285,12 +286,13 @@ export function OverviewView() {
               </div>
             </motion.div>
 
-            {/* Top Genres Breakdown - Takes 4 grid cells */}
-            <motion.div 
+            {/* Top Genres Breakdown + Desktop App - share one column, Top Genres above */}
+            <div className="md:col-span-4 flex flex-col gap-6">
+            <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
-              className="md:col-span-4 self-start bg-zinc-950 border border-zinc-900 rounded-xl p-6 hover:border-zinc-800 transition-all duration-300 flex flex-col"
+              className="bg-zinc-950 border border-zinc-900 rounded-xl p-6 hover:border-zinc-800 transition-all duration-300 flex flex-col"
             >
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-base font-semibold text-white">Top Genres</h3>
@@ -323,6 +325,9 @@ export function OverviewView() {
                 )}
               </div>
             </motion.div>
+
+            <DesktopDownloadCard />
+            </div>
 
           </motion.div>
         </div>

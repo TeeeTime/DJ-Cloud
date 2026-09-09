@@ -212,6 +212,9 @@ Query params (all optional):
 | `direction`           | `asc`   | `asc` or `desc` (case-insensitive). `400` on an unknown value.                                    |
 | `query`               | —       | case-insensitive substring match against title, artist name, **or** genre name. Blank/missing means no filter. |
 | `excludePlaylistId`   | —       | when set, tracks already in that playlist are omitted — used by the playlist "add tracks" search bar. |
+| `minBpm` / `maxBpm`   | —       | inclusive BPM range filter. Either can be given alone.                                            |
+| `minDurationSeconds` / `maxDurationSeconds` | — | inclusive track-length range filter, in seconds. Either can be given alone. |
+| `genres`              | —       | comma-separated list of genre names; matches a track tagged with **any** of them, case-insensitive. |
 
 `sortBy=artist` sorts by each track's alphabetically-first artist name (a track can have several);
 tracks with no artists sort last regardless of `direction`.
@@ -326,14 +329,15 @@ endpoint on an interval — there's no push/WebSocket variant).
 Response `200`:
 ```json
 {
-  "queued": [5, 6, 7],
-  "processing": { "trackId": 4, "step": "BPM_ANALYSIS" }
+  "queued": [{ "trackId": 5, "title": "Song A" }, { "trackId": 6, "title": "Song B" }],
+  "processing": { "trackId": 4, "title": "Song C", "step": "BPM_ANALYSIS" }
 }
 ```
-`queued` is every track id waiting its turn, in the order they'll be processed. `processing` is `null`
+`queued` is every track waiting its turn, in the order they'll be processed. `processing` is `null`
 when the worker is idle; otherwise the track currently being analyzed and which of the three steps is
 running: `PREVIEW_GENERATION`, `BPM_ANALYSIS`, or `KEY_ANALYSIS`. Tracks are always processed one at a
-time, in the order they were queued.
+time, in the order they were queued. `title` is included on every entry so every client can render the
+same track names, regardless of who uploaded them.
 
 ---
 
@@ -665,6 +669,10 @@ ownership or access), so `subscribed` alone would incorrectly hide it. This endp
 returns the full visible set (subscribed or not) so callers can also use it to find playlists to
 subscribe to or add tracks to.
 
+Each entry also includes `topGenres`: up to 3 genre names, ranked by how many of the playlist's
+tracks carry that genre (ties broken alphabetically); an empty array if the playlist has no tracks
+or none of its tracks have genres assigned.
+
 Response `200`:
 ```json
 [
@@ -675,7 +683,8 @@ Response `200`:
     "ownerUsername": "tom",
     "createdAt": "2026-08-29T14:03:11.123Z",
     "trackCount": 12,
-    "subscribed": true
+    "subscribed": true,
+    "topGenres": ["Techno", "House"]
   }
 ]
 ```

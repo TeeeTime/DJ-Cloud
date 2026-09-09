@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Track } from "@/lib/data";
-import { tracksApi } from "@/lib/api";
+import { tracksApi, TrackFilters } from "@/lib/api";
 import { usePagedTracks, FetchTracksPageParams } from "@/lib/use-paged-tracks";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 
@@ -42,6 +42,8 @@ interface PlayerContextType {
   setThemeIndex: React.Dispatch<React.SetStateAction<number>>;
   searchQuery: string;
   setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
+  trackFilters: TrackFilters;
+  setTrackFilters: React.Dispatch<React.SetStateAction<TrackFilters>>;
   audioRef: React.RefObject<HTMLAudioElement | null>;
 }
 
@@ -58,6 +60,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [themeIndex, setThemeIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebouncedValue(searchQuery);
+  const [trackFilters, setTrackFilters] = useState<TrackFilters>({});
   const audioRef = React.useRef<HTMLAudioElement>(null);
   const [registeredOrder, setRegisteredOrder] = useState<Track[] | null>(null);
   const [onOrderExhausted, setOnOrderExhausted] = useState<(() => Promise<Track[] | null>) | null>(null);
@@ -76,6 +79,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     sortConfig,
     defaultSortKey: DEFAULT_SORT_KEY,
     fetchPage: fetchLibraryPage,
+    filters: trackFilters,
   });
 
   // While any track is still QUEUED/PROCESSING, its status can change server-side (via the
@@ -134,6 +138,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setThemeIndex,
       searchQuery,
       setSearchQuery,
+      trackFilters,
+      setTrackFilters,
       audioRef,
       handleSort,
     }}>

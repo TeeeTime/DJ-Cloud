@@ -47,6 +47,21 @@ final class TrackSpecifications {
             if (criteria.excludePlaylistId() != null) {
                 predicates.add(notInPlaylist(root, query, cb, criteria.excludePlaylistId()));
             }
+            if (criteria.minBpm() != null) {
+                predicates.add(cb.ge(root.get("bpm"), criteria.minBpm()));
+            }
+            if (criteria.maxBpm() != null) {
+                predicates.add(cb.le(root.get("bpm"), criteria.maxBpm()));
+            }
+            if (criteria.minDurationSeconds() != null) {
+                predicates.add(cb.ge(root.get("durationSeconds"), criteria.minDurationSeconds()));
+            }
+            if (criteria.maxDurationSeconds() != null) {
+                predicates.add(cb.le(root.get("durationSeconds"), criteria.maxDurationSeconds()));
+            }
+            if (criteria.genres() != null && !criteria.genres().isEmpty()) {
+                predicates.add(inAnyGenre(root, cb, criteria.genres()));
+            }
 
             return cb.and(predicates.toArray(Predicate[]::new));
         };
@@ -72,6 +87,13 @@ final class TrackSpecifications {
     private static Predicate inGenre(Root<Track> root, CriteriaBuilder cb, Long genreId) {
         Join<Track, Genre> genreJoin = root.join("genres", JoinType.INNER);
         return cb.equal(genreJoin.get("id"), genreId);
+    }
+
+    /** Matches a track tagged with any of the given genre names, case-insensitively. */
+    private static Predicate inAnyGenre(Root<Track> root, CriteriaBuilder cb, List<String> genreNames) {
+        Join<Track, Genre> genreJoin = root.join("genres", JoinType.INNER);
+        List<String> lowercaseNames = genreNames.stream().map(String::toLowerCase).toList();
+        return cb.lower(genreJoin.get("name")).in(lowercaseNames);
     }
 
     private static Predicate notInPlaylist(Root<Track> root, CriteriaQuery<?> query, CriteriaBuilder cb,
