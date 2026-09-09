@@ -117,6 +117,7 @@ export interface RecentTrackResponse {
   artists: string[];
   addedAt: string;
   isNew: boolean;
+  status: TrackStatus;
 }
 
 export interface RecentTracksResponse {

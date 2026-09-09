@@ -23,6 +23,13 @@ export type Track = {
   coverUrl: string;
 };
 
+// A track is only actually streamable once its analysis pipeline finishes successfully —
+// GET /api/tracks/{id}/audio 404s for anything else. Every playback trigger must check this
+// before starting/continuing playback.
+export function isPlayableStatus(status: TrackStatus): boolean {
+  return status === 'READY';
+}
+
 function formatDuration(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60);
   const s = Math.floor(totalSeconds % 60);

@@ -285,7 +285,8 @@ Response `200`:
       "title": "Song Name",
       "artists": ["Artist One"],
       "addedAt": "2026-08-29T14:03:11.123Z",
-      "isNew": true
+      "isNew": true,
+      "status": "READY"
     }
   ],
   "newCount": 12
@@ -294,6 +295,9 @@ Response `200`:
 `addedAt` is the exact moment the track was added (unlike `dateAdded` elsewhere, which is day-only).
 `isNew` is `true` if `addedAt` is after the caller's last call to `POST /api/auth/me/recently-added-seen`
 (or always `true` if they've never called it) — see that endpoint below.
+
+`status` is the same `TrackStatus` enum as `GET /api/tracks` (`QUEUED`, `PROCESSING`, `READY`, `FAILED`) —
+a recently-added track can be any of these, since it may still be going through analysis.
 
 `newCount` is the *total* number of new tracks, independent of `limit` — it can exceed `tracks.length` when
 there are more new tracks than fit in the response; every entry in `tracks` is still guaranteed to be one
