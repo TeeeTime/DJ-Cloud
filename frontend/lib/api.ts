@@ -325,6 +325,13 @@ export const playlistsApi = {
       token
     ),
 
+  copy: (sourcePlaylistId: number, name: string, isPublic: boolean, token: string) =>
+    request<PlaylistResponse>(
+      `/api/playlists/${sourcePlaylistId}/copy`,
+      { method: "POST", body: JSON.stringify({ name, isPublic }) },
+      token
+    ),
+
   update: (id: number, name: string, isPublic: boolean, token: string) =>
     request<PlaylistResponse>(
       `/api/playlists/${id}`,

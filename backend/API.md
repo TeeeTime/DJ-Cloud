@@ -769,6 +769,33 @@ Response `201`: the created playlist, same shape as one entry from `GET /api/pla
 
 ---
 
+## `POST /api/playlists/{id}/copy`
+
+**Requires a JWT with role `EDITOR` or `ADMIN`.** Creates a brand-new playlist owned by the caller,
+seeded with a one-time snapshot of the source playlist's (`id` in the path) current tracks. The copy
+is fully independent afterward — there is no ongoing link to the source; adding or removing tracks on
+either playlist has no effect on the other. The owner is automatically subscribed to the new playlist,
+same as `POST /api/playlists` above.
+
+Any authenticated `EDITOR`/`ADMIN` can copy any playlist regardless of who owns it or its
+public/private flag — copying only requires read access to the source, which every authenticated user
+already has (see `GET /api/playlists/{id}` below), not edit rights on it.
+
+Request: same shape as `POST /api/playlists` — this is the name/visibility for the **new** playlist,
+unrelated to the source playlist's own name/visibility.
+```json
+{ "name": "Peak Time (Copy)", "isPublic": false }
+```
+
+Response `201`: the newly created playlist, same shape as one entry from `GET /api/playlists`
+(`subscribed: true`, `trackCount` matching the source playlist's track count at the moment of copying).
+
+Errors:
+- `404` if the source playlist doesn't exist.
+- `403` if the caller isn't `EDITOR`/`ADMIN`.
+
+---
+
 ## `PUT /api/playlists/{id}`
 
 **Requires a JWT with role `EDITOR` or `ADMIN`, and the caller must be the playlist's owner** — unlike

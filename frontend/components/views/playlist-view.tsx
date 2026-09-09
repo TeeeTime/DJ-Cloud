@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Pause, Download, Pencil, Trash, Settings2, MoreHorizontal, Loader2, AlertCircle, Lock, Globe, Bell, BellOff, Menu as MenuIcon, Search, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
+import { Play, Pause, Download, Pencil, Trash, Settings2, MoreHorizontal, Loader2, AlertCircle, Lock, Globe, Bell, BellOff, Menu as MenuIcon, Search, ArrowUpDown, ChevronUp, ChevronDown, Copy } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -23,6 +23,7 @@ import { TrackEditDialog } from "./track-edit-dialog";
 import { TrackDeleteDialog } from "./track-delete-dialog";
 import { EditPlaylistDialog } from "./edit-playlist-dialog";
 import { DeletePlaylistDialog } from "./delete-playlist-dialog";
+import { CopyPlaylistDialog } from "./copy-playlist-dialog";
 
 type SortConfig = { key: keyof Track, direction: 'asc' | 'desc' } | null;
 
@@ -123,6 +124,7 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
 
   const [editPlaylistOpen, setEditPlaylistOpen] = useState(false);
   const [deletePlaylistOpen, setDeletePlaylistOpen] = useState(false);
+  const [copyPlaylistOpen, setCopyPlaylistOpen] = useState(false);
 
   const [downloadingTrackId, setDownloadingTrackId] = useState<number | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -286,6 +288,14 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                     >
                       {detail.subscribed ? <BellOff className="w-4 h-4 mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
                       <span className="text-sm">{detail.subscribed ? "Unsubscribe" : "Subscribe"}</span>
+                    </DropdownMenuItem>
+                  )}
+                  {canUpload && (
+                    <DropdownMenuItem
+                      onClick={() => setCopyPlaylistOpen(true)}
+                      className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
+                    >
+                      <Copy className="w-4 h-4 mr-2" /> <span className="text-sm">Copy Playlist</span>
                     </DropdownMenuItem>
                   )}
                   {isOwner && (
@@ -557,6 +567,15 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
           playlistName={detail.name}
           open={deletePlaylistOpen}
           onOpenChange={setDeletePlaylistOpen}
+        />
+      )}
+
+      {detail && (
+        <CopyPlaylistDialog
+          sourcePlaylistId={playlistId}
+          sourceName={detail.name}
+          open={copyPlaylistOpen}
+          onOpenChange={setCopyPlaylistOpen}
         />
       )}
     </main>

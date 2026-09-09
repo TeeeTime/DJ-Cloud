@@ -85,6 +85,13 @@ public class PlaylistController {
         return playlistService.create(request, (AppUserDetails) authentication.getPrincipal());
     }
 
+    @PostMapping("/{id}/copy")
+    @ResponseStatus(HttpStatus.CREATED)
+    public PlaylistResponse copy(@PathVariable Long id, @Valid @RequestBody PlaylistRequest request,
+            Authentication authentication) {
+        return playlistService.copy(id, request, (AppUserDetails) authentication.getPrincipal());
+    }
+
     @PutMapping("/{id}")
     public PlaylistResponse update(@PathVariable Long id, @Valid @RequestBody PlaylistRequest request,
             Authentication authentication) {

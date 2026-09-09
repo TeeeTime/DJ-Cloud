@@ -109,11 +109,31 @@ public class PlaylistService {
         User owner = userRepository.findById(caller.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
+        return createPlaylist(request.name(), request.isPublic(), owner, new HashSet<>());
+    }
+
+    /**
+     * Creates a brand-new playlist owned by the caller, seeded with a one-time snapshot of
+     * {@code sourceId}'s current tracks. Track rows are never duplicated (the join table just
+     * gets new rows), so later changes to either playlist's track membership have zero effect on
+     * the other.
+     */
+    @Transactional
+    public PlaylistResponse copy(Long sourceId, PlaylistRequest request, AppUserDetails caller) {
+        Playlist source = findOrThrow(sourceId);
+        User owner = userRepository.findById(caller.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        return createPlaylist(request.name(), request.isPublic(), owner, new HashSet<>(source.getTracks()));
+    }
+
+    private PlaylistResponse createPlaylist(String name, boolean isPublic, User owner, Set<Track> tracks) {
         Playlist playlist = new Playlist();
-        playlist.setName(request.name());
-        playlist.setPublic(request.isPublic());
+        playlist.setName(name);
+        playlist.setPublic(isPublic);
         playlist.setOwner(owner);
         playlist.setCreatedAt(Instant.now());
+        playlist.setTracks(tracks);
         playlist = playlistRepository.save(playlist);
 
         // Creating a playlist implicitly subscribes its owner, so it shows up in their own sidebar
