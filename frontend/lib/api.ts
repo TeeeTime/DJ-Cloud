@@ -264,6 +264,15 @@ export const tracksApi = {
       token
     ),
 
+  updateCover: (id: number, file: File, token: string) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request<void>(`/api/tracks/${id}/cover`, { method: "PUT", body: formData }, token);
+  },
+
+  removeCover: (id: number, token: string) =>
+    request<void>(`/api/tracks/${id}/cover`, { method: "DELETE" }, token),
+
   delete: (id: number, token: string) =>
     request<void>(`/api/tracks/${id}`, { method: "DELETE" }, token),
 

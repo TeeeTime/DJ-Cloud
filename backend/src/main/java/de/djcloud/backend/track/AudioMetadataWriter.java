@@ -106,6 +106,20 @@ class AudioMetadataWriter {
         }
     }
 
+    /** Clears the file's embedded cover art, if any — idempotent, a no-op if there was none. */
+    void removeArtwork(File file) {
+        try {
+            AudioFile audioFile = AudioFileIO.read(file);
+            Tag tag = audioFile.getTagOrCreateAndSetDefault();
+
+            tag.deleteArtworkField();
+
+            audioFile.commit();
+        } catch (Exception ex) {
+            throw new AudioMetadataException("Could not update audio file metadata", ex);
+        }
+    }
+
     /**
      * Some tag formats only support a fixed, narrow field set — e.g. a WAV file with no ID3 chunk
      * falls back to jaudiotagger's RIFF INFO tag, which has no slot for KEY or BPM. jaudiotagger

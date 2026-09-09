@@ -491,6 +491,21 @@ Errors:
 
 ---
 
+## `DELETE /api/tracks/{id}/cover`
+
+**Requires a JWT with role `EDITOR` or `ADMIN`.** Clears the track's embedded cover art entirely,
+rather than replacing it — same underlying tag write as `PUT /{id}/cover` above, just deleting the
+artwork field instead of setting a new one. Idempotent: a track with no cover art already is
+unaffected, no error.
+
+Response: `204 No Content`.
+
+Errors:
+- `404` if the track doesn't exist, or has no audio file on disk.
+- `500` `"Could not update audio file metadata"` if clearing the artwork fails.
+
+---
+
 ## `DELETE /api/tracks/{id}`
 
 **Requires a JWT with role `EDITOR` or `ADMIN`.** Also deletes the track's audio file from disk, and its

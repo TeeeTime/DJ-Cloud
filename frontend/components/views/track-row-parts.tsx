@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Music2 } from "lucide-react";
 import { Track } from "@/lib/data";
 
@@ -13,6 +13,10 @@ export function StatusBadge({ status }: { status: Track["status"] }) {
 
 export function TrackThumbnail({ src }: { src: string }) {
   const [error, setError] = useState(false);
+
+  // A cover that previously 404'd must be re-attempted once `src` actually changes (e.g. after
+  // editing the cover) — otherwise this instance stays stuck on the fallback icon forever.
+  useEffect(() => setError(false), [src]);
 
   if (error) {
     return (

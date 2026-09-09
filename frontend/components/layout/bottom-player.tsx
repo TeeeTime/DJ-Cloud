@@ -27,6 +27,10 @@ function loadStoredVolume(): number {
 function TrackCover({ src, isPlaying, scratching }: { src: string; isPlaying: boolean; scratching: boolean }) {
   const [error, setError] = useState(false);
 
+  // A cover that previously 404'd must be re-attempted once `src` actually changes (e.g. after
+  // editing the cover) — otherwise this instance stays stuck on the fallback icon forever.
+  useEffect(() => setError(false), [src]);
+
   if (error) {
     return isPlaying ? (
       <Disc3 className={`w-8 h-8 text-zinc-300 ${scratching ? 'animate-none rotate-45 text-white' : 'animate-[spin_2s_linear_infinite]'}`} />
