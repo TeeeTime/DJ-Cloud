@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Pause, Download, Pencil, Trash, Settings2, MoreHorizontal, Loader2, AlertCircle, Lock, Globe, Bell, BellOff, Menu as MenuIcon, Search, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
+import { Play, Pause, Ban, Download, Pencil, Trash, Settings2, MoreHorizontal, Loader2, AlertCircle, Lock, Globe, Bell, BellOff, Menu as MenuIcon, Search, ArrowUpDown, ChevronUp, ChevronDown, Copy } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/components/providers/auth-provider";
 import { usePlayer } from "@/components/providers/player-provider";
 import { usePlaylists } from "@/components/providers/playlist-provider";
-import { Track, formatDateAdded } from "@/lib/data";
+import { Track, formatDateAdded, isPlayableStatus } from "@/lib/data";
 import { ApiError, PageResponse, PlaylistDetailResponse, TrackResponse, playlistsApi, tracksApi } from "@/lib/api";
 import { downloadFile } from "@/lib/download";
 import { usePagedTracks, FetchTracksPageParams } from "@/lib/use-paged-tracks";
@@ -23,6 +23,7 @@ import { TrackEditDialog } from "./track-edit-dialog";
 import { TrackDeleteDialog } from "./track-delete-dialog";
 import { EditPlaylistDialog } from "./edit-playlist-dialog";
 import { DeletePlaylistDialog } from "./delete-playlist-dialog";
+import { CopyPlaylistDialog } from "./copy-playlist-dialog";
 
 type SortConfig = { key: keyof Track, direction: 'asc' | 'desc' } | null;
 
@@ -37,12 +38,10 @@ interface PlaylistViewProps {
   playlistId: number;
 }
 
-// The 404 the backend returns for a private playlist you don't own is indistinguishable from
-// "doesn't exist" by design (see PlaylistService.assertCanView) — both get this friendlier message
-// rather than the raw "Playlist not found".
+// A 404 here only ever means the playlist doesn't exist — visibility no longer gates access.
 function describeLoadError(err: unknown): string {
   return err instanceof ApiError && err.status === 404
-    ? "You cannot access this playlist."
+    ? "Playlist not found."
     : "Could not load this playlist.";
 }
 
@@ -125,6 +124,7 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
 
   const [editPlaylistOpen, setEditPlaylistOpen] = useState(false);
   const [deletePlaylistOpen, setDeletePlaylistOpen] = useState(false);
+  const [copyPlaylistOpen, setCopyPlaylistOpen] = useState(false);
 
   const [downloadingTrackId, setDownloadingTrackId] = useState<number | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -281,13 +281,21 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                   </button>
                 } />
                 <DropdownMenuContent align="end" className="w-52 bg-zinc-950 border-zinc-800 text-zinc-300 rounded-lg p-1 shadow-2xl">
-                  {!isOwner && detail.isPublic && (
+                  {!isOwner && (
                     <DropdownMenuItem
                       onClick={toggleSubscribe}
                       className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
                     >
                       {detail.subscribed ? <BellOff className="w-4 h-4 mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
                       <span className="text-sm">{detail.subscribed ? "Unsubscribe" : "Subscribe"}</span>
+                    </DropdownMenuItem>
+                  )}
+                  {canUpload && (
+                    <DropdownMenuItem
+                      onClick={() => setCopyPlaylistOpen(true)}
+                      className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
+                    >
+                      <Copy className="w-4 h-4 mr-2" /> <span className="text-sm">Copy Playlist</span>
                     </DropdownMenuItem>
                   )}
                   {isOwner && (
@@ -375,8 +383,9 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                 {tracks.map((track, index) => (
                   <TableRow
                     key={track.id}
-                    className={`border-zinc-900 hover:bg-zinc-900/40 group transition-colors cursor-pointer ${currentTrack?.id === track.id ? 'bg-zinc-900/20' : ''}`}
+                    className={`border-zinc-900 hover:bg-zinc-900/40 group transition-colors ${isPlayableStatus(track.status) ? 'cursor-pointer' : 'cursor-not-allowed'} ${currentTrack?.id === track.id ? 'bg-zinc-900/20' : ''}`}
                     onClick={() => {
+                      if (!isPlayableStatus(track.status)) return;
                       if (currentTrack?.id === track.id) {
                         setIsPlaying(!isPlaying);
                       } else {
@@ -388,7 +397,9 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                     <TableCell className="w-12 text-center text-zinc-600 relative">
                       <span className={`transition-opacity ${currentTrack?.id === track.id ? 'opacity-0' : 'group-hover:opacity-0'}`}>{index + 1}</span>
                       <div className={`absolute inset-0 flex items-center justify-center transition-opacity ${currentTrack?.id === track.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                        {currentTrack?.id === track.id && isPlaying ? (
+                        {!isPlayableStatus(track.status) ? (
+                          <Ban className="w-4 h-4 text-zinc-600" />
+                        ) : currentTrack?.id === track.id && isPlaying ? (
                           <Pause className="w-4 h-4 text-white fill-white" />
                         ) : (
                           <Play className="w-4 h-4 text-white fill-white" />
@@ -559,6 +570,15 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
           playlistName={detail.name}
           open={deletePlaylistOpen}
           onOpenChange={setDeletePlaylistOpen}
+        />
+      )}
+
+      {detail && (
+        <CopyPlaylistDialog
+          sourcePlaylistId={playlistId}
+          sourceName={detail.name}
+          open={copyPlaylistOpen}
+          onOpenChange={setCopyPlaylistOpen}
         />
       )}
     </main>

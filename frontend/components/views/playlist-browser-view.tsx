@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, Globe, Loader2, AlertCircle, Menu } from "lucide-react";
+import { Search, Globe, Lock, Loader2, AlertCircle, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
@@ -17,17 +17,15 @@ export function PlaylistBrowserView() {
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedQuery = useDebouncedValue(searchQuery, 150);
 
-  const publicPlaylists = useMemo(() => playlists.filter(pl => pl.isPublic), [playlists]);
-
   const filteredPlaylists = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
-    if (!q) return publicPlaylists;
-    return publicPlaylists.filter(pl =>
+    if (!q) return playlists;
+    return playlists.filter(pl =>
       pl.name.toLowerCase().includes(q) ||
       pl.ownerUsername.toLowerCase().includes(q) ||
       pl.topGenres.some(genre => genre.toLowerCase().includes(q))
     );
-  }, [publicPlaylists, debouncedQuery]);
+  }, [playlists, debouncedQuery]);
 
   return (
     <main className="flex-1 flex flex-col min-w-0 bg-zinc-950/30 relative h-full">
@@ -78,7 +76,7 @@ export function PlaylistBrowserView() {
             </div>
           ) : filteredPlaylists.length === 0 ? (
             <div className="h-32 flex items-center justify-center text-zinc-500 text-sm">
-              {publicPlaylists.length === 0 ? "No public playlists yet." : "No playlists match your search."}
+              {playlists.length === 0 ? "No playlists yet." : "No playlists match your search."}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -90,7 +88,7 @@ export function PlaylistBrowserView() {
                         <span className="truncate block" title={pl.name}>{pl.name}</span>
                       </CardTitle>
                       <div className="flex items-center gap-1.5 text-xs text-zinc-500 min-w-0">
-                        <Globe className="w-3 h-3 shrink-0" />
+                        {pl.isPublic ? <Globe className="w-3 h-3 shrink-0" /> : <Lock className="w-3 h-3 shrink-0" />}
                         <span className="truncate" title={pl.ownerUsername}>by {pl.ownerUsername}</span>
                       </div>
                     </CardHeader>

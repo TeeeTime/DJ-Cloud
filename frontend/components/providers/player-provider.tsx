@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { Track } from "@/lib/data";
+import { Track, isPlayableStatus } from "@/lib/data";
 import { tracksApi, TrackFilters } from "@/lib/api";
 import { usePagedTracks, FetchTracksPageParams } from "@/lib/use-paged-tracks";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
@@ -96,8 +96,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     resetTracks();
   }, [resetTracks]);
 
-  // Default to the first track once the library loads, without forcing playback.
-  const currentTrack = selectedTrack ?? tracks[0] ?? null;
+  // Default to the first ready track once the library loads, without forcing playback — a
+  // not-yet-processed track (no preview available yet) must never be auto-selected.
+  const currentTrack = selectedTrack ?? tracks.find(t => isPlayableStatus(t.status)) ?? null;
 
   // Whichever view is currently mounted (genre/playlist/overview) can override this with its own
   // visible order; falls back to the library list when nothing has registered one.

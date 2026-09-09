@@ -194,6 +194,13 @@ public class TrackController {
         trackService.updateCover(id, file);
     }
 
+    /** Clears the track's embedded cover art entirely. There's no separate cover storage to delete. */
+    @DeleteMapping("/{id}/cover")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removeCover(@PathVariable Long id) {
+        trackService.removeCover(id);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteTrack(@PathVariable Long id) {

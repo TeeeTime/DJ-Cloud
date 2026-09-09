@@ -39,8 +39,8 @@ public class PlaylistService {
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
-    public List<PlaylistResponse> findAllVisible(AppUserDetails caller, boolean editableOnly) {
-        List<Playlist> visible = playlistRepository.findByIsPublicTrueOrOwnerId(caller.getId());
+    public List<PlaylistResponse> findAll(AppUserDetails caller, boolean editableOnly) {
+        List<Playlist> all = playlistRepository.findAll();
 
         Map<Long, Instant> lastViewedByPlaylistId = playlistLastViewedRepository.findByUserId(caller.getId()).stream()
                 .collect(Collectors.toMap(v -> v.getPlaylist().getId(), PlaylistLastViewed::getViewedAt));
@@ -54,23 +54,22 @@ public class PlaylistService {
                 .reversed()
                 .thenComparing(Playlist::getCreatedAt, Comparator.reverseOrder());
 
-        return visible.stream()
+        return all.stream()
                 .sorted(byLastViewedThenCreated)
                 .filter(p -> !editableOnly || canEditTracks(p, caller))
                 .map(p -> PlaylistResponse.fromEntity(p, subscribedPlaylistIds.contains(p.getId())))
                 .toList();
     }
 
-    /** IDs of playlists (visible to the caller) that already contain the given track. */
+    /** IDs of playlists that already contain the given track. */
     @Transactional(readOnly = true)
-    public Set<Long> findPlaylistIdsContainingTrack(Long trackId, AppUserDetails caller) {
-        return new HashSet<>(playlistRepository.findPlaylistIdsContainingTrack(trackId, caller.getId()));
+    public Set<Long> findPlaylistIdsContainingTrack(Long trackId) {
+        return new HashSet<>(playlistRepository.findPlaylistIdsContainingTrack(trackId));
     }
 
     @Transactional
     public PlaylistDetailResponse findById(Long id, AppUserDetails caller) {
         Playlist playlist = findOrThrow(id);
-        assertCanView(playlist, caller);
 
         recordView(playlist, caller);
 
@@ -86,7 +85,6 @@ public class PlaylistService {
     @Transactional(readOnly = true)
     public PageResponse<TrackResponse> getTracks(Long id, AppUserDetails caller, TrackSearchCriteria criteria) {
         Playlist playlist = findOrThrow(id);
-        assertCanView(playlist, caller);
 
         return trackService.search(criteria.withScopeToPlaylistId(playlist.getId()));
     }
@@ -95,15 +93,13 @@ public class PlaylistService {
     }
 
     /**
-     * Materializes everything needed to stream this playlist as a ZIP — same visibility check as
-     * every other playlist read ({@code assertCanView}, 404 not 403 for privacy) — before any
-     * {@code StreamingResponseBody} is built, since {@code Playlist.tracks} is a lazy collection
-     * that can't be read once the session closes.
+     * Materializes everything needed to stream this playlist as a ZIP — existence is checked
+     * eagerly ({@code findOrThrow}) before any {@code StreamingResponseBody} is built, since
+     * {@code Playlist.tracks} is a lazy collection that can't be read once the session closes.
      */
     @Transactional(readOnly = true)
     public PlaylistDownload getDownload(Long id, AppUserDetails caller) {
         Playlist playlist = findOrThrow(id);
-        assertCanView(playlist, caller);
 
         return new PlaylistDownload(playlist.getName(), trackDownloadService.toDownloadEntries(playlist.getTracks()));
     }
@@ -113,11 +109,31 @@ public class PlaylistService {
         User owner = userRepository.findById(caller.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
+        return createPlaylist(request.name(), request.isPublic(), owner, new HashSet<>());
+    }
+
+    /**
+     * Creates a brand-new playlist owned by the caller, seeded with a one-time snapshot of
+     * {@code sourceId}'s current tracks. Track rows are never duplicated (the join table just
+     * gets new rows), so later changes to either playlist's track membership have zero effect on
+     * the other.
+     */
+    @Transactional
+    public PlaylistResponse copy(Long sourceId, PlaylistRequest request, AppUserDetails caller) {
+        Playlist source = findOrThrow(sourceId);
+        User owner = userRepository.findById(caller.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        return createPlaylist(request.name(), request.isPublic(), owner, new HashSet<>(source.getTracks()));
+    }
+
+    private PlaylistResponse createPlaylist(String name, boolean isPublic, User owner, Set<Track> tracks) {
         Playlist playlist = new Playlist();
-        playlist.setName(request.name());
-        playlist.setPublic(request.isPublic());
+        playlist.setName(name);
+        playlist.setPublic(isPublic);
         playlist.setOwner(owner);
         playlist.setCreatedAt(Instant.now());
+        playlist.setTracks(tracks);
         playlist = playlistRepository.save(playlist);
 
         // Creating a playlist implicitly subscribes its owner, so it shows up in their own sidebar
@@ -156,7 +172,6 @@ public class PlaylistService {
     @Transactional
     public PlaylistDetailResponse subscribe(Long id, AppUserDetails caller) {
         Playlist playlist = findOrThrow(id);
-        assertCanView(playlist, caller);
 
         if (playlistSubscriptionRepository.findByPlaylistIdAndUserId(id, caller.getId()).isEmpty()) {
             User user = userRepository.findById(caller.getId())
@@ -175,7 +190,6 @@ public class PlaylistService {
     @Transactional
     public PlaylistDetailResponse unsubscribe(Long id, AppUserDetails caller) {
         Playlist playlist = findOrThrow(id);
-        assertCanView(playlist, caller);
 
         playlistSubscriptionRepository.deleteByPlaylistIdAndUserId(id, caller.getId());
 
@@ -226,16 +240,6 @@ public class PlaylistService {
         playlistLastViewedRepository.save(view);
     }
 
-    /**
-     * A private playlist must not even reveal its existence to a non-owner — so an access check
-     * failure here is a 404, never a 403.
-     */
-    private void assertCanView(Playlist playlist, AppUserDetails caller) {
-        if (!playlist.isPublic() && !playlist.getOwner().getId().equals(caller.getId())) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Playlist not found");
-        }
-    }
-
     private boolean canEditTracks(Playlist playlist, AppUserDetails caller) {
         boolean roleOk = caller.getRole() == Role.EDITOR || caller.getRole() == Role.ADMIN;
         boolean visibilityOk = playlist.isPublic() || playlist.getOwner().getId().equals(caller.getId());
@@ -243,7 +247,6 @@ public class PlaylistService {
     }
 
     private void assertCanEditTracks(Playlist playlist, AppUserDetails caller) {
-        assertCanView(playlist, caller);
         if (!canEditTracks(playlist, caller)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed to modify this playlist");
         }
@@ -251,7 +254,6 @@ public class PlaylistService {
 
     /** Renaming, changing visibility, or deleting a playlist is restricted to its owner alone. */
     private void assertOwner(Playlist playlist, AppUserDetails caller) {
-        assertCanView(playlist, caller);
         if (!playlist.getOwner().getId().equals(caller.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the playlist owner can do this");
         }

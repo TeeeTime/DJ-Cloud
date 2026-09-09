@@ -8,6 +8,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { QueueStatusWidget } from "@/components/layout/queue-status";
 import { usePlayer } from "@/components/providers/player-provider";
+import { isPlayableStatus } from "@/lib/data";
 import { usePathname } from "next/navigation";
 
 const VOLUME_STORAGE_KEY = "djcloud_volume";
@@ -25,6 +26,14 @@ function loadStoredVolume(): number {
 
 function TrackCover({ src, isPlaying, scratching }: { src: string; isPlaying: boolean; scratching: boolean }) {
   const [error, setError] = useState(false);
+
+  // A cover that previously 404'd must be re-attempted once `src` actually changes (e.g. after
+  // editing the cover) — otherwise this instance stays stuck on the fallback icon forever.
+  const [prevSrc, setPrevSrc] = useState(src);
+  if (src !== prevSrc) {
+    setPrevSrc(src);
+    setError(false);
+  }
 
   if (error) {
     return isPlaying ? (
@@ -78,10 +87,13 @@ export function BottomPlayer() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setIsPlaying]);
 
-  // Sync play/pause
+  // Sync play/pause — gated on the track actually being ready (a preview file must exist) as a
+  // last line of defense: whatever set `isPlaying`/`currentTrack` (row click, spacebar, skip,
+  // default-selection) should already guarantee this, but a real .play() call must never be
+  // attempted against a track whose GET /api/tracks/{id}/audio would 404.
   useEffect(() => {
     if (!audioRef.current) return;
-    if (isPlaying) {
+    if (isPlaying && currentTrack && isPlayableStatus(currentTrack.status)) {
       audioRef.current.play().catch(e => console.error("Playback failed:", e));
     } else {
       audioRef.current.pause();
@@ -150,39 +162,62 @@ export function BottomPlayer() {
     if (!currentTrack || activeTrackOrder.length === 0) return;
     const currentIndex = activeTrackOrder.findIndex(t => t.id === currentTrack.id);
     // Not present in the current view's order? Start at its first track instead of no-op'ing.
-    const targetIndex = currentIndex === -1 ? 0 : currentIndex + 1;
+    const startIndex = currentIndex === -1 ? 0 : currentIndex + 1;
 
-    if (targetIndex < activeTrackOrder.length) {
-      setCurrentTrack(activeTrackOrder[targetIndex]);
-      setIsPlaying(true);
-      return;
+    for (let i = startIndex; i < activeTrackOrder.length; i++) {
+      if (isPlayableStatus(activeTrackOrder[i].status)) {
+        setCurrentTrack(activeTrackOrder[i]);
+        setIsPlaying(true);
+        return;
+      }
     }
 
     // Ran off the end of the order. Most views just loop back to the start; a view can override
     // this (e.g. Overview's "new tracks" list extends itself with the next-newest tracks instead).
     if (onOrderExhausted) {
       const extended = await onOrderExhausted();
-      if (extended && targetIndex < extended.length) {
-        setCurrentTrack(extended[targetIndex]);
-        setIsPlaying(true);
-        return;
+      if (extended) {
+        for (let i = startIndex; i < extended.length; i++) {
+          if (isPlayableStatus(extended[i].status)) {
+            setCurrentTrack(extended[i]);
+            setIsPlaying(true);
+            return;
+          }
+        }
       }
     }
 
-    setCurrentTrack(activeTrackOrder[0]);
-    setIsPlaying(true);
+    // Loop back to the start, but only among ready tracks — if none exist, there's nothing to play.
+    const firstReady = activeTrackOrder.find(t => isPlayableStatus(t.status));
+    if (firstReady) {
+      setCurrentTrack(firstReady);
+      setIsPlaying(true);
+    }
   };
 
   const playPrev = () => {
     if (!currentTrack || activeTrackOrder.length === 0) return;
     const currentIndex = activeTrackOrder.findIndex(t => t.id === currentTrack.id);
+
     if (currentIndex === -1) {
-      setCurrentTrack(activeTrackOrder[0]);
-      setIsPlaying(true);
-    } else if (currentIndex > 0) {
-      setCurrentTrack(activeTrackOrder[currentIndex - 1]);
-      setIsPlaying(true);
-    } else if (audioRef.current) {
+      const firstReady = activeTrackOrder.find(t => isPlayableStatus(t.status));
+      if (firstReady) {
+        setCurrentTrack(firstReady);
+        setIsPlaying(true);
+      }
+      return;
+    }
+
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      if (isPlayableStatus(activeTrackOrder[i].status)) {
+        setCurrentTrack(activeTrackOrder[i]);
+        setIsPlaying(true);
+        return;
+      }
+    }
+
+    // No earlier ready track — restart the current one instead, same as hitting the very start.
+    if (audioRef.current) {
       audioRef.current.currentTime = 0;
     }
   };

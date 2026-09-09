@@ -117,6 +117,7 @@ export interface RecentTrackResponse {
   artists: string[];
   addedAt: string;
   isNew: boolean;
+  status: TrackStatus;
 }
 
 export interface RecentTracksResponse {
@@ -263,6 +264,15 @@ export const tracksApi = {
       token
     ),
 
+  updateCover: (id: number, file: File, token: string) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request<void>(`/api/tracks/${id}/cover`, { method: "PUT", body: formData }, token);
+  },
+
+  removeCover: (id: number, token: string) =>
+    request<void>(`/api/tracks/${id}/cover`, { method: "DELETE" }, token),
+
   delete: (id: number, token: string) =>
     request<void>(`/api/tracks/${id}`, { method: "DELETE" }, token),
 
@@ -321,6 +331,13 @@ export const playlistsApi = {
   create: (name: string, isPublic: boolean, token: string) =>
     request<PlaylistResponse>(
       "/api/playlists",
+      { method: "POST", body: JSON.stringify({ name, isPublic }) },
+      token
+    ),
+
+  copy: (sourcePlaylistId: number, name: string, isPublic: boolean, token: string) =>
+    request<PlaylistResponse>(
+      `/api/playlists/${sourcePlaylistId}/copy`,
       { method: "POST", body: JSON.stringify({ name, isPublic }) },
       token
     ),

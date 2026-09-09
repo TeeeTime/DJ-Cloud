@@ -182,6 +182,28 @@ public class TrackService {
         }
     }
 
+    /** Clears the track's embedded cover art entirely — idempotent, a no-op if there was none. */
+    @Transactional(readOnly = true)
+    public void removeCover(Long id) {
+        Track track = findOrThrow(id);
+
+        if (track.getFileName() == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No audio file stored for this track");
+        }
+
+        File audioFile = trackStorageService.resolve(track.getFileName());
+        if (!audioFile.exists()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No audio file stored for this track");
+        }
+
+        try {
+            audioMetadataWriter.removeArtwork(audioFile);
+        } catch (AudioMetadataException ex) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Could not update audio file metadata", ex);
+        }
+    }
+
     @Transactional
     public void delete(Long id) {
         Track track = findOrThrow(id);

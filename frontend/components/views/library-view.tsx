@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Pause, Download, Pencil, Trash, Settings2, Search, MoreHorizontal, ArrowUpDown, ChevronUp, ChevronDown, Menu, Loader2, AlertCircle } from "lucide-react";
+import { Play, Pause, Ban, Download, Pencil, Trash, Settings2, Search, MoreHorizontal, ArrowUpDown, ChevronUp, ChevronDown, Menu, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,7 +9,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { usePlayer } from "@/components/providers/player-provider";
 import { useAuth } from "@/components/providers/auth-provider";
-import { Track, formatDateAdded } from "@/lib/data";
+import { Track, formatDateAdded, isPlayableStatus } from "@/lib/data";
 import { ApiError, tracksApi } from "@/lib/api";
 import { downloadFile } from "@/lib/download";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -182,8 +182,9 @@ export function LibraryView() {
                 {tracks.map((track, index) => (
                   <TableRow
                     key={track.id}
-                    className={`border-zinc-900 hover:bg-zinc-900/40 group transition-colors cursor-pointer ${currentTrack?.id === track.id ? 'bg-zinc-900/20' : ''}`}
+                    className={`border-zinc-900 hover:bg-zinc-900/40 group transition-colors ${isPlayableStatus(track.status) ? 'cursor-pointer' : 'cursor-not-allowed'} ${currentTrack?.id === track.id ? 'bg-zinc-900/20' : ''}`}
                     onClick={() => {
+                      if (!isPlayableStatus(track.status)) return;
                       if (currentTrack?.id === track.id) {
                         setIsPlaying(!isPlaying);
                       } else {
@@ -195,7 +196,9 @@ export function LibraryView() {
                     <TableCell className="w-12 text-center text-zinc-600 relative">
                       <span className={`transition-opacity ${currentTrack?.id === track.id ? 'opacity-0' : 'group-hover:opacity-0'}`}>{index + 1}</span>
                       <div className={`absolute inset-0 flex items-center justify-center transition-opacity ${currentTrack?.id === track.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                        {currentTrack?.id === track.id && isPlaying ? (
+                        {!isPlayableStatus(track.status) ? (
+                          <Ban className="w-4 h-4 text-zinc-600" />
+                        ) : currentTrack?.id === track.id && isPlaying ? (
                           <Pause className="w-4 h-4 text-white fill-white" />
                         ) : (
                           <Play className="w-4 h-4 text-white fill-white" />

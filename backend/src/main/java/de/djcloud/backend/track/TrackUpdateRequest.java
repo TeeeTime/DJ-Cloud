@@ -5,13 +5,16 @@ import java.util.List;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 public record TrackUpdateRequest(
         @NotBlank String title,
         @Positive int durationSeconds,
         String key,
-        @Positive int bpm,
+        // 0 is this app's sentinel for "not yet analyzed" (see TrackUploadService.upload,
+        // TrackAnalysisStatusService.markProcessing/markFailed) — only negative values are invalid.
+        @PositiveOrZero int bpm,
         String fileFormat,
         @NotNull TrackStatus status,
         @NotNull List<Long> artistIds,

@@ -9,6 +9,11 @@ export type SortConfig = { key: string; direction: SortDirection } | null;
 
 const DEFAULT_PAGE_SIZE = 30;
 
+// A stable reference for callers that omit `filters` — an inline `{}` default would be a fresh
+// object every render, and since `filters` sits in effect/callback dependency arrays below, that
+// would retrigger the fetch on every render (infinite loop).
+const EMPTY_FILTERS: TrackFilters = {};
+
 export interface FetchTracksPageParams extends TrackFilters {
   page: number;
   size: number;
@@ -31,7 +36,7 @@ interface UsePagedTracksArgs {
  * used by both the main library and a single playlist's track list, against different endpoints.
  * A change to `query` or `sortConfig` resets back to page 0; `loadMore` appends the next page.
  */
-export function usePagedTracks({ query, sortConfig, defaultSortKey, fetchPage, pageSize = DEFAULT_PAGE_SIZE, filters = {} }: UsePagedTracksArgs) {
+export function usePagedTracks({ query, sortConfig, defaultSortKey, fetchPage, pageSize = DEFAULT_PAGE_SIZE, filters = EMPTY_FILTERS }: UsePagedTracksArgs) {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
