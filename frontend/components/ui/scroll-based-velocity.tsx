@@ -33,9 +33,10 @@ const ScrollVelocityContext = React.createContext<MotionValue<number> | null>(
 export function ScrollVelocityContainer({
   children,
   className,
+  scrollContainerRef,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  const { scrollY } = useScroll()
+}: React.HTMLAttributes<HTMLDivElement> & { scrollContainerRef?: React.RefObject<HTMLElement | null> }) {
+  const { scrollY } = useScroll(scrollContainerRef ? { container: scrollContainerRef as React.RefObject<HTMLElement> } : undefined)
   const scrollVelocity = useVelocity(scrollY)
   const smoothVelocity = useSpring(scrollVelocity, {
     damping: 50,
