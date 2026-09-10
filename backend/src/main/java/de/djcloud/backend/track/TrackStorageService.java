@@ -2,8 +2,13 @@ package de.djcloud.backend.track;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.DigestInputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -51,6 +56,24 @@ class TrackStorageService {
         }
 
         return new StoredFile(target.toFile(), extension);
+    }
+
+    /** SHA-256 hex digest of the file's bytes, streamed rather than read fully into memory. */
+    String computeHash(File file) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            try (InputStream in = new DigestInputStream(Files.newInputStream(file.toPath()), digest)) {
+                byte[] buffer = new byte[8192];
+                while (in.read(buffer) != -1) {
+                    // reading drains the stream through the DigestInputStream, updating the digest
+                }
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (IOException ex) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not hash uploaded file", ex);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 not available", ex);
+        }
     }
 
     void delete(File file) {

@@ -2,11 +2,13 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
 export class ApiError extends Error {
   status: number;
+  body: unknown;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, body?: unknown) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -33,7 +35,7 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
   const body = isJson ? await res.json().catch(() => null) : null;
 
   if (!res.ok) {
-    throw new ApiError(res.status, body?.message ?? res.statusText);
+    throw new ApiError(res.status, body?.message ?? res.statusText, body);
   }
 
   return body as T;
@@ -109,6 +111,13 @@ export interface TrackResponse {
   status: TrackStatus;
   artists: string[];
   genres: string[];
+}
+
+export type DuplicateReason = "EXACT_FILE" | "TITLE_AND_ARTIST";
+
+export interface DuplicateTrackResponse {
+  reason: DuplicateReason;
+  existingTrack: TrackResponse;
 }
 
 export interface RecentTrackResponse {
@@ -251,10 +260,11 @@ export const tracksApi = {
 
   get: (id: number) => request<TrackResponse>(`/api/tracks/${id}`, { method: "GET" }),
 
-  upload: (file: File, token: string) => {
+  upload: (file: File, token: string, confirmDuplicate = false) => {
     const formData = new FormData();
     formData.append("file", file);
-    return request<TrackResponse>("/api/tracks", { method: "POST", body: formData }, token);
+    const path = confirmDuplicate ? "/api/tracks?confirmDuplicate=true" : "/api/tracks";
+    return request<TrackResponse>(path, { method: "POST", body: formData }, token);
   },
 
   update: (id: number, data: TrackUpdateRequest, token: string) =>

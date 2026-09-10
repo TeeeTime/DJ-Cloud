@@ -13,7 +13,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(indexes = { @Index(name = "idx_track_title", columnList = "title") })
+@Table(indexes = { @Index(name = "idx_track_title", columnList = "title"),
+        @Index(name = "idx_track_content_hash", columnList = "contentHash") })
 @Getter
 @Setter
 @NoArgsConstructor
@@ -51,6 +52,9 @@ public class Track {
 
     /** Name of the file as stored on disk (see app.storage.tracks-dir) — never exposed via the API directly. */
     private String fileName;
+
+    /** SHA-256 hex digest of the stored file's bytes — used to detect exact-duplicate re-uploads. */
+    private String contentHash;
 
     /**
      * Name of the generated streaming preview as stored on disk (see app.storage.previews-dir) —
