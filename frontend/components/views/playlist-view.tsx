@@ -223,6 +223,17 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
       document.body.style.userSelect = '';
       setDraggingTrackId(null);
       setDragGapIndex(null);
+
+      // A completed drag normally gets its trailing click (fired on whatever's under the
+      // pointer at release) suppressed by that row's onClick checking wasDraggingRef. But
+      // releasing over the insertion line itself — the actual drop target the user is aiming
+      // for — hits a pointer-events-none spacer row with no onClick, so no click fires at all
+      // and the flag would otherwise stay stuck true, silently swallowing the *next* unrelated
+      // click anywhere in the list. Clear it a tick later so an in-gesture click (if any) still
+      // sees it first, but it can never leak into a later click.
+      if (dragging) {
+        setTimeout(() => { wasDraggingRef.current = false; }, 0);
+      }
     };
 
     const handleUp = (ev: PointerEvent) => {
