@@ -16,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -175,8 +176,16 @@ public class TrackController {
     /** Reads title/artist/duration from the file's tags, with placeholders for anything not yet analyzed. */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public TrackResponse uploadTrack(@RequestParam("file") MultipartFile file) {
-        return trackUploadService.upload(file);
+    public TrackResponse uploadTrack(@RequestParam("file") MultipartFile file,
+            @RequestParam(defaultValue = "false") boolean confirmDuplicate) {
+        return trackUploadService.upload(file, confirmDuplicate);
+    }
+
+    /** The upload looked like a duplicate and {@code confirmDuplicate} wasn't set — let the client ask the user. */
+    @ExceptionHandler(DuplicateTrackException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public DuplicateTrackResponse handleDuplicateTrack(DuplicateTrackException ex) {
+        return DuplicateTrackResponse.fromException(ex);
     }
 
     @PutMapping("/{id}")

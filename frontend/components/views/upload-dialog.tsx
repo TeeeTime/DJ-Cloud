@@ -4,10 +4,11 @@ import { useRef, useState } from "react";
 import { CloudUpload, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { DuplicateTrackDialog } from "@/components/views/duplicate-track-dialog";
 import { usePlayer } from "@/components/providers/player-provider";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useGenres } from "@/components/providers/genre-provider";
-import { ApiError, tracksApi } from "@/lib/api";
+import { ApiError, DuplicateTrackResponse, tracksApi } from "@/lib/api";
 
 const ACCEPTED_EXTENSIONS = [".mp3", ".wav"];
 const MAX_FILE_SIZE = 200 * 1024 * 1024;
@@ -15,6 +16,10 @@ const MAX_FILE_SIZE = 200 * 1024 * 1024;
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function isDuplicateTrackResponse(body: unknown): body is DuplicateTrackResponse {
+  return !!body && typeof body === "object" && "reason" in body && "existingTrack" in body;
 }
 
 export function UploadDialog() {
@@ -27,13 +32,18 @@ export function UploadDialog() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [skippedCount, setSkippedCount] = useState(0);
+  const [pendingDuplicate, setPendingDuplicate] = useState<{ file: File; match: DuplicateTrackResponse } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const duplicateResolverRef = useRef<((choice: "skip" | "confirm") => void) | null>(null);
 
   const resetState = () => {
     setSelectedFiles([]);
     setError(null);
     setIsDragging(false);
     setProgress(0);
+    setSkippedCount(0);
+    setPendingDuplicate(null);
   };
 
   const validateAndAddFiles = (files: FileList | File[]) => {
@@ -64,15 +74,45 @@ export function UploadDialog() {
     setIsUploading(true);
     setError(null);
     setProgress(0);
+    setSkippedCount(0);
+    let skipped = 0;
     try {
       for (let i = 0; i < selectedFiles.length; i++) {
-        await tracksApi.upload(selectedFiles[i], token);
+        const file = selectedFiles[i];
+        let confirmDuplicate = false;
+        for (;;) {
+          try {
+            await tracksApi.upload(file, token, confirmDuplicate);
+            break;
+          } catch (err) {
+            if (err instanceof ApiError && err.status === 409 && isDuplicateTrackResponse(err.body)) {
+              const match = err.body;
+              const choice = await new Promise<"skip" | "confirm">(resolve => {
+                duplicateResolverRef.current = resolve;
+                setPendingDuplicate({ file, match });
+              });
+              setPendingDuplicate(null);
+              if (choice === "skip") {
+                skipped += 1;
+                setSkippedCount(skipped);
+                break;
+              }
+              confirmDuplicate = true;
+              continue;
+            }
+            throw err;
+          }
+        }
         setProgress(i + 1);
       }
       await refreshTracks();
       await refreshGenres();
-      setOpen(false);
-      resetState();
+      if (skipped === 0) {
+        setOpen(false);
+        resetState();
+      } else {
+        setSelectedFiles([]);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Upload failed. Please try again.");
     } finally {
@@ -136,6 +176,11 @@ export function UploadDialog() {
               {error}
             </p>
           )}
+          {!isUploading && skippedCount > 0 && (
+            <p className="text-sm text-zinc-400 mt-4">
+              {skippedCount} duplicate file{skippedCount === 1 ? "" : "s"} skipped. The rest were uploaded.
+            </p>
+          )}
         </div>
         <DialogFooter className="mt-8">
           <Button
@@ -151,6 +196,14 @@ export function UploadDialog() {
           </Button>
         </DialogFooter>
       </DialogContent>
+      {pendingDuplicate && (
+        <DuplicateTrackDialog
+          fileName={pendingDuplicate.file.name}
+          match={pendingDuplicate.match}
+          onSkip={() => duplicateResolverRef.current?.("skip")}
+          onConfirm={() => duplicateResolverRef.current?.("confirm")}
+        />
+      )}
     </Dialog>
   );
 }

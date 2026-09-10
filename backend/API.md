@@ -384,7 +384,8 @@ fully saved to disk *and* its metadata has been read; a failed/rejected upload n
 or an orphaned file on disk.
 
 Request: `multipart/form-data` with a single part named `file` — an `.mp3` or `.wav` file (checked by
-extension; max 200MB).
+extension; max 200MB). Optional query param `confirmDuplicate` (default `false`) — see "Duplicate
+detection" below.
 
 Behavior:
 - `title` comes from the file's ID3/tag data if present; otherwise falls back to the uploaded filename
@@ -418,11 +419,24 @@ the server is restarted (see "Not yet implemented" below). Poll `GET /api/tracks
 
 Response `201`: the created track, same shape as `GET /api/tracks/{id}`.
 
+**Duplicate detection**: unless `confirmDuplicate=true` is passed, the upload is checked against the
+existing library two ways, in order:
+1. **Exact file match** — SHA-256 of the uploaded bytes matches an existing track's stored file.
+2. **Probable match** — same `title` (case-insensitive) and the same resolved artist as an existing
+   track. Only checked when the file has an artist tag.
+
+Either match returns `409` instead of creating a row, with body:
+```json
+{ "reason": "EXACT_FILE" | "TITLE_AND_ARTIST", "existingTrack": { /* same shape as GET /api/tracks/{id} */ } }
+```
+Re-submit the same request with `confirmDuplicate=true` to upload anyway — this skips both checks.
+
 Errors — on every one of these, no `Track` row is created and no file is left on disk:
 - `400` `"Uploaded file is empty"`.
 - `400` `"Unsupported file type — only .mp3 and .wav are accepted"`.
 - `400` `"Uploaded file could not be read as audio"` — right extension, but the content isn't valid/
   parsable audio.
+- `409` — see "Duplicate detection" above.
 - `413` if the file exceeds the 200MB request-size limit.
 - `500` `"Track could not be saved"` — an error after the file was already written (e.g. a DB error); the
   file is cleaned up before this is returned.

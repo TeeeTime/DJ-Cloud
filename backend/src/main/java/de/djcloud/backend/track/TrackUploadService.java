@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import de.djcloud.backend.artist.Artist;
 import de.djcloud.backend.artist.ArtistService;
 import de.djcloud.backend.genre.GenreService;
 import lombok.RequiredArgsConstructor;
@@ -29,9 +30,22 @@ public class TrackUploadService {
     /**
      * Every failure path here reports a descriptive error and leaves nothing behind: no Track row
      * is ever created, and any file already written to disk is deleted first.
+     *
+     * @param confirmDuplicate when {@code false} (the default), an upload that looks like a
+     *     duplicate — same file content, or same title+artist as an existing track — is rejected
+     *     with a {@link DuplicateTrackException} instead of being saved; the caller re-submits
+     *     with {@code true} to proceed anyway.
      */
-    public TrackResponse upload(MultipartFile file) {
+    public TrackResponse upload(MultipartFile file, boolean confirmDuplicate) {
         StoredFile storedFile = trackStorageService.save(file);
+        String contentHash = trackStorageService.computeHash(storedFile.file());
+
+        if (!confirmDuplicate) {
+            trackRepository.findFirstByContentHash(contentHash).ifPresent(existing -> {
+                trackStorageService.delete(storedFile.file());
+                throw new DuplicateTrackException(DuplicateTrackException.Reason.EXACT_FILE, existing);
+            });
+        }
 
         AudioMetadata metadata;
         try {
@@ -53,18 +67,31 @@ public class TrackUploadService {
             track.setAddedAt(Instant.now());
             track.setFileName(storedFile.file().getName());
             track.setSizeBytes(storedFile.file().length());
+            track.setContentHash(contentHash);
             track.setStatus(TrackStatus.QUEUED);
 
             if (metadata.artist() != null) {
                 // findOrCreateByName and trackRepository.save() below are each independently
                 // transactional (ArtistService / Spring Data JPA) rather than wrapped in one
                 // shared transaction here, since the file I/O above must never run inside one
-                track.getArtists().add(artistService.findOrCreateByName(metadata.artist()));
+                Artist artist = artistService.findOrCreateByName(metadata.artist());
+                track.getArtists().add(artist);
+
+                if (!confirmDuplicate) {
+                    trackRepository.findFirstByTitleIgnoreCaseAndArtistsContaining(track.getTitle(), artist)
+                            .ifPresent(existing -> {
+                                throw new DuplicateTrackException(DuplicateTrackException.Reason.TITLE_AND_ARTIST,
+                                        existing);
+                            });
+                }
             }
 
             metadata.genres().forEach(genreName -> track.getGenres().add(genreService.findOrCreateByName(genreName)));
 
             savedTrack = trackRepository.save(track);
+        } catch (DuplicateTrackException ex) {
+            trackStorageService.delete(storedFile.file());
+            throw ex;
         } catch (RuntimeException ex) {
             trackStorageService.delete(storedFile.file());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Track could not be saved", ex);
