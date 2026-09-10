@@ -133,6 +133,15 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
   const [draggingTrackId, setDraggingTrackId] = useState<number | null>(null);
   const [dragGapIndex, setDragGapIndex] = useState<number | null>(null);
 
+  // A gap right against the dragged track's own current spot is a no-op drop (it would land
+  // back exactly where it started), so the insertion line shouldn't render there at all.
+  const draggedOriginalIndex = draggingTrackId !== null
+    ? tracks.findIndex((t) => t.id === draggingTrackId)
+    : -1;
+  const showInsertionLineAt = (gapIndex: number) =>
+    draggingTrackId !== null && dragGapIndex === gapIndex &&
+    gapIndex !== draggedOriginalIndex && gapIndex !== draggedOriginalIndex + 1;
+
   /** The boundary index (0..tracksArr.length) the pointer is currently over, or null off any row/edge. */
   const computeGapIndexFor = (tracksArr: Track[], clientX: number, clientY: number): number | null => {
     const hoveredRow = document.elementsFromPoint(clientX, clientY)
@@ -531,7 +540,7 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
               <TableBody>
                 {tracks.map((track, index) => (
                   <React.Fragment key={track.id}>
-                    {draggingTrackId !== null && dragGapIndex === index && (
+                    {showInsertionLineAt(index) && (
                       <TableRow className="border-none hover:bg-transparent pointer-events-none">
                         <TableCell colSpan={9} className="h-0 p-0">
                           <div className="h-[2px] bg-white rounded-full" />
@@ -668,7 +677,7 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                     </TableRow>
                   </React.Fragment>
                 ))}
-                {draggingTrackId !== null && dragGapIndex === tracks.length && (
+                {showInsertionLineAt(tracks.length) && (
                   <TableRow className="border-none hover:bg-transparent pointer-events-none">
                     <TableCell colSpan={9} className="h-0 p-0">
                       <div className="h-[2px] bg-white rounded-full" />
