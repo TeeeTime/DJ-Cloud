@@ -208,7 +208,7 @@ Query params (all optional):
 |-----------------------|---------|--------------------------------------------------------------------------------------------------|
 | `page`                | `0`     | zero-indexed                                                                                      |
 | `size`                | `30`    | page size                                                                                          |
-| `sortBy`              | `title` | one of `title`, `artist`, `bpm`, `addedAt`, `dateAdded`, `durationSeconds`, `key`, `fileFormat`. `400` on an unknown value. |
+| `sortBy`              | `title` | one of `title`, `artist`, `bpm`, `addedAt`, `dateAdded`, `durationSeconds`, `key`, `fileFormat`, `position`. `400` on an unknown value. |
 | `direction`           | `asc`   | `asc` or `desc` (case-insensitive). `400` on an unknown value.                                    |
 | `query`               | —       | case-insensitive substring match against title, artist name, **or** genre name. Blank/missing means no filter. |
 | `excludePlaylistId`   | —       | when set, tracks already in that playlist are omitted — used by the playlist "add tracks" search bar. |
@@ -218,6 +218,11 @@ Query params (all optional):
 
 `sortBy=artist` sorts by each track's alphabetically-first artist name (a track can have several);
 tracks with no artists sort last regardless of `direction`.
+
+`sortBy=position` is a playlist's manual/drag-reordered track order (see `PUT
+/api/playlists/{id}/tracks/{trackId}/position` below) — it only means something scoped to one
+playlist, so it's `400` here on the unscoped main library (there's no `scopeToPlaylistId` param on
+this endpoint). Use it via `GET /api/playlists/{id}/tracks` instead.
 
 Response `200`:
 ```json
@@ -764,7 +769,8 @@ same query params, same response shape, and same `sortBy`/`direction` semantics 
 just scoped to this playlist instead of the whole library.
 
 Query params (all optional): `page`, `size`, `sortBy`, `direction`, `query` — identical to
-`GET /api/tracks` above.
+`GET /api/tracks` above, **except `sortBy` defaults to `position`** here (the playlist's own
+manual/drag-reordered order — see `PUT .../tracks/{trackId}/position` below), not `title`.
 
 Response `200`: same shape as `GET /api/tracks`.
 
@@ -912,6 +918,32 @@ the track wasn't in the playlist to begin with.
 
 Response `200`: the updated playlist, same shape as `GET /api/playlists/{id}`. Same `403`/`404`
 semantics as `POST .../tracks`.
+
+---
+
+## `PUT /api/playlists/{id}/tracks/{trackId}/position`
+
+**Same permission rule as `POST .../tracks` above.** Moves `trackId` to a new position within the
+playlist's manual order — this is what backs drag-to-reorder in the web app; it has no effect on
+downloading/syncing, which never depends on this order. The new order is shared: every viewer sees it,
+not just the caller.
+
+Request:
+```json
+{ "afterTrackId": 5 }
+```
+`afterTrackId` is the id of the track the moved track should end up immediately after; `null` (or
+omitted) moves it to the very front of the playlist. Resolved against the playlist's actual current
+order server-side — the caller doesn't need to know every other track's position, or even have the
+whole playlist loaded.
+
+Response `200`: the updated playlist, same shape as `GET /api/playlists/{id}`.
+
+Errors:
+- `404` if the playlist doesn't exist, if `trackId` isn't a member of it, or if `afterTrackId` is given
+  but isn't a member of it either.
+- `400` if `afterTrackId` equals `trackId` (a track can't be positioned after itself).
+- `403` if the caller doesn't have edit rights on the playlist (same rule as `POST .../tracks`).
 
 ---
 

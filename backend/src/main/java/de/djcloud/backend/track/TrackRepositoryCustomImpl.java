@@ -3,8 +3,11 @@ package de.djcloud.backend.track;
 import java.util.List;
 
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import de.djcloud.backend.artist.Artist;
+import de.djcloud.backend.playlist.PlaylistTrack;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -13,6 +16,7 @@ import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 
 class TrackRepositoryCustomImpl implements TrackRepositoryCustom {
@@ -41,6 +45,37 @@ class TrackRepositoryCustomImpl implements TrackRepositoryCustom {
         query.select(root.get("id"))
                 .groupBy(root.get("id"))
                 .orderBy(cb.asc(hasNoArtist), ascending ? cb.asc(aggregatedArtistName) : cb.desc(aggregatedArtistName));
+
+        return entityManager.createQuery(query)
+                .setFirstResult(criteria.page() * criteria.size())
+                .setMaxResults(criteria.size())
+                .getResultList();
+    }
+
+    @Override
+    public List<Long> findIdsSortedByPosition(TrackSearchCriteria criteria) {
+        Long playlistId = criteria.scopeToPlaylistId();
+        if (playlistId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "sortBy=position requires scoping to a playlist");
+        }
+
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Long> query = cb.createQuery(Long.class);
+        Root<Track> root = query.from(Track.class);
+        // A track has at most one PlaylistTrack row for this specific playlist (the join table's
+        // composite key guarantees that), so unlike findIdsSortedByArtist this needs no aggregation —
+        // just correlate this second root to the Track root and to the scoped playlist.
+        Root<PlaylistTrack> playlistTrackRoot = query.from(PlaylistTrack.class);
+
+        Predicate filter = TrackSpecifications.fromCriteria(criteria).toPredicate(root, query, cb);
+        Predicate correlateToTrack = cb.equal(playlistTrackRoot.get("track"), root);
+        Predicate correlateToPlaylist = cb.equal(playlistTrackRoot.get("playlist").get("id"), playlistId);
+        query.where(cb.and(filter, correlateToTrack, correlateToPlaylist));
+
+        boolean ascending = criteria.direction() == Sort.Direction.ASC;
+        query.select(root.get("id"))
+                .orderBy(ascending ? cb.asc(playlistTrackRoot.get("position")) : cb.desc(playlistTrackRoot.get("position")));
 
         return entityManager.createQuery(query)
                 .setFirstResult(criteria.page() * criteria.size())

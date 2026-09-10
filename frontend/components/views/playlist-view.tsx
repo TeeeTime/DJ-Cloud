@@ -27,11 +27,27 @@ import { CopyPlaylistDialog } from "./copy-playlist-dialog";
 
 type SortConfig = { key: keyof Track, direction: 'asc' | 'desc' } | null;
 
-const DEFAULT_SORT_KEY = 'title';
+const DEFAULT_SORT_KEY = 'position';
+
+/** Minimum pointer travel (px) before a press-and-hold on a row is treated as a drag rather than a click. */
+const DRAG_THRESHOLD = 5;
 
 /** Never resolves — used while waiting for the auth token so no spurious error briefly flashes. */
 function pendingForever<T>(): Promise<T> {
   return new Promise<T>(() => {});
+}
+
+/**
+ * The id of the track that should sit directly above `gap` (a boundary index into `tracksArr`,
+ * 0..length) once the drag completes — `null` means "top of list". Walks backward from the gap
+ * to skip past the dragged track's own current row, so dropping a track back next to itself
+ * resolves to the same neighbor it already has instead of to itself.
+ */
+function resolveAfterTrackId(tracksArr: Track[], gap: number, draggedId: number): number | null {
+  for (let i = gap - 1; i >= 0; i--) {
+    if (tracksArr[i].id !== draggedId) return tracksArr[i].id;
+  }
+  return null;
 }
 
 interface PlaylistViewProps {
@@ -66,6 +82,7 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
 
   const {
     tracks,
+    setTracks,
     isLoading: tracksLoading,
     isLoadingMore: tracksLoadingMore,
     error: tracksListError,
@@ -101,6 +118,147 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [hasMoreTracks, loadMoreTracks]);
+
+  // Manual drag-to-reorder is only meaningful in the persisted custom order view — once a column
+  // is sorted or a search is active, the rendered list isn't the playlist's own order anymore.
+  const canDrag = sortConfig === null && !debouncedSearchQuery && !!detail?.canEditTracks;
+
+  const tableWrapperRef = useRef<HTMLDivElement>(null);
+  const labelRef = useRef<HTMLDivElement>(null);
+  const wasDraggingRef = useRef(false);
+  const latestPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const rafIdRef = useRef<number | null>(null);
+  const lastGapRef = useRef<number | null>(null);
+
+  const [draggingTrackId, setDraggingTrackId] = useState<number | null>(null);
+  const [dragGapIndex, setDragGapIndex] = useState<number | null>(null);
+
+  // A gap right against the dragged track's own current spot is a no-op drop (it would land
+  // back exactly where it started), so the insertion line shouldn't render there at all.
+  const draggedOriginalIndex = draggingTrackId !== null
+    ? tracks.findIndex((t) => t.id === draggingTrackId)
+    : -1;
+  const showInsertionLineAt = (gapIndex: number) =>
+    draggingTrackId !== null && dragGapIndex === gapIndex &&
+    gapIndex !== draggedOriginalIndex && gapIndex !== draggedOriginalIndex + 1;
+
+  /** The boundary index (0..tracksArr.length) the pointer is currently over, or null off any row/edge. */
+  const computeGapIndexFor = (tracksArr: Track[], clientX: number, clientY: number): number | null => {
+    const hoveredRow = document.elementsFromPoint(clientX, clientY)
+      .map((el) => (el instanceof HTMLElement ? el.closest<HTMLElement>('tr[data-track-id]') : null))
+      .find((el): el is HTMLElement => el !== null);
+
+    if (hoveredRow) {
+      const index = tracksArr.findIndex((t) => String(t.id) === hoveredRow.dataset.trackId);
+      if (index !== -1) {
+        const rect = hoveredRow.getBoundingClientRect();
+        return clientY < rect.top + rect.height / 2 ? index : index + 1;
+      }
+    }
+
+    const wrapperRect = tableWrapperRef.current?.getBoundingClientRect();
+    if (wrapperRect) {
+      if (clientY <= wrapperRect.top) return 0;
+      if (clientY >= wrapperRect.bottom) return tracksArr.length;
+    }
+    return null;
+  };
+
+  const finishDrag = (draggedId: number, gap: number | null) => {
+    if (gap === null) return;
+    const originalIndex = tracks.findIndex((t) => t.id === draggedId);
+    if (originalIndex === -1) return;
+    if (gap === originalIndex || gap === originalIndex + 1) return; // dropped back where it started
+
+    const afterTrackId = resolveAfterTrackId(tracks, gap, draggedId);
+
+    const reordered = [...tracks];
+    const [moved] = reordered.splice(originalIndex, 1);
+    reordered.splice(gap > originalIndex ? gap - 1 : gap, 0, moved);
+    setTracks(reordered);
+
+    if (!token) return;
+    playlistsApi.reorderTrack(playlistId, draggedId, afterTrackId, token).catch((err) => {
+      console.error(err instanceof ApiError ? err.message : err);
+      resetTracks();
+    });
+  };
+
+  const startPotentialDrag = (e: React.PointerEvent<HTMLTableRowElement>, track: Track) => {
+    if (!canDrag || e.button !== 0) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let dragging = false;
+
+    const handleMove = (ev: PointerEvent) => {
+      if (!dragging) {
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return;
+        dragging = true;
+        wasDraggingRef.current = true;
+        lastGapRef.current = null;
+        setDraggingTrackId(track.id);
+        document.body.style.cursor = 'grabbing';
+        document.body.style.userSelect = 'none';
+      }
+
+      latestPointerRef.current = { x: ev.clientX, y: ev.clientY };
+      if (rafIdRef.current == null) {
+        rafIdRef.current = requestAnimationFrame(() => {
+          rafIdRef.current = null;
+          const pos = latestPointerRef.current;
+          if (!pos) return;
+          if (labelRef.current) {
+            labelRef.current.style.transform = `translate(${pos.x + 16}px, ${pos.y + 16}px)`;
+          }
+          const gap = computeGapIndexFor(tracks, pos.x, pos.y);
+          if (gap !== null) {
+            lastGapRef.current = gap;
+            setDragGapIndex((prev) => (prev === gap ? prev : gap));
+          }
+        });
+      }
+    };
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', handleCancel);
+      if (rafIdRef.current != null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      setDraggingTrackId(null);
+      setDragGapIndex(null);
+
+      // A completed drag normally gets its trailing click (fired on whatever's under the
+      // pointer at release) suppressed by that row's onClick checking wasDraggingRef. But
+      // releasing over the insertion line itself — the actual drop target the user is aiming
+      // for — hits a pointer-events-none spacer row with no onClick, so no click fires at all
+      // and the flag would otherwise stay stuck true, silently swallowing the *next* unrelated
+      // click anywhere in the list. Clear it a tick later so an in-gesture click (if any) still
+      // sees it first, but it can never leak into a later click.
+      if (dragging) {
+        setTimeout(() => { wasDraggingRef.current = false; }, 0);
+      }
+    };
+
+    const handleUp = (ev: PointerEvent) => {
+      if (dragging) {
+        const gap = computeGapIndexFor(tracks, ev.clientX, ev.clientY) ?? lastGapRef.current;
+        finishDrag(track.id, gap);
+      }
+      cleanup();
+    };
+
+    const handleCancel = () => cleanup();
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleCancel);
+  };
 
   const handleSort = (key: keyof Track) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -332,7 +490,7 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
               <p className="text-zinc-400 text-sm">{error}</p>
             </div>
           ) : (
-          <div className="rounded-xl border border-zinc-900 bg-black/50 overflow-hidden w-full">
+          <div ref={tableWrapperRef} className="rounded-xl border border-zinc-900 bg-black/50 overflow-hidden w-full">
             {tracksListError && (
               <div className="m-4 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
                 <AlertCircle className="w-4 h-4 shrink-0" />
@@ -381,19 +539,32 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
               </TableHeader>
               <TableBody>
                 {tracks.map((track, index) => (
-                  <TableRow
-                    key={track.id}
-                    className={`border-zinc-900 hover:bg-zinc-900/40 group transition-colors ${isPlayableStatus(track.status) ? 'cursor-pointer' : 'cursor-not-allowed'} ${currentTrack?.id === track.id ? 'bg-zinc-900/20' : ''}`}
-                    onClick={() => {
-                      if (!isPlayableStatus(track.status)) return;
-                      if (currentTrack?.id === track.id) {
-                        setIsPlaying(!isPlaying);
-                      } else {
-                        setCurrentTrack(track);
-                        setIsPlaying(true);
-                      }
-                    }}
-                  >
+                  <React.Fragment key={track.id}>
+                    {showInsertionLineAt(index) && (
+                      <TableRow className="border-none hover:bg-transparent pointer-events-none">
+                        <TableCell colSpan={9} className="h-0 p-0">
+                          <div className="h-[2px] bg-white rounded-full" />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    <TableRow
+                      data-track-id={track.id}
+                      className={`border-zinc-900 hover:bg-zinc-900/40 group transition-colors ${isPlayableStatus(track.status) ? 'cursor-pointer' : 'cursor-not-allowed'} ${currentTrack?.id === track.id ? 'bg-zinc-900/20' : ''} ${draggingTrackId === track.id ? 'bg-zinc-900/40' : ''}`}
+                      onPointerDown={(e) => startPotentialDrag(e, track)}
+                      onClick={() => {
+                        if (wasDraggingRef.current) {
+                          wasDraggingRef.current = false;
+                          return;
+                        }
+                        if (!isPlayableStatus(track.status)) return;
+                        if (currentTrack?.id === track.id) {
+                          setIsPlaying(!isPlaying);
+                        } else {
+                          setCurrentTrack(track);
+                          setIsPlaying(true);
+                        }
+                      }}
+                    >
                     <TableCell className="w-12 text-center text-zinc-600 relative">
                       <span className={`transition-opacity ${currentTrack?.id === track.id ? 'opacity-0' : 'group-hover:opacity-0'}`}>{index + 1}</span>
                       <div className={`absolute inset-0 flex items-center justify-center transition-opacity ${currentTrack?.id === track.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
@@ -441,7 +612,7 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                         <StatusBadge status={track.status} />
                       </span>
                     </TableCell>
-                    <TableCell className="text-right pr-4" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="text-right pr-4" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger render={
                           <button className="flex items-center justify-center h-8 w-8 text-zinc-500 hover:text-white hover:bg-zinc-800/50 data-[state=open]:bg-zinc-800/50 data-[state=open]:text-white rounded-md transition-colors outline-none cursor-pointer">
@@ -503,8 +674,16 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
-                  </TableRow>
+                    </TableRow>
+                  </React.Fragment>
                 ))}
+                {showInsertionLineAt(tracks.length) && (
+                  <TableRow className="border-none hover:bg-transparent pointer-events-none">
+                    <TableCell colSpan={9} className="h-0 p-0">
+                      <div className="h-[2px] bg-white rounded-full" />
+                    </TableCell>
+                  </TableRow>
+                )}
                 {tracksLoading && (
                   <TableRow>
                     <TableCell colSpan={9} className="h-32 text-center text-zinc-500">
@@ -540,6 +719,15 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
           )}
         </div>
       </div>
+
+      {draggingTrackId !== null && (
+        <div
+          ref={labelRef}
+          className="fixed top-0 left-0 z-50 pointer-events-none px-3 py-1.5 rounded-md bg-zinc-800 border border-zinc-700 text-sm text-white shadow-2xl whitespace-nowrap max-w-xs truncate"
+        >
+          {tracks.find((t) => t.id === draggingTrackId)?.title}
+        </div>
+      )}
 
       <TrackEditDialog
         track={trackToEdit}

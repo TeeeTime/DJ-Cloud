@@ -382,5 +382,12 @@ export const playlistsApi = {
       token
     ),
 
+  reorderTrack: (playlistId: number, trackId: number, afterTrackId: number | null, token: string) =>
+    request<PlaylistDetailResponse>(
+      `/api/playlists/${playlistId}/tracks/${trackId}/position`,
+      { method: "PUT", body: JSON.stringify({ afterTrackId }) },
+      token
+    ),
+
   downloadUrl: (id: number) => `${API_BASE_URL}/api/playlists/${id}/download`,
 };

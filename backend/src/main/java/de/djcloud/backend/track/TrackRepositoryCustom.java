@@ -12,4 +12,12 @@ interface TrackRepositoryCustom {
      * {@code @ManyToMany} collection — a track can have several — so this aggregates instead.
      */
     List<Long> findIdsSortedByArtist(TrackSearchCriteria criteria);
+
+    /**
+     * Ids of tracks in {@code criteria.scopeToPlaylistId()}'s manual playlist order — can't be a plain
+     * JPA {@code Sort} since {@code position} lives on the {@code PlaylistTrack} join row, not on
+     * {@code Track} itself. Throws {@code 400} if {@code scopeToPlaylistId()} is null; "position" only
+     * means something within one specific playlist.
+     */
+    List<Long> findIdsSortedByPosition(TrackSearchCriteria criteria);
 }

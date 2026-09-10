@@ -146,5 +146,5 @@ export function usePagedTracks({ query, sortConfig, defaultSortKey, fetchPage, p
       });
   }, [tracks.length, pageSize, fetchPage, sortBy, direction, query, filters]);
 
-  return { tracks, isLoading, isLoadingMore, error, hasMore, loadMore, reset, refreshLoaded };
+  return { tracks, setTracks, isLoading, isLoadingMore, error, hasMore, loadMore, reset, refreshLoaded };
 }

@@ -7,7 +7,7 @@ import org.springframework.data.jpa.domain.Specification;
 
 import de.djcloud.backend.artist.Artist;
 import de.djcloud.backend.genre.Genre;
-import de.djcloud.backend.playlist.Playlist;
+import de.djcloud.backend.playlist.PlaylistTrack;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Join;
@@ -39,7 +39,7 @@ final class TrackSpecifications {
                 predicates.add(textSearch(root, cb, criteria.query().trim()));
             }
             if (criteria.scopeToPlaylistId() != null) {
-                predicates.add(inPlaylist(root, cb, criteria.scopeToPlaylistId()));
+                predicates.add(inPlaylist(root, query, cb, criteria.scopeToPlaylistId()));
             }
             if (criteria.scopeToGenreId() != null) {
                 predicates.add(inGenre(root, cb, criteria.scopeToGenreId()));
@@ -79,9 +79,13 @@ final class TrackSpecifications {
                 cb.like(cb.lower(genreJoin.get("name")), pattern));
     }
 
-    private static Predicate inPlaylist(Root<Track> root, CriteriaBuilder cb, Long playlistId) {
-        Join<Track, Playlist> playlistJoin = root.join("playlists", JoinType.INNER);
-        return cb.equal(playlistJoin.get("id"), playlistId);
+    private static Predicate inPlaylist(Root<Track> root, CriteriaQuery<?> query, CriteriaBuilder cb, Long playlistId) {
+        Subquery<Long> subquery = query.subquery(Long.class);
+        Root<PlaylistTrack> playlistTrackRoot = subquery.from(PlaylistTrack.class);
+        subquery.select(playlistTrackRoot.get("track").get("id"))
+                .where(cb.equal(playlistTrackRoot.get("playlist").get("id"), playlistId));
+
+        return root.get("id").in(subquery);
     }
 
     private static Predicate inGenre(Root<Track> root, CriteriaBuilder cb, Long genreId) {
@@ -99,9 +103,9 @@ final class TrackSpecifications {
     private static Predicate notInPlaylist(Root<Track> root, CriteriaQuery<?> query, CriteriaBuilder cb,
             Long playlistId) {
         Subquery<Long> subquery = query.subquery(Long.class);
-        var playlistRoot = subquery.from(Playlist.class);
-        var trackInPlaylist = playlistRoot.join("tracks", JoinType.INNER);
-        subquery.select(trackInPlaylist.get("id")).where(cb.equal(playlistRoot.get("id"), playlistId));
+        Root<PlaylistTrack> playlistTrackRoot = subquery.from(PlaylistTrack.class);
+        subquery.select(playlistTrackRoot.get("track").get("id"))
+                .where(cb.equal(playlistTrackRoot.get("playlist").get("id"), playlistId));
 
         return cb.not(root.get("id").in(subquery));
     }
