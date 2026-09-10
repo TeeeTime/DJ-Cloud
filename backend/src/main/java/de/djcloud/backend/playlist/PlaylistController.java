@@ -45,11 +45,15 @@ public class PlaylistController {
         return playlistService.findPlaylistIdsContainingTrack(trackId);
     }
 
-    /** Same backend-driven search/sort/paging as {@code GET /api/tracks}, scoped to this playlist. */
+    /**
+     * Same backend-driven search/sort/paging as {@code GET /api/tracks}, scoped to this playlist.
+     * Defaults to {@code sortBy=position} — a playlist's own manual/drag-reordered order — unlike the
+     * main library's {@code title} default.
+     */
     @GetMapping("/{id}/tracks")
     public PageResponse<TrackResponse> getTracks(@PathVariable Long id, Authentication authentication,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "30") int size,
-            @RequestParam(defaultValue = "title") String sortBy, @RequestParam(defaultValue = "asc") String direction,
+            @RequestParam(defaultValue = "position") String sortBy, @RequestParam(defaultValue = "asc") String direction,
             @RequestParam(required = false) String query) {
         TrackSearchCriteria criteria = TrackSearchCriteria.fromParams(query, sortBy, direction, page, size, null,
                 null, null, null, null, null);
@@ -124,5 +128,12 @@ public class PlaylistController {
     public PlaylistDetailResponse removeTrack(@PathVariable Long id, @PathVariable Long trackId,
             Authentication authentication) {
         return playlistService.removeTrack(id, trackId, (AppUserDetails) authentication.getPrincipal());
+    }
+
+    /** Same permission rule as {@code POST .../tracks}. Moves {@code trackId} to a new position within the playlist. */
+    @PutMapping("/{id}/tracks/{trackId}/position")
+    public PlaylistDetailResponse reorderTrack(@PathVariable Long id, @PathVariable Long trackId,
+            @Valid @RequestBody ReorderTrackRequest request, Authentication authentication) {
+        return playlistService.reorderTrack(id, trackId, request, (AppUserDetails) authentication.getPrincipal());
     }
 }

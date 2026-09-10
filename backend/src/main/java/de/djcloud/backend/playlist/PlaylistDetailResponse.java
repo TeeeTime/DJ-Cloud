@@ -10,9 +10,9 @@ public record PlaylistDetailResponse(Long id, String name, boolean isPublic, Str
      * Track membership is no longer embedded here — see {@code GET /api/playlists/{id}/tracks}, which
      * supports the same backend-driven search/sort/paging as the main library.
      */
-    public static PlaylistDetailResponse fromEntity(Playlist playlist, boolean canEditTracks, boolean subscribed) {
+    public static PlaylistDetailResponse fromEntity(Playlist playlist, boolean canEditTracks, boolean subscribed,
+            int trackCount) {
         return new PlaylistDetailResponse(playlist.getId(), playlist.getName(), playlist.isPublic(),
-                playlist.getOwner().getUsername(), playlist.getCreatedAt(), canEditTracks, subscribed,
-                playlist.getTracks().size());
+                playlist.getOwner().getUsername(), playlist.getCreatedAt(), canEditTracks, subscribed, trackCount);
     }
 }

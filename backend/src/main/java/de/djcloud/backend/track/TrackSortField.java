@@ -22,7 +22,9 @@ public enum TrackSortField {
     DATE_ADDED("dateAdded", "dateAdded"),
     DURATION("durationSeconds", "durationSeconds"),
     KEY("key", "key"),
-    FILE_FORMAT("fileFormat", "fileFormat");
+    FILE_FORMAT("fileFormat", "fileFormat"),
+    /** Manual playlist order — only valid when the search is scoped to a playlist. */
+    POSITION("position", null);
 
     private static final Map<String, TrackSortField> BY_WIRE_VALUE = Stream.of(values())
             .collect(Collectors.toMap(f -> f.wireValue, f -> f));

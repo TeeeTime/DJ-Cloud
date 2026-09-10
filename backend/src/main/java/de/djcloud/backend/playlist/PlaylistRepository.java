@@ -11,6 +11,6 @@ import org.springframework.stereotype.Repository;
 public interface PlaylistRepository extends JpaRepository<Playlist, Long> {
 
     /** IDs of playlists containing the given track. */
-    @Query("select p.id from Playlist p join p.tracks t where t.id = :trackId")
+    @Query("select pt.playlist.id from PlaylistTrack pt where pt.track.id = :trackId")
     List<Long> findPlaylistIdsContainingTrack(@Param("trackId") Long trackId);
 }
