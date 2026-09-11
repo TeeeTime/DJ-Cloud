@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { motion } from "motion/react";
-import type { DesktopDownloadLinks } from "@/app/api/desktop-download/route";
+import type { DesktopDownloadLinks } from "@/app/desktop-download/route";
 
 export function DesktopDownloadCard() {
   const [links, setLinks] = useState<DesktopDownloadLinks | null>(null);
@@ -12,7 +12,10 @@ export function DesktopDownloadCard() {
   useEffect(() => {
     let cancelled = false;
 
-    fetch("/api/desktop-download")
+    // Deliberately not under /api/ — this repo's nginx routes everything under /api/* to the
+    // Spring Boot backend on a different port, which would swallow this Next.js Route Handler
+    // entirely in production (it did: the backend returned its own 401 for the unmapped path).
+    fetch("/desktop-download")
       .then((res) => res.json())
       .then((data: DesktopDownloadLinks) => {
         if (!cancelled) setLinks(data);
