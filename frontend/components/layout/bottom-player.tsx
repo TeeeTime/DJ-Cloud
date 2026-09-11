@@ -87,6 +87,14 @@ export function BottomPlayer() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setIsPlaying]);
 
+  // Stop playback when the user navigates back to the landing page — the player UI is hidden
+  // there, so audio must not keep running silently in the background.
+  useEffect(() => {
+    if (pathname === '/') {
+      setIsPlaying(false);
+    }
+  }, [pathname, setIsPlaying]);
+
   // Sync play/pause — gated on the track actually being ready (a preview file must exist) as a
   // last line of defense: whatever set `isPlaying`/`currentTrack` (row click, spacebar, skip,
   // default-selection) should already guarantee this, but a real .play() call must never be
