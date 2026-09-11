@@ -17,7 +17,8 @@ export function DesktopDownloadCard() {
       .then((data: DesktopDownloadLinks) => {
         if (!cancelled) setLinks(data);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Failed to load desktop download links", err);
         if (!cancelled) setLinks({ version: null, windows: null, macos: null });
       })
       .finally(() => {
