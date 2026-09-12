@@ -222,7 +222,8 @@ pub fn run() {
                 // side effect of clicking the icon itself (most likely to open the context
                 // menu) — leave the window alone and let the tray/menu handlers decide. Same
                 // for a native dialog (e.g. the folder picker) taking focus over "main".
-                if !pointer_over_tray && !native_dialog_open && window.is_visible().unwrap_or(false) {
+                if !pointer_over_tray && !native_dialog_open && window.is_visible().unwrap_or(false)
+                {
                     let _ = window.hide();
                     set_show_hide_label(window, "Show");
                 }
