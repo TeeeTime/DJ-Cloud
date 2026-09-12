@@ -52,6 +52,12 @@ export function DesktopDownloadCard() {
         <div className="flex flex-col space-y-3">
           <DownloadButton href={links?.windows ?? null} label="Download for Windows" />
           <DownloadButton href={links?.macos ?? null} label="Download for Mac" />
+          {links?.macos && (
+            <p className="text-xs text-zinc-600">
+              macOS will warn about an unidentified developer — right-click the app and choose
+              &quot;Open&quot; the first time.
+            </p>
+          )}
           {links?.version && (
             <p className="text-xs text-zinc-600 pt-1">{links.version}</p>
           )}

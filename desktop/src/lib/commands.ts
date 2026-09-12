@@ -37,6 +37,8 @@ export const commands = {
   syncLibrary: () => invoke<SyncSummary>("sync_library"),
 
   uninstall: () => invoke<void>("uninstall_app"),
+
+  setNativeDialogOpen: (open: boolean) => invoke<void>("set_native_dialog_open", { open }),
 };
 
 export function onAuthTokenReceived(handler: (auth: AuthInfo) => void): Promise<UnlistenFn> {

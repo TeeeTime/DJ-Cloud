@@ -50,3 +50,15 @@ jobs:
           projectPath: desktop
           tagName: ${{ github.event.release.tag_name }}
           releaseId: ${{ github.event.release.id }}
+
+      - name: Verify macOS code signature
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          DMG=$(find desktop/src-tauri/target/release/bundle/dmg -name "*.dmg" -maxdepth 1)
+          MOUNT_DIR=$(mktemp -d)
+          hdiutil attach "$DMG" -mountpoint "$MOUNT_DIR" -nobrowse -quiet
+          APP=$(find "$MOUNT_DIR" -maxdepth 1 -name "*.app")
+          codesign --verify --deep --strict --verbose=4 "$APP"
+          hdiutil detach "$MOUNT_DIR" -quiet
