@@ -4,3 +4,4 @@ data/
 *.key
 *.key.pub
 .updater-keys/
+.DS_Store

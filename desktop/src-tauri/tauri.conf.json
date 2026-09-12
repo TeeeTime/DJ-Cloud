@@ -42,6 +42,9 @@
         "installerIcon": "icons/icon.ico",
         "sidebarImage": "installer/nsis-sidebar.bmp"
       }
+    },
+    "macOS": {
+      "signingIdentity": "-"
     }
   },
   "plugins": {
