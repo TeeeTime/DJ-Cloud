@@ -30,6 +30,17 @@ struct PointerOverTray(Mutex<bool>);
 /// The context menu's Show/Hide item, kept around so its label can track window visibility.
 struct ShowHideMenuItem(MenuItem<tauri::Wry>);
 
+/// Whether a native dialog (e.g. the folder picker) is currently open over the main window.
+/// Presenting one steals key-window focus from "main", firing the same `Focused(false)` event
+/// as the user clicking away — without this guard the blur-hide logic below would hide the
+/// window (and the dialog attached to it) the instant it appeared.
+struct NativeDialogOpen(Mutex<bool>);
+
+#[tauri::command]
+fn set_native_dialog_open(state: tauri::State<NativeDialogOpen>, open: bool) {
+    *state.0.lock().unwrap() = open;
+}
+
 fn set_show_hide_label(manager: &impl Manager<tauri::Wry>, label: &str) {
     if let Some(state) = manager.try_state::<ShowHideMenuItem>() {
         let _ = state.0.set_text(label);
@@ -123,9 +134,11 @@ pub fn run() {
             settings::set_library_folder,
             sync::sync_library,
             uninstall::uninstall_app,
+            set_native_dialog_open,
         ])
         .manage(TrayRect(Mutex::new(None)))
         .manage(PointerOverTray(Mutex::new(false)))
+        .manage(NativeDialogOpen(Mutex::new(false)))
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -200,11 +213,16 @@ pub fn run() {
                     .try_state::<PointerOverTray>()
                     .map(|state| *state.0.lock().unwrap())
                     .unwrap_or(false);
+                let native_dialog_open = window
+                    .try_state::<NativeDialogOpen>()
+                    .map(|state| *state.0.lock().unwrap())
+                    .unwrap_or(false);
 
                 // Losing focus while the pointer is over the tray icon means this blur is a
                 // side effect of clicking the icon itself (most likely to open the context
-                // menu) — leave the window alone and let the tray/menu handlers decide.
-                if !pointer_over_tray && window.is_visible().unwrap_or(false) {
+                // menu) — leave the window alone and let the tray/menu handlers decide. Same
+                // for a native dialog (e.g. the folder picker) taking focus over "main".
+                if !pointer_over_tray && !native_dialog_open && window.is_visible().unwrap_or(false) {
                     let _ = window.hide();
                     set_show_hide_label(window, "Show");
                 }

@@ -18,9 +18,17 @@ export function ConfigScreen({ targetFolder, onSave }: ConfigScreenProps) {
   const isMove = targetFolder != null && targetFolder !== folder;
 
   async function handleBrowse() {
-    const selected = await open({ directory: true, multiple: false });
-    if (typeof selected === "string") {
-      setFolder(selected);
+    // Presenting the native picker steals focus from the main window, which the tray/window
+    // logic in src-tauri/src/lib.rs would otherwise read as the user clicking away and hide the
+    // window (taking the picker with it) — this flag tells it to leave the window alone.
+    await commands.setNativeDialogOpen(true);
+    try {
+      const selected = await open({ directory: true, multiple: false });
+      if (typeof selected === "string") {
+        setFolder(selected);
+      }
+    } finally {
+      await commands.setNativeDialogOpen(false);
     }
   }
 
