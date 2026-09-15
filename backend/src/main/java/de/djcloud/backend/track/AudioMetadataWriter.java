@@ -16,30 +16,58 @@ import org.springframework.stereotype.Component;
 
 import de.djcloud.backend.artist.Artist;
 import de.djcloud.backend.genre.Genre;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Writes edited track fields back into the original audio file's own tags, so editing a track via
  * the API never leaves the file on disk holding stale metadata.
+ *
+ * <p>For WAV files, every write in this class goes through {@link WavId3ChunkWriter} rather than
+ * jaudiotagger's {@code AudioFile#commit()}.
+ * jaudiotagger's WAV commit rewrites the whole LIST/INFO/ID3 chunk region from its own in-memory
+ * model, which has been observed to corrupt unrelated binary chunks it re-serializes along the way
+ * (e.g. Traktor Pro's proprietary "NITR" cue/grid chunk). {@link WavId3ChunkWriter} instead only
+ * ever touches a pre-existing "id3 " chunk (excising it) and appends the replacement, leaving every
+ * other chunk — including any pre-existing RIFF INFO chunk — untouched. One consequence: unlike
+ * before, a WAV's RIFF INFO chunk is never written to by this app, even if one already exists —
+ * only the ID3 sub-tag is. Tools that read WAV metadata exclusively via RIFF INFO (not ID3, which
+ * is the more common convention among DJ/tagging tools) will keep showing whatever was there
+ * before, not edits made through this app. Accepted tradeoff to eliminate the corruption risk.
  */
 @Component
+@RequiredArgsConstructor
 class AudioMetadataWriter {
+
+    private final WavId3ChunkWriter wavId3ChunkWriter;
 
     void write(File file, String title, String key, int bpm, Set<Artist> artists, Set<Genre> genres) {
         try {
             AudioFile audioFile = AudioFileIO.read(file);
             Tag tag = audioFile.getTagOrCreateAndSetDefault();
 
-            setField(tag, FieldKey.TITLE, title);
-            setField(tag, FieldKey.KEY, key);
-            setField(tag, FieldKey.BPM, bpm > 0 ? String.valueOf(bpm) : null);
-            setField(tag, FieldKey.ARTIST, artists.stream()
-                    .map(Artist::getName)
-                    .collect(Collectors.joining("; ")));
-            setField(tag, FieldKey.GENRE, genres.stream()
-                    .map(Genre::getName)
-                    .collect(Collectors.joining("; ")));
+            String artistValue = artists.stream().map(Artist::getName).collect(Collectors.joining("; "));
+            String genreValue = genres.stream().map(Genre::getName).collect(Collectors.joining("; "));
+            String bpmValue = bpm > 0 ? String.valueOf(bpm) : null;
 
-            audioFile.commit();
+            if (tag instanceof WavTag wavTag) {
+                AbstractID3v2Tag id3Tag = getOrCreateId3Tag(wavTag);
+
+                setField(id3Tag, FieldKey.TITLE, title);
+                setField(id3Tag, FieldKey.KEY, key);
+                setField(id3Tag, FieldKey.BPM, bpmValue);
+                setField(id3Tag, FieldKey.ARTIST, artistValue);
+                setField(id3Tag, FieldKey.GENRE, genreValue);
+
+                wavId3ChunkWriter.writeId3Chunk(file, wavTag);
+            } else {
+                setField(tag, FieldKey.TITLE, title);
+                setField(tag, FieldKey.KEY, key);
+                setField(tag, FieldKey.BPM, bpmValue);
+                setField(tag, FieldKey.ARTIST, artistValue);
+                setField(tag, FieldKey.GENRE, genreValue);
+
+                audioFile.commit();
+            }
         } catch (Exception ex) {
             // jaudiotagger throws several checked exceptions here (CannotReadException,
             // TagException, ReadOnlyFileException, InvalidAudioFrameException,
@@ -61,7 +89,10 @@ class AudioMetadataWriter {
      * confirmed by writing to a real ffmpeg-generated WAV with a pre-existing INFO chunk, where
      * a generic {@code tag.setField(CUSTOM1, ...)} threw {@code UnsupportedOperationException}.
      * Targeting the ID3 sub-tag directly (creating one if absent) sidesteps that INFO-vs-ID3
-     * routing entirely, leaving the INFO chunk and every other field's routing untouched.
+     * routing entirely, leaving the INFO chunk and every other field's routing untouched. This
+     * can run more than once on the same file over its lifetime (see {@link
+     * CustomIdBackfillRunner}), so {@link WavId3ChunkWriter} must — and does — replace rather
+     * than duplicate a previously-written "id3 " chunk.
      */
     void writeInternalId(File file, Long id) {
         try {
@@ -69,18 +100,15 @@ class AudioMetadataWriter {
             Tag tag = audioFile.getTagOrCreateAndSetDefault();
 
             if (tag instanceof WavTag wavTag) {
-                AbstractID3v2Tag id3Tag = wavTag.getID3Tag();
-                if (id3Tag == null) {
-                    id3Tag = WavTag.createDefaultID3Tag();
-                    wavTag.setID3Tag(id3Tag);
-                }
+                AbstractID3v2Tag id3Tag = getOrCreateId3Tag(wavTag);
                 id3Tag.setField(FieldKey.CUSTOM1, String.valueOf(id));
-                wavTag.setExistingId3Tag(true);
+
+                wavId3ChunkWriter.writeId3Chunk(file, wavTag);
             } else {
                 setField(tag, FieldKey.CUSTOM1, String.valueOf(id));
-            }
 
-            audioFile.commit();
+                audioFile.commit();
+            }
         } catch (Exception ex) {
             throw new AudioMetadataException("Could not write internal id tag", ex);
         }
@@ -97,10 +125,18 @@ class AudioMetadataWriter {
             artwork.setMimeType(mimeType);
             artwork.setDescription("");
 
-            tag.deleteArtworkField();
-            tag.addField(artwork);
+            if (tag instanceof WavTag wavTag) {
+                AbstractID3v2Tag id3Tag = getOrCreateId3Tag(wavTag);
+                id3Tag.deleteArtworkField();
+                id3Tag.addField(artwork);
 
-            audioFile.commit();
+                wavId3ChunkWriter.writeId3Chunk(file, wavTag);
+            } else {
+                tag.deleteArtworkField();
+                tag.addField(artwork);
+
+                audioFile.commit();
+            }
         } catch (Exception ex) {
             throw new AudioMetadataException("Could not update audio file metadata", ex);
         }
@@ -112,20 +148,47 @@ class AudioMetadataWriter {
             AudioFile audioFile = AudioFileIO.read(file);
             Tag tag = audioFile.getTagOrCreateAndSetDefault();
 
-            tag.deleteArtworkField();
+            if (tag instanceof WavTag wavTag) {
+                AbstractID3v2Tag id3Tag = getOrCreateId3Tag(wavTag);
+                id3Tag.deleteArtworkField();
 
-            audioFile.commit();
+                wavId3ChunkWriter.writeId3Chunk(file, wavTag);
+            } else {
+                tag.deleteArtworkField();
+
+                audioFile.commit();
+            }
         } catch (Exception ex) {
             throw new AudioMetadataException("Could not update audio file metadata", ex);
         }
     }
 
     /**
-     * Some tag formats only support a fixed, narrow field set — e.g. a WAV file with no ID3 chunk
-     * falls back to jaudiotagger's RIFF INFO tag, which has no slot for KEY or BPM. jaudiotagger
-     * signals that with an unchecked UnsupportedOperationException rather than one of its usual
-     * checked exceptions, so it's swallowed here per-field instead of aborting the whole write —
-     * fields the format can't hold are skipped rather than blocking the ones it can (TITLE/ARTIST).
+     * Returns the WAV's existing ID3 sub-tag, creating and attaching a fresh one if absent.
+     *
+     * <p>Deliberately does <em>not</em> call {@code wavTag.setExistingId3Tag(true)} for a freshly
+     * created tag: that flag is what jaudiotagger itself (via {@code WavTag#getSizeOfID3TagOnly()},
+     * consulted by {@code WavTagWriter#convertID3Chunk}) trusts to decide whether the tag's
+     * file-location fields are meaningful — forcing it true for a tag that was never actually read
+     * from a chunk on disk (no location data) throws an NPE deep inside jaudiotagger. When a chunk
+     * genuinely exists on disk, {@code AudioFileIO.read} already marked this true during parsing.
+     */
+    private AbstractID3v2Tag getOrCreateId3Tag(WavTag wavTag) {
+        AbstractID3v2Tag id3Tag = wavTag.getID3Tag();
+        if (id3Tag == null) {
+            id3Tag = WavTag.createDefaultID3Tag();
+            wavTag.setID3Tag(id3Tag);
+        }
+        return id3Tag;
+    }
+
+    /**
+     * Some tag formats only support a fixed, narrow field set — e.g. an MP3's ID3v1 fallback tag
+     * has no slot for a custom field. jaudiotagger signals that with an unchecked
+     * UnsupportedOperationException rather than one of its usual checked exceptions, so it's
+     * swallowed here per-field instead of aborting the whole write — fields the format can't hold
+     * are skipped rather than blocking the ones it can (TITLE/ARTIST). Not expected to trigger for
+     * the WAV+ID3v2 path above, since ID3v2 supports all fields written here; kept defensively.
      */
     private void setField(Tag tag, FieldKey key, String value) throws Exception {
         try {
