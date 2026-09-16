@@ -123,6 +123,8 @@ pub async fn sync_library(app: AppHandle) -> Result<SyncSummary, String> {
         let folder = resolve_playlist_folder(&library_folder, &mut index, playlist, &remote_ids)?;
         save_sync_index(&library_folder, &index)?;
 
+        cleanup_stale_part_files(&folder);
+
         let local_ids = local_track_ids(&folder);
         for track in remote_tracks {
             if !local_ids.contains(&track.id) {
@@ -223,11 +225,14 @@ pub(crate) fn managed_top_level_names(library_folder: &Path) -> HashSet<String> 
     names
 }
 
-/// Looks up (or recovers/assigns) the local folder for a playlist, keyed by its id so a rename
-/// reuses the existing folder instead of creating a duplicate. A brand-new mapping first checks
-/// whether an existing, unclaimed folder already holds this playlist's tracks (see
-/// `find_recovered_folder` — covers a lost/corrupted sync index) before falling back to a
-/// sanitized, collision-safe folder name derived from the playlist's current name.
+/// Looks up (or recovers/assigns/renames) the local folder for a playlist, keyed by its id. A
+/// brand-new mapping first checks whether an existing, unclaimed folder already holds this
+/// playlist's tracks (see `find_recovered_folder` — covers a lost/corrupted sync index) before
+/// falling back to a sanitized, collision-safe folder name derived from the playlist's current
+/// name. An existing mapping whose folder name no longer matches the playlist's current (sanitized)
+/// name — i.e. the playlist was renamed remotely since the last sync — is renamed on disk to match,
+/// best-effort: a rename that fails (folder missing, open/locked elsewhere, etc.) keeps the old
+/// name rather than failing the whole sync over one playlist.
 fn resolve_playlist_folder(
     library_folder: &Path,
     index: &mut SyncIndex,
@@ -235,22 +240,46 @@ fn resolve_playlist_folder(
     remote_track_ids: &HashSet<i64>,
 ) -> Result<PathBuf, String> {
     let key = playlist.id.to_string();
+    let desired_name = sanitize_folder_name(&playlist.name);
 
-    if let Some(entry) = index.playlists.get(&key) {
-        let folder = library_folder.join(&entry.folder_name);
+    if let Some(entry) = index.playlists.get(&key).cloned() {
+        if entry.folder_name == desired_name {
+            let folder = library_folder.join(&entry.folder_name);
+            fs::create_dir_all(&folder).map_err(|err| err.to_string())?;
+            return Ok(folder);
+        }
+
+        let old_path = library_folder.join(&entry.folder_name);
+        let used_names = other_used_names(index, &key);
+        let new_name = unique_folder_name_on_disk(&desired_name, &used_names, library_folder);
+
+        let folder_name = if old_path.exists() {
+            let new_path = library_folder.join(&new_name);
+            if fs::rename(&old_path, &new_path).is_ok() {
+                new_name
+            } else {
+                eprintln!(
+                    "Could not rename playlist folder \"{}\" to match renamed playlist \"{}\"; keeping old name",
+                    entry.folder_name, playlist.name
+                );
+                entry.folder_name
+            }
+        } else {
+            // Nothing to rename — the old folder is already gone (deleted externally) — so just
+            // adopt the new name going forward.
+            new_name
+        };
+
+        let folder = library_folder.join(&folder_name);
         fs::create_dir_all(&folder).map_err(|err| err.to_string())?;
+        index.playlists.insert(key, PlaylistEntry { folder_name });
         return Ok(folder);
     }
 
-    let used_names: HashSet<String> = index
-        .playlists
-        .values()
-        .map(|entry| entry.folder_name.clone())
-        .collect();
-
+    let used_names = other_used_names(index, &key);
     let folder_name = match find_recovered_folder(library_folder, &used_names, remote_track_ids) {
         Some(recovered) => recovered,
-        None => unique_folder_name(&sanitize_folder_name(&playlist.name), &used_names),
+        None => unique_folder_name_on_disk(&desired_name, &used_names, library_folder),
     };
     let folder = library_folder.join(&folder_name);
     fs::create_dir_all(&folder).map_err(|err| err.to_string())?;
@@ -263,6 +292,18 @@ fn resolve_playlist_folder(
     );
 
     Ok(folder)
+}
+
+/// Every folder name already claimed by another playlist in the index — i.e. every entry except
+/// `exclude_key`'s own, so a playlist being renamed doesn't see its own (about-to-change) name as
+/// "taken" and needlessly pick a suffixed alternative.
+fn other_used_names(index: &SyncIndex, exclude_key: &str) -> HashSet<String> {
+    index
+        .playlists
+        .iter()
+        .filter(|(key, _)| key.as_str() != exclude_key)
+        .map(|(_, entry)| entry.folder_name.clone())
+        .collect()
 }
 
 /// Scans `library_folder`'s existing top-level subdirectories, not already claimed by another
@@ -327,7 +368,10 @@ fn sanitize_folder_name(name: &str) -> String {
 /// Strips characters that are invalid (or awkward) in a filesystem name. Shared by playlist
 /// folder names and downloaded track filenames, since both are ultimately joined onto a disk
 /// path — for filenames this also closes off a path-traversal risk, since a server-provided
-/// name containing `/`/`\` could otherwise escape the intended playlist folder.
+/// name containing `/`/`\` could otherwise escape the intended playlist folder. Applied on every
+/// platform regardless of which OS is actually running, since the stricter Windows-only rules
+/// (illegal characters, reserved device names) are a harmless no-op on macOS/Linux but avoid a
+/// real failure if the same library folder is ever used from Windows.
 fn sanitize_path_component(name: &str) -> String {
     let cleaned: String = name
         .chars()
@@ -339,28 +383,56 @@ fn sanitize_path_component(name: &str) -> String {
             }
         })
         .collect();
-    cleaned.trim().trim_end_matches(['.', ' ']).to_string()
+    let cleaned = cleaned.trim().trim_end_matches(['.', ' ']).to_string();
+    avoid_windows_reserved_name(cleaned)
 }
 
-fn unique_folder_name(base: &str, used: &HashSet<String>) -> String {
-    if !used.contains(base) {
+/// Windows reserves these names (case-insensitively, with or without a trailing extension) for
+/// device files — `fs::create_dir_all("CON")` or writing a file named `NUL.txt` fails outright.
+/// Appends a trailing underscore so a colliding name stays recognizable but is no longer reserved.
+fn avoid_windows_reserved_name(name: String) -> String {
+    const RESERVED: &[&str] = &[
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+        "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    ];
+
+    let stem = name.split('.').next().unwrap_or(&name);
+    if RESERVED
+        .iter()
+        .any(|reserved| stem.eq_ignore_ascii_case(reserved))
+    {
+        format!("{name}_")
+    } else {
+        name
+    }
+}
+
+/// Picks a folder name based on `base`, disambiguated with a `" (2)"`-style suffix against both
+/// `used` (other playlists' folder names already claimed in the sync index) and whatever actually
+/// exists on disk under `library_folder` — so a playlist's sanitized name colliding with a folder
+/// the user already has there (never claimed by DJ Cloud) gets its own distinct folder instead of
+/// silently merging into it.
+fn unique_folder_name_on_disk(base: &str, used: &HashSet<String>, library_folder: &Path) -> String {
+    let is_taken = |name: &str| used.contains(name) || library_folder.join(name).exists();
+
+    if !is_taken(base) {
         return base.to_string();
     }
 
     let mut counter = 2;
     loop {
         let candidate = format!("{base} ({counter})");
-        if !used.contains(&candidate) {
+        if !is_taken(&candidate) {
             return candidate;
         }
         counter += 1;
     }
 }
 
-/// Same idea as `unique_folder_name`, but checked against what's actually on disk in `folder`
-/// rather than an index, and splits off the file extension so the disambiguating suffix lands
-/// before it (`"Song (DJ Cloud).mp3"`, not `"Song.mp3 (DJ Cloud)"`). Used so a synced track never
-/// overwrites a same-named file that isn't this exact track — see `download_track`.
+/// Same idea as `unique_folder_name_on_disk`, but splits off the file extension so the
+/// disambiguating suffix lands before it (`"Song (DJ Cloud).mp3"`, not `"Song.mp3 (DJ Cloud)"`).
+/// Used so a synced track never overwrites a same-named file that isn't this exact track — see
+/// `download_track`.
 fn unique_file_path(folder: &Path, filename: &str) -> PathBuf {
     let candidate = folder.join(filename);
     if !candidate.exists() {
@@ -417,6 +489,25 @@ async fn fetch_all_tracks(
     }
 
     Ok(all)
+}
+
+/// Removes any leftover `*.part` temp file in `folder` from a prior download that never finished
+/// renaming to its final name — normally that only happens if the app was killed (crash, force
+/// quit, power loss) mid-write, since `download_track` already cleans up after a write that fails
+/// on its own. Safe to just discard: the track a `.part` file belongs to isn't tagged yet either
+/// way, so it's already about to be re-downloaded in this same sync run. Best-effort — a folder
+/// that can't be read or a file that can't be removed is simply left for next time.
+fn cleanup_stale_part_files(folder: &Path) {
+    let Ok(entries) = fs::read_dir(folder) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) == Some("part") {
+            let _ = fs::remove_file(path);
+        }
+    }
 }
 
 /// Reads the embedded id tag off every mp3/wav file already in `folder` — the local half of the
@@ -654,5 +745,112 @@ mod tests {
     #[test]
     fn sanitize_path_component_strips_invalid_characters() {
         assert_eq!(sanitize_path_component("Mix: A/B\\C"), "Mix_ A_B_C");
+    }
+
+    #[test]
+    fn sanitize_path_component_avoids_windows_reserved_names() {
+        assert_eq!(sanitize_path_component("CON"), "CON_");
+        assert_eq!(sanitize_path_component("con"), "con_");
+        assert_eq!(sanitize_path_component("LPT1"), "LPT1_");
+        // Not reserved: only an exact (case-insensitive) match on the stem counts.
+        assert_eq!(sanitize_path_component("Console"), "Console");
+    }
+
+    #[test]
+    fn cleanup_stale_part_files_removes_part_files_but_leaves_others() {
+        let dir = tempfile_dir();
+        fs::write(dir.join("track.mp3.part"), b"partial").unwrap();
+        fs::write(dir.join("track.mp3"), b"complete").unwrap();
+
+        cleanup_stale_part_files(&dir);
+
+        assert!(!dir.join("track.mp3.part").exists());
+        assert!(dir.join("track.mp3").exists());
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    fn playlist(id: i64, name: &str) -> Playlist {
+        Playlist {
+            id,
+            name: name.to_string(),
+            owner_username: "someone".to_string(),
+            subscribed: true,
+        }
+    }
+
+    #[test]
+    fn resolve_playlist_folder_renames_local_folder_when_playlist_is_renamed_remotely() {
+        let dir = tempfile_dir();
+        fs::create_dir_all(dir.join("Old Name")).unwrap();
+        fs::write(dir.join("Old Name").join("track.mp3"), b"data").unwrap();
+
+        let mut index = SyncIndex {
+            version: 1,
+            playlists: HashMap::from([(
+                "1".to_string(),
+                PlaylistEntry {
+                    folder_name: "Old Name".to_string(),
+                },
+            )]),
+        };
+
+        let pl = playlist(1, "New Name");
+        let folder = resolve_playlist_folder(&dir, &mut index, &pl, &HashSet::new()).unwrap();
+
+        assert_eq!(folder, dir.join("New Name"));
+        assert!(folder.join("track.mp3").exists());
+        assert!(!dir.join("Old Name").exists());
+        assert_eq!(index.playlists["1"].folder_name, "New Name");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn resolve_playlist_folder_picks_a_free_name_when_rename_target_already_exists_on_disk() {
+        let dir = tempfile_dir();
+        fs::create_dir_all(dir.join("Old Name")).unwrap();
+        // A folder DJ Cloud didn't create that happens to already occupy the desired new name.
+        fs::create_dir_all(dir.join("New Name")).unwrap();
+
+        let mut index = SyncIndex {
+            version: 1,
+            playlists: HashMap::from([(
+                "1".to_string(),
+                PlaylistEntry {
+                    folder_name: "Old Name".to_string(),
+                },
+            )]),
+        };
+
+        let pl = playlist(1, "New Name");
+        let folder = resolve_playlist_folder(&dir, &mut index, &pl, &HashSet::new()).unwrap();
+
+        assert_eq!(folder, dir.join("New Name (2)"));
+        assert_eq!(index.playlists["1"].folder_name, "New Name (2)");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn resolve_playlist_folder_avoids_an_unmanaged_folder_on_fresh_creation() {
+        let dir = tempfile_dir();
+        // A folder the user already has, never created by DJ Cloud, that happens to share a
+        // playlist's sanitized name.
+        fs::create_dir_all(dir.join("My Mix")).unwrap();
+        fs::write(dir.join("My Mix").join("personal.mp3"), b"mine").unwrap();
+
+        let mut index = SyncIndex {
+            version: 1,
+            playlists: HashMap::new(),
+        };
+        let pl = playlist(7, "My Mix");
+
+        let folder = resolve_playlist_folder(&dir, &mut index, &pl, &HashSet::new()).unwrap();
+
+        assert_eq!(folder, dir.join("My Mix (2)"));
+        assert!(dir.join("My Mix").join("personal.mp3").exists());
+
+        fs::remove_dir_all(&dir).ok();
     }
 }
