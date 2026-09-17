@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Pause, Ban, Download, Pencil, Trash, Settings2, MoreHorizontal, Loader2, AlertCircle, Lock, Globe, Bell, BellOff, Menu as MenuIcon, Search, ArrowUpDown, ChevronUp, ChevronDown, Copy } from "lucide-react";
+import { Play, Pause, Ban, Download, Pencil, Trash, MoreHorizontal, Loader2, AlertCircle, Lock, Globe, Bell, BellOff, Menu as MenuIcon, Search, ArrowUpDown, ChevronUp, ChevronDown, Copy } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -631,9 +631,6 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                               <Download className="w-4 h-4 mr-2" />
                             )}
                             <span className="text-sm">Download</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2">
-                            <Settings2 className="w-4 h-4 mr-2" /> <span className="text-sm">Stems Options</span>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator className="bg-zinc-800 my-1" />
                           <AddToPlaylistMenu trackId={track.id} />
