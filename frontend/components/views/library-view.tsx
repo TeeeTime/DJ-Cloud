@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Pause, Ban, Download, Pencil, Trash, Settings2, Search, MoreHorizontal, ArrowUpDown, ChevronUp, ChevronDown, Menu, Loader2, AlertCircle } from "lucide-react";
+import { Play, Pause, Ban, Download, Pencil, Trash, Search, MoreHorizontal, ArrowUpDown, ChevronUp, ChevronDown, Menu, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -259,9 +259,6 @@ export function LibraryView() {
                               <Download className="w-4 h-4 mr-2" />
                             )}
                             <span className="text-sm">Download</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2">
-                            <Settings2 className="w-4 h-4 mr-2" /> <span className="text-sm">Stems Options</span>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator className="bg-zinc-800 my-1" />
                           <AddToPlaylistMenu trackId={track.id} />

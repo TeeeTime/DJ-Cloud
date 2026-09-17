@@ -174,6 +174,12 @@ export interface GenreResponse {
   name: string;
 }
 
+export interface GenreSyncResponse {
+  id: number;
+  name: string;
+  syncEnabled: boolean;
+}
+
 export const genresApi = {
   autocomplete: (query: string) => {
     const qs = new URLSearchParams();
@@ -183,6 +189,15 @@ export const genresApi = {
   create: (name: string, token: string) =>
     request<GenreResponse>("/api/genres", { method: "POST", body: JSON.stringify({ name }) }, token),
   distribution: () => request<GenreDistributionResponse[]>("/api/genres/distribution", { method: "GET" }),
+
+  list: (token: string) =>
+    request<GenreSyncResponse[]>("/api/genres", { method: "GET" }, token),
+
+  enableSync: (name: string, token: string) =>
+    request<GenreSyncResponse>(`/api/genres/${encodeURIComponent(name)}/sync`, { method: "POST" }, token),
+
+  disableSync: (name: string, token: string) =>
+    request<GenreSyncResponse>(`/api/genres/${encodeURIComponent(name)}/sync`, { method: "DELETE" }, token),
 
   getTracks: (name: string, params: TrackListParams = {}) => {
     const query = new URLSearchParams();
@@ -303,6 +318,7 @@ export interface PlaylistResponse {
   createdAt: string;
   trackCount: number;
   subscribed: boolean;
+  syncEnabled: boolean;
   topGenres: string[];
 }
 
@@ -314,6 +330,7 @@ export interface PlaylistDetailResponse {
   createdAt: string;
   canEditTracks: boolean;
   subscribed: boolean;
+  syncEnabled: boolean;
   trackCount: number;
 }
 
@@ -367,6 +384,12 @@ export const playlistsApi = {
 
   unsubscribe: (id: number, token: string) =>
     request<PlaylistDetailResponse>(`/api/playlists/${id}/subscription`, { method: "DELETE" }, token),
+
+  enableSync: (id: number, token: string) =>
+    request<PlaylistDetailResponse>(`/api/playlists/${id}/sync`, { method: "POST" }, token),
+
+  disableSync: (id: number, token: string) =>
+    request<PlaylistDetailResponse>(`/api/playlists/${id}/sync`, { method: "DELETE" }, token),
 
   addTrack: (playlistId: number, trackId: number, token: string) =>
     request<PlaylistDetailResponse>(

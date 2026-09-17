@@ -12,15 +12,22 @@ use crate::settings;
 use crate::tags;
 
 const SYNC_INDEX_FILE: &str = ".djcloud-sync.json";
-const PLAYLISTS_PAGE_SIZE: u32 = 200;
+const TRACKS_PAGE_SIZE: u32 = 200;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Playlist {
     id: i64,
     name: String,
-    owner_username: String,
-    subscribed: bool,
+    sync_enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Genre {
+    id: i64,
+    name: String,
+    sync_enabled: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,12 +50,70 @@ struct SyncIndex {
     version: u32,
     /// Playlist id (as a string, since JSON object keys must be strings) -> its local folder name.
     /// Keyed by id rather than name so a playlist rename doesn't orphan the folder on next sync.
-    playlists: HashMap<String, PlaylistEntry>,
+    playlists: HashMap<String, FolderEntry>,
+    /// Same idea as `playlists`, for sync-enabled genres — genre folders live in the same flat,
+    /// shared directory as playlist folders (see `other_used_names`, which pools both maps
+    /// together so a playlist and a genre can never silently collide on the same folder name).
+    /// `#[serde(default)]` so an index file written before this field existed still parses —
+    /// without it, a missing "genres" key would fail deserialization and silently reset the
+    /// whole index (losing every existing playlist folder mapping) on a user's first sync after
+    /// upgrading.
+    #[serde(default)]
+    genres: HashMap<String, FolderEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PlaylistEntry {
+struct FolderEntry {
     folder_name: String,
+}
+
+impl SyncIndex {
+    fn map_for(&self, kind: SourceKind) -> &HashMap<String, FolderEntry> {
+        match kind {
+            SourceKind::Playlist => &self.playlists,
+            SourceKind::Genre => &self.genres,
+        }
+    }
+
+    fn map_for_mut(&mut self, kind: SourceKind) -> &mut HashMap<String, FolderEntry> {
+        match kind {
+            SourceKind::Playlist => &mut self.playlists,
+            SourceKind::Genre => &mut self.genres,
+        }
+    }
+}
+
+/// Which kind of remote collection a folder is being resolved for — lets `resolve_folder` and
+/// its helpers share one implementation between playlists and genres instead of duplicating it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SourceKind {
+    Playlist,
+    Genre,
+}
+
+impl SourceKind {
+    /// Capitalized, singular — used as the fallback folder name when sanitizing leaves nothing.
+    fn default_folder_name(self) -> &'static str {
+        match self {
+            SourceKind::Playlist => "Playlist",
+            SourceKind::Genre => "Genre",
+        }
+    }
+
+    /// Lowercase noun for log/error messages.
+    fn noun(self) -> &'static str {
+        match self {
+            SourceKind::Playlist => "playlist",
+            SourceKind::Genre => "genre",
+        }
+    }
+}
+
+/// A minimal, kind-tagged view of one playlist or genre, just enough for folder resolution.
+struct FolderSource<'a> {
+    kind: SourceKind,
+    id: i64,
+    name: &'a str,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -57,7 +122,7 @@ struct SyncProgressEvent {
     phase: &'static str,
     files_completed: usize,
     files_total: usize,
-    current_playlist: Option<String>,
+    current_source: Option<String>,
     current_file: Option<String>,
     bytes_downloaded: u64,
     bytes_total: Option<u64>,
@@ -67,13 +132,14 @@ struct SyncProgressEvent {
 #[serde(rename_all = "camelCase")]
 pub struct SyncSummary {
     pub playlists_synced: usize,
+    pub genres_synced: usize,
     pub downloaded: usize,
     pub failed: usize,
 }
 
 struct MissingTrack {
-    playlist_folder: PathBuf,
-    playlist_name: String,
+    folder: PathBuf,
+    source_name: String,
     track_id: i64,
     file_format: String,
     size_bytes: u64,
@@ -90,13 +156,43 @@ pub async fn sync_library(app: AppHandle) -> Result<SyncSummary, String> {
     let client = Client::new();
     let token = auth_info.token.as_str();
 
+    // Sync is its own explicit per-playlist opt-in, independent of subscribing or owning — even a
+    // playlist's own owner must enable it, same as anyone else.
     let playlists: Vec<Playlist> = http::get_json(&client, token, "/api/playlists").await?;
-    let relevant: Vec<&Playlist> = playlists
+    let relevant_playlists: Vec<&Playlist> = playlists
         .iter()
-        .filter(|playlist| playlist.subscribed || playlist.owner_username == auth_info.username)
+        .filter(|playlist| playlist.sync_enabled)
         .collect();
 
+    // Genres have no owner and no separate "subscribe" concept — sync is the only per-user state.
+    let genres: Vec<Genre> = http::get_json(&client, token, "/api/genres").await?;
+    let relevant_genres: Vec<&Genre> = genres.iter().filter(|genre| genre.sync_enabled).collect();
+
     let mut index = load_sync_index(&library_folder);
+
+    // A playlist or genre that was synced before but is no longer sync-enabled (or was deleted
+    // remotely — either way it's simply absent from this run's relevant set) has its previously
+    // downloaded tracks removed now, before anything else runs (see `remove_stale_folders`).
+    // Nothing else in this function ever revisits an index entry outside the current relevant
+    // set, so skipping this would leave those files behind indefinitely.
+    let relevant_playlist_ids: HashSet<i64> = relevant_playlists
+        .iter()
+        .map(|playlist| playlist.id)
+        .collect();
+    remove_stale_folders(
+        &library_folder,
+        &mut index,
+        SourceKind::Playlist,
+        &relevant_playlist_ids,
+    );
+    let relevant_genre_ids: HashSet<i64> = relevant_genres.iter().map(|genre| genre.id).collect();
+    remove_stale_folders(
+        &library_folder,
+        &mut index,
+        SourceKind::Genre,
+        &relevant_genre_ids,
+    );
+    save_sync_index(&library_folder, &index)?;
 
     let _ = app.emit(
         "sync-progress",
@@ -104,23 +200,33 @@ pub async fn sync_library(app: AppHandle) -> Result<SyncSummary, String> {
             phase: "scanning",
             files_completed: 0,
             files_total: 0,
-            current_playlist: None,
+            current_source: None,
             current_file: None,
             bytes_downloaded: 0,
             bytes_total: None,
         },
     );
 
-    // Resolve (or recover/create) every relevant playlist's folder, saving the index after each
-    // mapping so a mid-sync crash doesn't lose folder-identity information already decided. Each
-    // playlist's remote track ids are fetched first since a lost/corrupted index recovery (see
-    // `resolve_playlist_folder`) needs them to identify which existing folder is really its own.
+    // Resolve (or recover/create) every relevant playlist's and genre's folder, saving the index
+    // after each mapping so a mid-sync crash doesn't lose folder-identity information already
+    // decided. Each source's remote track ids are fetched first since a lost/corrupted index
+    // recovery (see `resolve_folder`) needs them to identify which existing folder is really its
+    // own. Playlists are resolved before genres so a genre can never "recover" a playlist's
+    // folder (or vice versa) — `resolve_folder` already prevents name collisions between the two
+    // regardless of order, but resolving playlists first keeps their folders stable/unaffected by
+    // whatever genres happen to sync alongside them.
     let mut missing = Vec::new();
-    for playlist in &relevant {
-        let remote_tracks = fetch_all_tracks(&client, token, playlist.id).await?;
+    for playlist in &relevant_playlists {
+        let tracks_path = format!("/api/playlists/{}/tracks", playlist.id);
+        let remote_tracks = fetch_all_tracks(&client, token, &tracks_path).await?;
         let remote_ids: HashSet<i64> = remote_tracks.iter().map(|track| track.id).collect();
 
-        let folder = resolve_playlist_folder(&library_folder, &mut index, playlist, &remote_ids)?;
+        let source = FolderSource {
+            kind: SourceKind::Playlist,
+            id: playlist.id,
+            name: &playlist.name,
+        };
+        let folder = resolve_folder(&library_folder, &mut index, &source, &remote_ids)?;
         save_sync_index(&library_folder, &index)?;
 
         cleanup_stale_part_files(&folder);
@@ -129,8 +235,37 @@ pub async fn sync_library(app: AppHandle) -> Result<SyncSummary, String> {
         for track in remote_tracks {
             if !local_ids.contains(&track.id) {
                 missing.push(MissingTrack {
-                    playlist_folder: folder.clone(),
-                    playlist_name: playlist.name.clone(),
+                    folder: folder.clone(),
+                    source_name: playlist.name.clone(),
+                    track_id: track.id,
+                    file_format: track.file_format,
+                    size_bytes: track.size_bytes,
+                });
+            }
+        }
+    }
+
+    for genre in &relevant_genres {
+        let tracks_path = format!("/api/genres/{}/tracks", encode_path_segment(&genre.name));
+        let remote_tracks = fetch_all_tracks(&client, token, &tracks_path).await?;
+        let remote_ids: HashSet<i64> = remote_tracks.iter().map(|track| track.id).collect();
+
+        let source = FolderSource {
+            kind: SourceKind::Genre,
+            id: genre.id,
+            name: &genre.name,
+        };
+        let folder = resolve_folder(&library_folder, &mut index, &source, &remote_ids)?;
+        save_sync_index(&library_folder, &index)?;
+
+        cleanup_stale_part_files(&folder);
+
+        let local_ids = local_track_ids(&folder);
+        for track in remote_tracks {
+            if !local_ids.contains(&track.id) {
+                missing.push(MissingTrack {
+                    folder: folder.clone(),
+                    source_name: genre.name.clone(),
                     track_id: track.id,
                     file_format: track.file_format,
                     size_bytes: track.size_bytes,
@@ -164,15 +299,16 @@ pub async fn sync_library(app: AppHandle) -> Result<SyncSummary, String> {
             Err(err) => {
                 failed += 1;
                 eprintln!(
-                    "Failed to download track {} for playlist \"{}\": {err}",
-                    item.track_id, item.playlist_name
+                    "Failed to download track {} for \"{}\": {err}",
+                    item.track_id, item.source_name
                 );
             }
         }
     }
 
     let summary = SyncSummary {
-        playlists_synced: relevant.len(),
+        playlists_synced: relevant_playlists.len(),
+        genres_synced: relevant_genres.len(),
         downloaded,
         failed,
     };
@@ -183,7 +319,7 @@ pub async fn sync_library(app: AppHandle) -> Result<SyncSummary, String> {
             phase: "done",
             files_completed: downloaded,
             files_total: total,
-            current_playlist: None,
+            current_source: None,
             current_file: None,
             bytes_downloaded: 0,
             bytes_total: None,
@@ -201,6 +337,7 @@ fn load_sync_index(library_folder: &Path) -> SyncIndex {
         .unwrap_or(SyncIndex {
             version: 1,
             playlists: HashMap::new(),
+            genres: HashMap::new(),
         })
 }
 
@@ -210,10 +347,10 @@ fn save_sync_index(library_folder: &Path, index: &SyncIndex) -> Result<(), Strin
     fs::write(path, content).map_err(|err| err.to_string())
 }
 
-/// Every top-level name inside `library_folder` that DJ Cloud created — every playlist folder
-/// currently in the sync index, plus the index file itself. `relocate` uses this to know what
-/// it's allowed to move without sweeping up a user's own files/folders that happen to live
-/// alongside the synced playlists.
+/// Every top-level name inside `library_folder` that DJ Cloud created — every playlist and genre
+/// folder currently in the sync index, plus the index file itself. `relocate` uses this to know
+/// what it's allowed to move without sweeping up a user's own files/folders that happen to live
+/// alongside the synced playlists/genres.
 pub(crate) fn managed_top_level_names(library_folder: &Path) -> HashSet<String> {
     let index = load_sync_index(library_folder);
     let mut names: HashSet<String> = index
@@ -221,28 +358,111 @@ pub(crate) fn managed_top_level_names(library_folder: &Path) -> HashSet<String> 
         .into_values()
         .map(|entry| entry.folder_name)
         .collect();
+    names.extend(index.genres.into_values().map(|entry| entry.folder_name));
     names.insert(SYNC_INDEX_FILE.to_string());
     names
 }
 
-/// Looks up (or recovers/assigns/renames) the local folder for a playlist, keyed by its id. A
-/// brand-new mapping first checks whether an existing, unclaimed folder already holds this
-/// playlist's tracks (see `find_recovered_folder` — covers a lost/corrupted sync index) before
-/// falling back to a sanitized, collision-safe folder name derived from the playlist's current
-/// name. An existing mapping whose folder name no longer matches the playlist's current (sanitized)
-/// name — i.e. the playlist was renamed remotely since the last sync — is renamed on disk to match,
-/// best-effort: a rename that fails (folder missing, open/locked elsewhere, etc.) keeps the old
-/// name rather than failing the whole sync over one playlist.
-fn resolve_playlist_folder(
+/// For every `kind` source that's no longer in `still_relevant_ids` — i.e. sync was turned off
+/// for it, or it was deleted remotely, since either way it simply won't appear in the caller's
+/// current relevant-ids set — removes only the files DJ Cloud itself manages inside its folder
+/// (see `remove_managed_files`) and drops the index entry, so a re-sync later plugs straight back
+/// into the same folder (`resolve_folder`) rather than starting fresh elsewhere. Anything else a
+/// user placed in that folder is left completely untouched, and so is the folder itself unless
+/// removing the managed files leaves it empty — an empty folder isn't content worth keeping
+/// around. Best-effort throughout: a file that can't be removed (open/locked elsewhere,
+/// permissions, etc.) is logged and left for next time.
+fn remove_stale_folders(
     library_folder: &Path,
     index: &mut SyncIndex,
-    playlist: &Playlist,
+    kind: SourceKind,
+    still_relevant_ids: &HashSet<i64>,
+) {
+    let stale_keys: Vec<String> = index
+        .map_for(kind)
+        .keys()
+        .filter(|key| {
+            key.parse::<i64>()
+                .map(|id| !still_relevant_ids.contains(&id))
+                .unwrap_or(false)
+        })
+        .cloned()
+        .collect();
+
+    for key in stale_keys {
+        let Some(entry) = index.map_for(kind).get(&key).cloned() else {
+            continue;
+        };
+        let folder = library_folder.join(&entry.folder_name);
+
+        remove_managed_files(&folder);
+        cleanup_stale_part_files(&folder);
+
+        let is_empty = fs::read_dir(&folder).is_ok_and(|mut entries| entries.next().is_none());
+        if is_empty {
+            let _ = fs::remove_dir(&folder);
+        }
+
+        index.map_for_mut(kind).remove(&key);
+    }
+}
+
+/// Deletes every file directly inside `folder` that DJ Cloud recognizes as a synced track — same
+/// mp3/wav-plus-valid-id-tag test as `local_track_ids` — and leaves everything else (any other
+/// extension, any file without a readable id tag, any subdirectory) exactly where it is. This is
+/// the one place DJ Cloud ever removes track files, so it's what keeps "unsync" from touching
+/// content it didn't put there itself.
+fn remove_managed_files(folder: &Path) {
+    let Ok(entries) = fs::read_dir(folder) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(extension) = path.extension().and_then(|ext| ext.to_str()) else {
+            continue;
+        };
+        if !extension.eq_ignore_ascii_case("mp3") && !extension.eq_ignore_ascii_case("wav") {
+            continue;
+        }
+        if tags::read_track_id_tag(&path).is_none() {
+            continue;
+        }
+
+        if let Err(err) = fs::remove_file(&path) {
+            eprintln!(
+                "Could not remove no-longer-synced file \"{}\": {err}",
+                path.display()
+            );
+        }
+    }
+}
+
+/// Looks up (or plugs into/recovers/renames) the local folder for a playlist or genre, keyed by
+/// its id within its own kind's map (`SyncIndex.playlists` / `SyncIndex.genres`) — but folder
+/// *names* are drawn from one shared, flat namespace, since playlist and genre folders live side
+/// by side in the same directory (see `other_used_names`). A brand-new mapping (this source has
+/// never been synced before, or was unsynced and is being re-enabled) claims its sanitized name
+/// directly, whatever already exists there — DJ Cloud only ever touches files it recognizes
+/// within a folder (see `remove_managed_files`), so plugging into an already-existing folder,
+/// DJ-Cloud-managed or not, never disturbs unrelated content sitting in it. That name is only
+/// avoided if another *currently active* index entry already claims it (two distinct sources can
+/// never share one folder); in that rare case, a lost-index recovery pass
+/// (`find_recovered_folder`) is tried first, then a collision-safe suffix. An existing mapping
+/// whose folder name no longer matches the source's current (sanitized) name — i.e. it was
+/// renamed remotely since the last sync — is renamed on disk to match, best-effort: a rename that
+/// fails (folder missing, open/locked elsewhere, etc.) keeps the old name rather than failing the
+/// whole sync over one source.
+fn resolve_folder(
+    library_folder: &Path,
+    index: &mut SyncIndex,
+    source: &FolderSource,
     remote_track_ids: &HashSet<i64>,
 ) -> Result<PathBuf, String> {
-    let key = playlist.id.to_string();
-    let desired_name = sanitize_folder_name(&playlist.name);
+    let key = source.id.to_string();
+    let desired_name = sanitize_folder_name(source.name, source.kind.default_folder_name());
 
-    if let Some(entry) = index.playlists.get(&key).cloned() {
+    if let Some(entry) = index.map_for(source.kind).get(&key).cloned() {
         if entry.folder_name == desired_name {
             let folder = library_folder.join(&entry.folder_name);
             fs::create_dir_all(&folder).map_err(|err| err.to_string())?;
@@ -250,7 +470,7 @@ fn resolve_playlist_folder(
         }
 
         let old_path = library_folder.join(&entry.folder_name);
-        let used_names = other_used_names(index, &key);
+        let used_names = other_used_names(index, source.kind, &key);
         let new_name = unique_folder_name_on_disk(&desired_name, &used_names, library_folder);
 
         let folder_name = if old_path.exists() {
@@ -259,8 +479,8 @@ fn resolve_playlist_folder(
                 new_name
             } else {
                 eprintln!(
-                    "Could not rename playlist folder \"{}\" to match renamed playlist \"{}\"; keeping old name",
-                    entry.folder_name, playlist.name
+                    "Could not rename {} folder \"{}\" to match renamed {} \"{}\"; keeping old name",
+                    source.kind.noun(), entry.folder_name, source.kind.noun(), source.name
                 );
                 entry.folder_name
             }
@@ -272,21 +492,25 @@ fn resolve_playlist_folder(
 
         let folder = library_folder.join(&folder_name);
         fs::create_dir_all(&folder).map_err(|err| err.to_string())?;
-        index.playlists.insert(key, PlaylistEntry { folder_name });
+        index
+            .map_for_mut(source.kind)
+            .insert(key, FolderEntry { folder_name });
         return Ok(folder);
     }
 
-    let used_names = other_used_names(index, &key);
-    let folder_name = match find_recovered_folder(library_folder, &used_names, remote_track_ids) {
-        Some(recovered) => recovered,
-        None => unique_folder_name_on_disk(&desired_name, &used_names, library_folder),
+    let used_names = other_used_names(index, source.kind, &key);
+    let folder_name = if !used_names.contains(&desired_name) {
+        desired_name
+    } else {
+        find_recovered_folder(library_folder, &used_names, remote_track_ids)
+            .unwrap_or_else(|| unique_name(&desired_name, &used_names))
     };
     let folder = library_folder.join(&folder_name);
     fs::create_dir_all(&folder).map_err(|err| err.to_string())?;
 
-    index.playlists.insert(
+    index.map_for_mut(source.kind).insert(
         key,
-        PlaylistEntry {
+        FolderEntry {
             folder_name: folder_name.clone(),
         },
     );
@@ -294,14 +518,23 @@ fn resolve_playlist_folder(
     Ok(folder)
 }
 
-/// Every folder name already claimed by another playlist in the index — i.e. every entry except
-/// `exclude_key`'s own, so a playlist being renamed doesn't see its own (about-to-change) name as
-/// "taken" and needlessly pick a suffixed alternative.
-fn other_used_names(index: &SyncIndex, exclude_key: &str) -> HashSet<String> {
+/// Every folder name already claimed by another playlist or genre in the index — the union of
+/// both `SyncIndex.playlists` and `SyncIndex.genres`, except `exclude_key`'s own entry within
+/// `kind`'s map, so a source being renamed doesn't see its own (about-to-change) name as "taken"
+/// and needlessly pick a suffixed alternative. Pooling both maps together is what keeps a
+/// playlist and a genre from ever silently colliding on (or recovering into) the same folder,
+/// since both kinds' folders live flat in the same directory.
+fn other_used_names(index: &SyncIndex, kind: SourceKind, exclude_key: &str) -> HashSet<String> {
     index
         .playlists
         .iter()
-        .filter(|(key, _)| key.as_str() != exclude_key)
+        .filter(|(key, _)| !(kind == SourceKind::Playlist && key.as_str() == exclude_key))
+        .chain(
+            index
+                .genres
+                .iter()
+                .filter(|(key, _)| !(kind == SourceKind::Genre && key.as_str() == exclude_key)),
+        )
         .map(|(_, entry)| entry.folder_name.clone())
         .collect()
 }
@@ -355,14 +588,27 @@ fn find_recovered_folder(
     best.map(|(name, _)| name)
 }
 
-fn sanitize_folder_name(name: &str) -> String {
+fn sanitize_folder_name(name: &str, default: &str) -> String {
     let cleaned = sanitize_path_component(name);
 
     if cleaned.is_empty() {
-        "Playlist".to_string()
+        default.to_string()
     } else {
         cleaned
     }
+}
+
+/// Percent-encodes `value` as a single URL path segment (spaces, `&`, `/`, unicode, etc.),
+/// matching the frontend's `encodeURIComponent` — needed because genre names (unlike playlist
+/// ids) are arbitrary user text embedded directly in the request path, and `http::get`/`get_json`
+/// do no encoding of their own. Critically, this also percent-encodes a literal `/`, so a genre
+/// name containing one can't split the request into extra path segments.
+fn encode_path_segment(value: &str) -> String {
+    let mut url = url::Url::parse("http://djcloud.local/").expect("valid base url");
+    url.path_segments_mut()
+        .expect("base url can be a base")
+        .push(value);
+    url.path().trim_start_matches('/').to_string()
 }
 
 /// Strips characters that are invalid (or awkward) in a filesystem name. Shared by playlist
@@ -408,10 +654,12 @@ fn avoid_windows_reserved_name(name: String) -> String {
 }
 
 /// Picks a folder name based on `base`, disambiguated with a `" (2)"`-style suffix against both
-/// `used` (other playlists' folder names already claimed in the sync index) and whatever actually
-/// exists on disk under `library_folder` — so a playlist's sanitized name colliding with a folder
-/// the user already has there (never claimed by DJ Cloud) gets its own distinct folder instead of
-/// silently merging into it.
+/// `used` (other sources' folder names already claimed in the sync index) and whatever actually
+/// exists on disk under `library_folder`. Used only when renaming an *existing* mapping's folder
+/// to match a source's new (remote-renamed) name — the target name is avoided if something's
+/// already sitting there, since renaming onto it would require a merge, not a plain `fs::rename`.
+/// Brand-new folder resolution (`resolve_folder`'s no-prior-mapping branch) uses `unique_name`
+/// instead, which intentionally skips the disk check and plugs straight into an existing folder.
 fn unique_folder_name_on_disk(base: &str, used: &HashSet<String>, library_folder: &Path) -> String {
     let is_taken = |name: &str| used.contains(name) || library_folder.join(name).exists();
 
@@ -423,6 +671,25 @@ fn unique_folder_name_on_disk(base: &str, used: &HashSet<String>, library_folder
     loop {
         let candidate = format!("{base} ({counter})");
         if !is_taken(&candidate) {
+            return candidate;
+        }
+        counter += 1;
+    }
+}
+
+/// Same idea as `unique_folder_name_on_disk`, but checks only `used` — never disk existence — so
+/// a brand-new source's sanitized name is never avoided just because a folder with that name
+/// happens to already exist. Only actually needed when `used` itself already contains `base`
+/// (another currently-active source claims that exact name).
+fn unique_name(base: &str, used: &HashSet<String>) -> String {
+    if !used.contains(base) {
+        return base.to_string();
+    }
+
+    let mut counter = 2;
+    loop {
+        let candidate = format!("{base} ({counter})");
+        if !used.contains(&candidate) {
             return candidate;
         }
         counter += 1;
@@ -467,17 +734,19 @@ fn split_extension(filename: &str) -> (&str, Option<&str>) {
     }
 }
 
+/// Fetches every track summary from a paged tracks endpoint — `tracks_path` is the base path
+/// (e.g. `/api/playlists/{id}/tracks` or `/api/genres/{encoded_name}/tracks`), with no query
+/// string of its own, since paging params are appended here.
 async fn fetch_all_tracks(
     client: &Client,
     token: &str,
-    playlist_id: i64,
+    tracks_path: &str,
 ) -> Result<Vec<TrackSummary>, String> {
     let mut all = Vec::new();
     let mut page = 0u32;
 
     loop {
-        let path =
-            format!("/api/playlists/{playlist_id}/tracks?page={page}&size={PLAYLISTS_PAGE_SIZE}");
+        let path = format!("{tracks_path}?page={page}&size={TRACKS_PAGE_SIZE}");
         let response: Page<TrackSummary> = http::get_json(client, token, &path).await?;
         let has_next = response.has_next;
         all.extend(response.content);
@@ -564,7 +833,7 @@ async fn download_track(
             phase: "downloading",
             files_completed: index_in_batch,
             files_total: total,
-            current_playlist: Some(item.playlist_name.clone()),
+            current_source: Some(item.source_name.clone()),
             current_file: Some(filename.clone()),
             bytes_downloaded: 0,
             bytes_total,
@@ -582,7 +851,7 @@ async fn download_track(
             phase: "downloading",
             files_completed: index_in_batch,
             files_total: total,
-            current_playlist: Some(item.playlist_name.clone()),
+            current_source: Some(item.source_name.clone()),
             current_file: Some(filename.clone()),
             bytes_downloaded: bytes.len() as u64,
             bytes_total,
@@ -593,13 +862,13 @@ async fn download_track(
     // ever runs for a track id that `local_track_ids` already confirmed isn't tagged in any local
     // file in this folder — so anything already sitting here isn't this track (a stale download,
     // or the user's own file) and must be left alone.
-    let final_path = unique_file_path(&item.playlist_folder, &filename);
-    let temp_path = item.playlist_folder.join(format!("{filename}.part"));
+    let final_path = unique_file_path(&item.folder, &filename);
+    let temp_path = item.folder.join(format!("{filename}.part"));
 
     // Re-check right before writing, using the exact size already in hand rather than trusting a
     // header — catches free space having been consumed by something else since the upfront total
     // check in `sync_library`.
-    let available = fs4::available_space(&item.playlist_folder).map_err(|err| err.to_string())?;
+    let available = fs4::available_space(&item.folder).map_err(|err| err.to_string())?;
     if bytes.len() as u64 > available {
         return Err(format!(
             "Not enough disk space for track {}: need {}, only {} available",
@@ -770,33 +1039,183 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
-    fn playlist(id: i64, name: &str) -> Playlist {
-        Playlist {
+    fn playlist_source(id: i64, name: &str) -> FolderSource<'_> {
+        FolderSource {
+            kind: SourceKind::Playlist,
             id,
-            name: name.to_string(),
-            owner_username: "someone".to_string(),
-            subscribed: true,
+            name,
         }
     }
 
+    fn genre_source(id: i64, name: &str) -> FolderSource<'_> {
+        FolderSource {
+            kind: SourceKind::Genre,
+            id,
+            name,
+        }
+    }
+
+    fn empty_index() -> SyncIndex {
+        SyncIndex {
+            version: 1,
+            playlists: HashMap::new(),
+            genres: HashMap::new(),
+        }
+    }
+
+    /// A real, id3v2-tagged fixture (same one `tags::tests` uses) — needed here because
+    /// `remove_managed_files` only recognizes a file as "ours" via a genuine, readable id tag, not
+    /// just a matching extension.
+    fn fixture_mp3_path() -> PathBuf {
+        Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../test-fixtures/fixture.mp3"
+        ))
+        .to_path_buf()
+    }
+
     #[test]
-    fn resolve_playlist_folder_renames_local_folder_when_playlist_is_renamed_remotely() {
+    fn remove_stale_folders_deletes_managed_file_and_the_now_empty_folder() {
+        let dir = tempfile_dir();
+        let folder = dir.join("Old Favorites");
+        fs::create_dir_all(&folder).unwrap();
+        fs::copy(fixture_mp3_path(), folder.join("track.mp3")).unwrap();
+
+        let mut index = SyncIndex {
+            playlists: HashMap::from([(
+                "1".to_string(),
+                FolderEntry {
+                    folder_name: "Old Favorites".to_string(),
+                },
+            )]),
+            ..empty_index()
+        };
+
+        remove_stale_folders(&dir, &mut index, SourceKind::Playlist, &HashSet::new());
+
+        assert!(!folder.exists());
+        assert!(!index.playlists.contains_key("1"));
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn remove_stale_folders_leaves_foreign_content_and_the_folder_itself_in_place() {
+        let dir = tempfile_dir();
+        let folder = dir.join("Old Favorites");
+        fs::create_dir_all(&folder).unwrap();
+        fs::copy(fixture_mp3_path(), folder.join("track.mp3")).unwrap();
+        // Not a DJ-Cloud-managed file — no id tag at all — so it must survive untouched.
+        fs::write(folder.join("my-own-mix.mp3"), b"not ours").unwrap();
+
+        let mut index = SyncIndex {
+            playlists: HashMap::from([(
+                "1".to_string(),
+                FolderEntry {
+                    folder_name: "Old Favorites".to_string(),
+                },
+            )]),
+            ..empty_index()
+        };
+
+        remove_stale_folders(&dir, &mut index, SourceKind::Playlist, &HashSet::new());
+
+        assert!(!folder.join("track.mp3").exists());
+        assert!(folder.join("my-own-mix.mp3").exists());
+        // The folder itself stays too, since it's not empty — only the index mapping goes away.
+        assert!(folder.exists());
+        assert!(!index.playlists.contains_key("1"));
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn remove_stale_folders_keeps_folder_and_entry_for_a_still_relevant_playlist() {
+        let dir = tempfile_dir();
+        fs::create_dir_all(dir.join("Still Subscribed")).unwrap();
+
+        let mut index = SyncIndex {
+            playlists: HashMap::from([(
+                "1".to_string(),
+                FolderEntry {
+                    folder_name: "Still Subscribed".to_string(),
+                },
+            )]),
+            ..empty_index()
+        };
+
+        remove_stale_folders(&dir, &mut index, SourceKind::Playlist, &HashSet::from([1]));
+
+        assert!(dir.join("Still Subscribed").exists());
+        assert!(index.playlists.contains_key("1"));
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn remove_stale_folders_drops_the_index_entry_even_when_the_folder_is_already_gone() {
+        let dir = tempfile_dir();
+        // No folder created on disk — e.g. the user deleted it manually.
+
+        let mut index = SyncIndex {
+            playlists: HashMap::from([(
+                "1".to_string(),
+                FolderEntry {
+                    folder_name: "Already Gone".to_string(),
+                },
+            )]),
+            ..empty_index()
+        };
+
+        remove_stale_folders(&dir, &mut index, SourceKind::Playlist, &HashSet::new());
+
+        assert!(!index.playlists.contains_key("1"));
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn remove_stale_folders_only_touches_the_given_kind() {
+        let dir = tempfile_dir();
+        fs::create_dir_all(dir.join("House")).unwrap();
+
+        let mut index = SyncIndex {
+            genres: HashMap::from([(
+                "1".to_string(),
+                FolderEntry {
+                    folder_name: "House".to_string(),
+                },
+            )]),
+            ..empty_index()
+        };
+
+        // No longer relevant for playlists — but "1" here is a genre id, so this must be a no-op.
+        remove_stale_folders(&dir, &mut index, SourceKind::Playlist, &HashSet::new());
+
+        assert!(dir.join("House").exists());
+        assert!(index.genres.contains_key("1"));
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn resolve_folder_renames_local_folder_when_playlist_is_renamed_remotely() {
         let dir = tempfile_dir();
         fs::create_dir_all(dir.join("Old Name")).unwrap();
         fs::write(dir.join("Old Name").join("track.mp3"), b"data").unwrap();
 
         let mut index = SyncIndex {
-            version: 1,
             playlists: HashMap::from([(
                 "1".to_string(),
-                PlaylistEntry {
+                FolderEntry {
                     folder_name: "Old Name".to_string(),
                 },
             )]),
+            ..empty_index()
         };
 
-        let pl = playlist(1, "New Name");
-        let folder = resolve_playlist_folder(&dir, &mut index, &pl, &HashSet::new()).unwrap();
+        let source = playlist_source(1, "New Name");
+        let folder = resolve_folder(&dir, &mut index, &source, &HashSet::new()).unwrap();
 
         assert_eq!(folder, dir.join("New Name"));
         assert!(folder.join("track.mp3").exists());
@@ -807,24 +1226,24 @@ mod tests {
     }
 
     #[test]
-    fn resolve_playlist_folder_picks_a_free_name_when_rename_target_already_exists_on_disk() {
+    fn resolve_folder_picks_a_free_name_when_rename_target_already_exists_on_disk() {
         let dir = tempfile_dir();
         fs::create_dir_all(dir.join("Old Name")).unwrap();
         // A folder DJ Cloud didn't create that happens to already occupy the desired new name.
         fs::create_dir_all(dir.join("New Name")).unwrap();
 
         let mut index = SyncIndex {
-            version: 1,
             playlists: HashMap::from([(
                 "1".to_string(),
-                PlaylistEntry {
+                FolderEntry {
                     folder_name: "Old Name".to_string(),
                 },
             )]),
+            ..empty_index()
         };
 
-        let pl = playlist(1, "New Name");
-        let folder = resolve_playlist_folder(&dir, &mut index, &pl, &HashSet::new()).unwrap();
+        let source = playlist_source(1, "New Name");
+        let folder = resolve_folder(&dir, &mut index, &source, &HashSet::new()).unwrap();
 
         assert_eq!(folder, dir.join("New Name (2)"));
         assert_eq!(index.playlists["1"].folder_name, "New Name (2)");
@@ -833,24 +1252,104 @@ mod tests {
     }
 
     #[test]
-    fn resolve_playlist_folder_avoids_an_unmanaged_folder_on_fresh_creation() {
+    fn resolve_folder_plugs_into_an_already_existing_folder_of_the_same_name() {
         let dir = tempfile_dir();
         // A folder the user already has, never created by DJ Cloud, that happens to share a
-        // playlist's sanitized name.
+        // playlist's sanitized name — brand-new resolution should reuse it directly rather than
+        // avoiding it, leaving whatever's already inside completely untouched.
         fs::create_dir_all(dir.join("My Mix")).unwrap();
         fs::write(dir.join("My Mix").join("personal.mp3"), b"mine").unwrap();
 
-        let mut index = SyncIndex {
-            version: 1,
-            playlists: HashMap::new(),
-        };
-        let pl = playlist(7, "My Mix");
+        let mut index = empty_index();
+        let source = playlist_source(7, "My Mix");
 
-        let folder = resolve_playlist_folder(&dir, &mut index, &pl, &HashSet::new()).unwrap();
+        let folder = resolve_folder(&dir, &mut index, &source, &HashSet::new()).unwrap();
 
-        assert_eq!(folder, dir.join("My Mix (2)"));
+        assert_eq!(folder, dir.join("My Mix"));
         assert!(dir.join("My Mix").join("personal.mp3").exists());
+        assert_eq!(index.playlists["7"].folder_name, "My Mix");
 
         fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn resolve_folder_still_avoids_a_name_claimed_by_another_active_entry() {
+        let dir = tempfile_dir();
+        fs::create_dir_all(dir.join("House")).unwrap();
+
+        // Genre "House" already owns the "House" folder name in the index.
+        let mut index = SyncIndex {
+            genres: HashMap::from([(
+                "1".to_string(),
+                FolderEntry {
+                    folder_name: "House".to_string(),
+                },
+            )]),
+            ..empty_index()
+        };
+
+        let source = playlist_source(9, "House");
+        let folder = resolve_folder(&dir, &mut index, &source, &HashSet::new()).unwrap();
+
+        assert_eq!(folder, dir.join("House (2)"));
+        assert_eq!(index.playlists["9"].folder_name, "House (2)");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn resolve_folder_renames_local_folder_when_genre_is_renamed_remotely() {
+        let dir = tempfile_dir();
+        fs::create_dir_all(dir.join("Old Name")).unwrap();
+        fs::write(dir.join("Old Name").join("track.mp3"), b"data").unwrap();
+
+        let mut index = SyncIndex {
+            genres: HashMap::from([(
+                "1".to_string(),
+                FolderEntry {
+                    folder_name: "Old Name".to_string(),
+                },
+            )]),
+            ..empty_index()
+        };
+
+        let source = genre_source(1, "New Name");
+        let folder = resolve_folder(&dir, &mut index, &source, &HashSet::new()).unwrap();
+
+        assert_eq!(folder, dir.join("New Name"));
+        assert!(folder.join("track.mp3").exists());
+        assert_eq!(index.genres["1"].folder_name, "New Name");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The key case for the flat shared-namespace decision: a playlist and a genre with the same
+    /// sanitized name must resolve to two distinct folders, never merge into one.
+    #[test]
+    fn resolve_folder_keeps_a_playlist_and_a_genre_with_the_same_name_in_distinct_folders() {
+        let dir = tempfile_dir();
+        let mut index = empty_index();
+
+        let playlist_folder = resolve_folder(
+            &dir,
+            &mut index,
+            &playlist_source(1, "House"),
+            &HashSet::new(),
+        )
+        .unwrap();
+        let genre_folder =
+            resolve_folder(&dir, &mut index, &genre_source(1, "House"), &HashSet::new()).unwrap();
+
+        assert_eq!(playlist_folder, dir.join("House"));
+        assert_eq!(genre_folder, dir.join("House (2)"));
+        assert_ne!(playlist_folder, genre_folder);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn encode_path_segment_escapes_slashes_and_spaces() {
+        assert_eq!(encode_path_segment("Drum & Bass"), "Drum%20&%20Bass");
+        assert_eq!(encode_path_segment("Rock/Metal"), "Rock%2FMetal");
     }
 }

@@ -118,6 +118,16 @@ public class PlaylistController {
         return playlistService.unsubscribe(id, (AppUserDetails) authentication.getPrincipal());
     }
 
+    @PostMapping("/{id}/sync")
+    public PlaylistDetailResponse enableSync(@PathVariable Long id, Authentication authentication) {
+        return playlistService.enableSync(id, (AppUserDetails) authentication.getPrincipal());
+    }
+
+    @DeleteMapping("/{id}/sync")
+    public PlaylistDetailResponse disableSync(@PathVariable Long id, Authentication authentication) {
+        return playlistService.disableSync(id, (AppUserDetails) authentication.getPrincipal());
+    }
+
     @PostMapping("/{id}/tracks")
     public PlaylistDetailResponse addTrack(@PathVariable Long id, @Valid @RequestBody AddTrackRequest request,
             Authentication authentication) {

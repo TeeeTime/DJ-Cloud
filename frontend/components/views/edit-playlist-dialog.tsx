@@ -76,7 +76,7 @@ export function EditPlaylistDialog({
             />
           </div>
           <div className="flex items-center justify-between">
-            <label className="text-sm text-zinc-300">Public</label>
+            <label className="text-sm text-zinc-300">Collaborative</label>
             <Switch checked={isPublic} onCheckedChange={setIsPublic} />
           </div>
           {error && (

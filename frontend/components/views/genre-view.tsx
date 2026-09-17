@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Pause, Ban, Download, Pencil, Trash, Settings2, MoreHorizontal, Loader2, AlertCircle, Menu as MenuIcon, Search, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
+import { Play, Pause, Ban, Download, Pencil, Trash, MoreHorizontal, Loader2, AlertCircle, Menu as MenuIcon, Search, ArrowUpDown, ChevronUp, ChevronDown, Cloud, CloudCheck } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/components/providers/auth-provider";
 import { usePlayer } from "@/components/providers/player-provider";
+import { useGenres } from "@/components/providers/genre-provider";
 import { Track, formatDateAdded, isPlayableStatus } from "@/lib/data";
 import { ApiError, genresApi, tracksApi } from "@/lib/api";
 import { downloadFile } from "@/lib/download";
@@ -31,7 +32,9 @@ interface GenreViewProps {
 export function GenreView({ genreName }: GenreViewProps) {
   const { user, token } = useAuth();
   const { currentTrack, setCurrentTrack, isPlaying, setIsPlaying, setActiveTrackOrder } = usePlayer();
+  const { genreSyncs, refreshGenreSyncs } = useGenres();
   const canUpload = user?.role === 'EDITOR' || user?.role === 'ADMIN';
+  const isSyncEnabled = genreSyncs.find(g => g.name === genreName)?.syncEnabled ?? false;
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -133,6 +136,20 @@ export function GenreView({ genreName }: GenreViewProps) {
     }
   };
 
+  const toggleSync = async () => {
+    if (!token) return;
+    try {
+      if (isSyncEnabled) {
+        await genresApi.disableSync(genreName, token);
+      } else {
+        await genresApi.enableSync(genreName, token);
+      }
+      refreshGenreSyncs();
+    } catch (err) {
+      console.error(err instanceof ApiError ? err.message : err);
+    }
+  };
+
   return (
     <main className="flex-1 flex flex-col min-w-0 bg-zinc-950/30 relative h-full">
       <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-10 shrink-0 gap-4">
@@ -168,17 +185,33 @@ export function GenreView({ genreName }: GenreViewProps) {
             <Button
               variant="ghost"
               size="icon"
-              onClick={handleDownloadGenre}
-              disabled={isDownloadingGenre}
-              title="Download all tracks in this genre (ZIP)"
+              onClick={toggleSync}
+              title={isSyncEnabled ? "Syncing to Desktop" : "Sync to Desktop"}
               className="text-zinc-500 hover:text-white hover:bg-zinc-800/50"
             >
-              {isDownloadingGenre ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
+              {isSyncEnabled ? <CloudCheck className="w-4 h-4" /> : <Cloud className="w-4 h-4" />}
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={
+                <button className="ml-auto flex items-center justify-center h-8 w-8 text-zinc-500 hover:text-white hover:bg-zinc-800/50 data-[state=open]:bg-zinc-800/50 data-[state=open]:text-white rounded-md transition-colors outline-none cursor-pointer">
+                  <MoreHorizontal className="w-4 h-4" />
+                </button>
+              } />
+              <DropdownMenuContent align="end" className="w-52 bg-zinc-950 border-zinc-800 text-zinc-300 rounded-lg p-1 shadow-2xl">
+                <DropdownMenuItem
+                  onClick={handleDownloadGenre}
+                  disabled={isDownloadingGenre}
+                  className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
+                >
+                  {isDownloadingGenre ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4 mr-2" />
+                  )}
+                  <span className="text-sm">Download</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {tracksError && (
@@ -318,9 +351,6 @@ export function GenreView({ genreName }: GenreViewProps) {
                               <Download className="w-4 h-4 mr-2" />
                             )}
                             <span className="text-sm">Download</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2">
-                            <Settings2 className="w-4 h-4 mr-2" /> <span className="text-sm">Stems Options</span>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator className="bg-zinc-800 my-1" />
                           <AddToPlaylistMenu trackId={track.id} />

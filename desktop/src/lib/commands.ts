@@ -12,6 +12,7 @@ export interface AppSettings {
 
 export interface SyncSummary {
   playlistsSynced: number;
+  genresSynced: number;
   downloaded: number;
   failed: number;
 }
@@ -20,7 +21,7 @@ export interface SyncProgressEvent {
   phase: "scanning" | "downloading" | "done";
   filesCompleted: number;
   filesTotal: number;
-  currentPlaylist: string | null;
+  currentSource: string | null;
   currentFile: string | null;
   bytesDownloaded: number;
   bytesTotal: number | null;

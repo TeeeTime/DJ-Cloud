@@ -8,6 +8,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import de.djcloud.backend.auth.AppUserDetails;
 import de.djcloud.backend.common.PageResponse;
 import de.djcloud.backend.track.TrackDownloadService;
 import de.djcloud.backend.track.TrackResponse;
@@ -33,6 +35,12 @@ public class GenreController {
 
     private final GenreService genreService;
     private final TrackDownloadService trackDownloadService;
+
+    /** Every genre, annotated with whether the caller has sync enabled for it. */
+    @GetMapping
+    public List<GenreSyncResponse> list(Authentication authentication) {
+        return genreService.findAllWithSyncState((AppUserDetails) authentication.getPrincipal());
+    }
 
     @GetMapping("/autocomplete")
     public List<GenreResponse> autocomplete(@RequestParam String query, @RequestParam(defaultValue = "10") int limit) {
@@ -77,6 +85,16 @@ public class GenreController {
                 .contentType(MediaType.parseMediaType("application/zip"))
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .body(zip);
+    }
+
+    @PostMapping("/{name}/sync")
+    public GenreSyncResponse enableSync(@PathVariable String name, Authentication authentication) {
+        return genreService.enableSync(name, (AppUserDetails) authentication.getPrincipal());
+    }
+
+    @DeleteMapping("/{name}/sync")
+    public GenreSyncResponse disableSync(@PathVariable String name, Authentication authentication) {
+        return genreService.disableSync(name, (AppUserDetails) authentication.getPrincipal());
     }
 
     @PostMapping

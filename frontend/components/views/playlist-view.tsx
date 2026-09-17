@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Pause, Ban, Download, Pencil, Trash, Settings2, MoreHorizontal, Loader2, AlertCircle, Lock, Globe, Bell, BellOff, Menu as MenuIcon, Search, ArrowUpDown, ChevronUp, ChevronDown, Copy } from "lucide-react";
+import { Play, Pause, Ban, Download, Pencil, Trash, MoreHorizontal, Loader2, AlertCircle, UserRound, UsersRound, Bell, BellOff, Cloud, CloudCheck, Menu as MenuIcon, Search, ArrowUpDown, ChevronUp, ChevronDown, Copy } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -370,6 +370,19 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
     }
   };
 
+  const toggleSync = async () => {
+    if (!token || !detail) return;
+    try {
+      const updated = detail.syncEnabled
+        ? await playlistsApi.disableSync(playlistId, token)
+        : await playlistsApi.enableSync(playlistId, token);
+      setDetail(updated);
+      refreshPlaylists();
+    } catch (err) {
+      console.error(err instanceof ApiError ? err.message : err);
+    }
+  };
+
   return (
     <main className="flex-1 flex flex-col min-w-0 bg-zinc-950/30 relative h-full">
       <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-10 shrink-0 gap-4">
@@ -402,33 +415,30 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
         <div className="px-8 py-8">
           <div className="flex items-center gap-3 mb-8">
             <div>
-              <h2 className="text-3xl font-bold text-white tracking-tight">
-                {detail?.name ?? "Playlist"}
-              </h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-3xl font-bold text-white tracking-tight">
+                  {detail?.name ?? "Playlist"}
+                </h2>
+                {detail && (
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 border border-zinc-800 rounded-full px-2.5 py-1">
+                    {detail.isPublic ? <UsersRound className="w-3 h-3" /> : <UserRound className="w-3 h-3" />}
+                    {detail.isPublic ? "Collaborative" : "Solo"}
+                  </span>
+                )}
+              </div>
               {detail && (
                 <p className="text-zinc-500 text-sm mt-0.5">By {detail.ownerUsername}</p>
               )}
             </div>
             {detail && (
-              <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 border border-zinc-800 rounded-full px-2.5 py-1">
-                {detail.isPublic ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-                {detail.isPublic ? "Public" : "Private"}
-              </span>
-            )}
-            {detail && (
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={handleDownloadPlaylist}
-                disabled={isDownloadingPlaylist}
-                title="Download all tracks in this playlist (ZIP)"
+                onClick={toggleSync}
+                title={detail.syncEnabled ? "Syncing to Desktop" : "Sync to Desktop"}
                 className="text-zinc-500 hover:text-white hover:bg-zinc-800/50"
               >
-                {isDownloadingPlaylist ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
+                {detail.syncEnabled ? <CloudCheck className="w-4 h-4" /> : <Cloud className="w-4 h-4" />}
               </Button>
             )}
             {detail && (
@@ -439,6 +449,18 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                   </button>
                 } />
                 <DropdownMenuContent align="end" className="w-52 bg-zinc-950 border-zinc-800 text-zinc-300 rounded-lg p-1 shadow-2xl">
+                  <DropdownMenuItem
+                    onClick={handleDownloadPlaylist}
+                    disabled={isDownloadingPlaylist}
+                    className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
+                  >
+                    {isDownloadingPlaylist ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4 mr-2" />
+                    )}
+                    <span className="text-sm">Download</span>
+                  </DropdownMenuItem>
                   {!isOwner && (
                     <DropdownMenuItem
                       onClick={toggleSubscribe}
@@ -631,9 +653,6 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                               <Download className="w-4 h-4 mr-2" />
                             )}
                             <span className="text-sm">Download</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2">
-                            <Settings2 className="w-4 h-4 mr-2" /> <span className="text-sm">Stems Options</span>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator className="bg-zinc-800 my-1" />
                           <AddToPlaylistMenu trackId={track.id} />
