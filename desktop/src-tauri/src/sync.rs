@@ -159,7 +159,10 @@ pub async fn sync_library(app: AppHandle) -> Result<SyncSummary, String> {
     // Sync is its own explicit per-playlist opt-in, independent of subscribing or owning — even a
     // playlist's own owner must enable it, same as anyone else.
     let playlists: Vec<Playlist> = http::get_json(&client, token, "/api/playlists").await?;
-    let relevant_playlists: Vec<&Playlist> = playlists.iter().filter(|playlist| playlist.sync_enabled).collect();
+    let relevant_playlists: Vec<&Playlist> = playlists
+        .iter()
+        .filter(|playlist| playlist.sync_enabled)
+        .collect();
 
     // Genres have no owner and no separate "subscribe" concept — sync is the only per-user state.
     let genres: Vec<Genre> = http::get_json(&client, token, "/api/genres").await?;
@@ -172,10 +175,23 @@ pub async fn sync_library(app: AppHandle) -> Result<SyncSummary, String> {
     // downloaded tracks removed now, before anything else runs (see `remove_stale_folders`).
     // Nothing else in this function ever revisits an index entry outside the current relevant
     // set, so skipping this would leave those files behind indefinitely.
-    let relevant_playlist_ids: HashSet<i64> = relevant_playlists.iter().map(|playlist| playlist.id).collect();
-    remove_stale_folders(&library_folder, &mut index, SourceKind::Playlist, &relevant_playlist_ids);
+    let relevant_playlist_ids: HashSet<i64> = relevant_playlists
+        .iter()
+        .map(|playlist| playlist.id)
+        .collect();
+    remove_stale_folders(
+        &library_folder,
+        &mut index,
+        SourceKind::Playlist,
+        &relevant_playlist_ids,
+    );
     let relevant_genre_ids: HashSet<i64> = relevant_genres.iter().map(|genre| genre.id).collect();
-    remove_stale_folders(&library_folder, &mut index, SourceKind::Genre, &relevant_genre_ids);
+    remove_stale_folders(
+        &library_folder,
+        &mut index,
+        SourceKind::Genre,
+        &relevant_genre_ids,
+    );
     save_sync_index(&library_folder, &index)?;
 
     let _ = app.emit(
@@ -414,7 +430,10 @@ fn remove_managed_files(folder: &Path) {
         }
 
         if let Err(err) = fs::remove_file(&path) {
-            eprintln!("Could not remove no-longer-synced file \"{}\": {err}", path.display());
+            eprintln!(
+                "Could not remove no-longer-synced file \"{}\": {err}",
+                path.display()
+            );
         }
     }
 }
@@ -473,7 +492,9 @@ fn resolve_folder(
 
         let folder = library_folder.join(&folder_name);
         fs::create_dir_all(&folder).map_err(|err| err.to_string())?;
-        index.map_for_mut(source.kind).insert(key, FolderEntry { folder_name });
+        index
+            .map_for_mut(source.kind)
+            .insert(key, FolderEntry { folder_name });
         return Ok(folder);
     }
 
@@ -1019,11 +1040,19 @@ mod tests {
     }
 
     fn playlist_source(id: i64, name: &str) -> FolderSource<'_> {
-        FolderSource { kind: SourceKind::Playlist, id, name }
+        FolderSource {
+            kind: SourceKind::Playlist,
+            id,
+            name,
+        }
     }
 
     fn genre_source(id: i64, name: &str) -> FolderSource<'_> {
-        FolderSource { kind: SourceKind::Genre, id, name }
+        FolderSource {
+            kind: SourceKind::Genre,
+            id,
+            name,
+        }
     }
 
     fn empty_index() -> SyncIndex {
@@ -1038,7 +1067,11 @@ mod tests {
     /// `remove_managed_files` only recognizes a file as "ours" via a genuine, readable id tag, not
     /// just a matching extension.
     fn fixture_mp3_path() -> PathBuf {
-        Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../test-fixtures/fixture.mp3")).to_path_buf()
+        Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../test-fixtures/fixture.mp3"
+        ))
+        .to_path_buf()
     }
 
     #[test]
@@ -1051,7 +1084,9 @@ mod tests {
         let mut index = SyncIndex {
             playlists: HashMap::from([(
                 "1".to_string(),
-                FolderEntry { folder_name: "Old Favorites".to_string() },
+                FolderEntry {
+                    folder_name: "Old Favorites".to_string(),
+                },
             )]),
             ..empty_index()
         };
@@ -1076,7 +1111,9 @@ mod tests {
         let mut index = SyncIndex {
             playlists: HashMap::from([(
                 "1".to_string(),
-                FolderEntry { folder_name: "Old Favorites".to_string() },
+                FolderEntry {
+                    folder_name: "Old Favorites".to_string(),
+                },
             )]),
             ..empty_index()
         };
@@ -1100,7 +1137,9 @@ mod tests {
         let mut index = SyncIndex {
             playlists: HashMap::from([(
                 "1".to_string(),
-                FolderEntry { folder_name: "Still Subscribed".to_string() },
+                FolderEntry {
+                    folder_name: "Still Subscribed".to_string(),
+                },
             )]),
             ..empty_index()
         };
@@ -1121,7 +1160,9 @@ mod tests {
         let mut index = SyncIndex {
             playlists: HashMap::from([(
                 "1".to_string(),
-                FolderEntry { folder_name: "Already Gone".to_string() },
+                FolderEntry {
+                    folder_name: "Already Gone".to_string(),
+                },
             )]),
             ..empty_index()
         };
@@ -1141,7 +1182,9 @@ mod tests {
         let mut index = SyncIndex {
             genres: HashMap::from([(
                 "1".to_string(),
-                FolderEntry { folder_name: "House".to_string() },
+                FolderEntry {
+                    folder_name: "House".to_string(),
+                },
             )]),
             ..empty_index()
         };
@@ -1238,7 +1281,9 @@ mod tests {
         let mut index = SyncIndex {
             genres: HashMap::from([(
                 "1".to_string(),
-                FolderEntry { folder_name: "House".to_string() },
+                FolderEntry {
+                    folder_name: "House".to_string(),
+                },
             )]),
             ..empty_index()
         };
@@ -1285,8 +1330,13 @@ mod tests {
         let dir = tempfile_dir();
         let mut index = empty_index();
 
-        let playlist_folder =
-            resolve_folder(&dir, &mut index, &playlist_source(1, "House"), &HashSet::new()).unwrap();
+        let playlist_folder = resolve_folder(
+            &dir,
+            &mut index,
+            &playlist_source(1, "House"),
+            &HashSet::new(),
+        )
+        .unwrap();
         let genre_folder =
             resolve_folder(&dir, &mut index, &genre_source(1, "House"), &HashSet::new()).unwrap();
 
