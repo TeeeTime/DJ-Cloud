@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { commands, onSyncProgress, type SyncProgressEvent } from "@/lib/commands";
 
-type SyncStatus = "idle" | "syncing" | "synced" | "error";
+type SyncStatus = "idle" | "syncing" | "synced" | "partial" | "error";
 type UpdateStatus = "idle" | "checking" | "up-to-date" | "available" | "downloading" | "error";
 
 interface MainScreenProps {
@@ -31,6 +31,7 @@ export function MainScreen({
   const [status, setStatus] = useState<SyncStatus>("idle");
   const [progress, setProgress] = useState<SyncProgressEvent | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncFailedCount, setSyncFailedCount] = useState(0);
 
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
   const [updateInfo, setUpdateInfo] = useState<Update | null>(null);
@@ -52,9 +53,15 @@ export function MainScreen({
     setStatus("syncing");
     setProgress(null);
     setSyncError(null);
+    setSyncFailedCount(0);
     try {
-      await commands.syncLibrary();
-      setStatus("synced");
+      const summary = await commands.syncLibrary();
+      if (summary.failed > 0) {
+        setSyncFailedCount(summary.failed);
+        setStatus("partial");
+      } else {
+        setStatus("synced");
+      }
     } catch (err) {
       console.error("Sync failed:", err);
       setSyncError(err instanceof Error ? err.message : String(err));
@@ -160,6 +167,9 @@ export function MainScreen({
 
   const syncStatusLabel = (() => {
     if (status === "error") return syncError ?? "Sync failed";
+    if (status === "partial") {
+      return `Synced with ${syncFailedCount} track${syncFailedCount === 1 ? "" : "s"} failed`;
+    }
     if (status === "synced") return "Up to date";
     if (!isSyncing) return "Idle";
     if (!progress || progress.filesTotal === 0) return "Checking library…";
