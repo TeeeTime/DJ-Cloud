@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Library, ListMusic, Disc3, Lock, Globe } from "lucide-react";
+import { LayoutGrid, Library, ListMusic, Disc3, Globe, CloudCheck } from "lucide-react";
 import { usePlayer } from "@/components/providers/player-provider";
 import { usePlaylists } from "@/components/providers/playlist-provider";
 import { useGenres } from "@/components/providers/genre-provider";
@@ -15,7 +15,7 @@ import { CreatePlaylistDialog } from "@/components/views/create-playlist-dialog"
 export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
   const { activeFilter, setActiveFilter } = usePlayer();
   const { playlists, playlistsLoading } = usePlaylists();
-  const { genreNames, genresLoading } = useGenres();
+  const { genreNames, genresLoading, genreSyncs } = useGenres();
   const { user } = useAuth();
   const pathname = usePathname();
 
@@ -85,7 +85,7 @@ export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
                 >
                   <ListMusic className="w-4 h-4 shrink-0" />
                   <span className="truncate flex-1 text-left">{pl.name}</span>
-                  {pl.isPublic ? <Globe className="w-3 h-3 shrink-0 text-zinc-600" /> : <Lock className="w-3 h-3 shrink-0 text-zinc-600" />}
+                  {pl.syncEnabled && <CloudCheck className="w-3.5 h-3.5 shrink-0" />}
                 </button>
               </Link>
             ))}
@@ -104,16 +104,20 @@ export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
             <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Genres</h2>
           </div>
           <div className="space-y-0.5">
-            {genreNames.map(name => (
-              <Link key={name} href={`/genre/${encodeURIComponent(name)}`}>
-                <button
-                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pathname === `/genre/${encodeURIComponent(name)}` ? 'bg-zinc-900 text-white' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}
-                >
-                  <Disc3 className="w-4 h-4 shrink-0" />
-                  <span className="truncate flex-1 text-left">{name}</span>
-                </button>
-              </Link>
-            ))}
+            {genreNames.map(name => {
+              const syncEnabled = genreSyncs.find(g => g.name === name)?.syncEnabled ?? false;
+              return (
+                <Link key={name} href={`/genre/${encodeURIComponent(name)}`}>
+                  <button
+                    className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pathname === `/genre/${encodeURIComponent(name)}` ? 'bg-zinc-900 text-white' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}
+                  >
+                    <Disc3 className="w-4 h-4 shrink-0" />
+                    <span className="truncate flex-1 text-left">{name}</span>
+                    {syncEnabled && <CloudCheck className="w-3.5 h-3.5 shrink-0" />}
+                  </button>
+                </Link>
+              );
+            })}
             {genresLoading && (
               <div className="px-3 py-2 text-xs text-zinc-600">Loading…</div>
             )}

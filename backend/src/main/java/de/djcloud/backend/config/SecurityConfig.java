@@ -51,15 +51,27 @@ public class SecurityConfig {
                         // so these two are carved out of the broader permitAll rule below.
                         .requestMatchers(HttpMethod.GET, "/api/tracks/*/download").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/genres/*/download").authenticated()
+                        // Personalized (carries the caller's own sync-enabled flags), so — like
+                        // GET /api/playlists below — this must be authenticated even though the
+                        // broader genre-browsing endpoints (autocomplete, distribution, tracks,
+                        // download) stay public. A bare "/api/genres" doesn't collide with
+                        // those, which all have an extra path segment.
+                        .requestMatchers(HttpMethod.GET, "/api/genres").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/tracks/**", "/api/artists/**", "/api/genres/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/registration-codes").hasRole("ADMIN")
+                        // Syncing is open to any authenticated role, so these more specific
+                        // matchers must be evaluated before the coarser EDITOR/ADMIN-only ones below.
+                        .requestMatchers(HttpMethod.POST, "/api/genres/*/sync").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/genres/*/sync").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/tracks/**", "/api/artists/**", "/api/genres/**").hasAnyRole("EDITOR", "ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/tracks/**", "/api/artists/**", "/api/genres/**").hasAnyRole("EDITOR", "ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/tracks/**", "/api/artists/**", "/api/genres/**").hasAnyRole("EDITOR", "ADMIN")
-                        // Subscribing is open to any authenticated role, so these more specific
-                        // matchers must be evaluated before the coarser EDITOR/ADMIN-only ones below.
                         .requestMatchers(HttpMethod.POST, "/api/playlists/*/subscription").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/playlists/*/subscription").authenticated()
+                        // Same open-to-any-role treatment as subscribing — syncing a playlist to
+                        // the desktop app is a personal preference, not a content-editing action.
+                        .requestMatchers(HttpMethod.POST, "/api/playlists/*/sync").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/playlists/*/sync").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/playlists/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/playlists/**").hasAnyRole("EDITOR", "ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/playlists/**").hasAnyRole("EDITOR", "ADMIN")

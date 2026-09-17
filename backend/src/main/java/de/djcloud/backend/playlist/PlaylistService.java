@@ -40,6 +40,7 @@ public class PlaylistService {
     private final PlaylistRepository playlistRepository;
     private final PlaylistLastViewedRepository playlistLastViewedRepository;
     private final PlaylistSubscriptionRepository playlistSubscriptionRepository;
+    private final PlaylistSyncRepository playlistSyncRepository;
     private final PlaylistTrackRepository playlistTrackRepository;
     private final TrackRepository trackRepository;
     private final TrackService trackService;
@@ -55,6 +56,10 @@ public class PlaylistService {
                 .collect(Collectors.toMap(v -> v.getPlaylist().getId(), PlaylistLastViewed::getViewedAt));
 
         Set<Long> subscribedPlaylistIds = playlistSubscriptionRepository.findByUserId(caller.getId()).stream()
+                .map(s -> s.getPlaylist().getId())
+                .collect(Collectors.toSet());
+
+        Set<Long> syncEnabledPlaylistIds = playlistSyncRepository.findByUserId(caller.getId()).stream()
                 .map(s -> s.getPlaylist().getId())
                 .collect(Collectors.toSet());
 
@@ -82,6 +87,7 @@ public class PlaylistService {
                 .sorted(byLastViewedThenCreated)
                 .filter(p -> !editableOnly || canEditTracks(p, caller))
                 .map(p -> PlaylistResponse.fromEntity(p, subscribedPlaylistIds.contains(p.getId()),
+                        syncEnabledPlaylistIds.contains(p.getId()),
                         trackCountByPlaylistId.getOrDefault(p.getId(), 0),
                         topGenresByPlaylistId.getOrDefault(p.getId(), List.of())))
                 .toList();
@@ -100,7 +106,7 @@ public class PlaylistService {
         recordView(playlist, caller);
 
         return PlaylistDetailResponse.fromEntity(playlist, canEditTracks(playlist, caller),
-                isSubscribed(id, caller.getId()), trackCount(id));
+                isSubscribed(id, caller.getId()), isSyncEnabled(id, caller.getId()), trackCount(id));
     }
 
     /**
@@ -136,7 +142,7 @@ public class PlaylistService {
 
         Playlist playlist = createPlaylist(request.name(), request.isPublic(), owner);
 
-        return PlaylistResponse.fromEntity(playlist, true, 0, List.of());
+        return PlaylistResponse.fromEntity(playlist, true, false, 0, List.of());
     }
 
     /**
@@ -163,7 +169,8 @@ public class PlaylistService {
         }).toList();
         playlistTrackRepository.saveAll(copiedTracks);
 
-        return PlaylistResponse.fromEntity(playlist, true, copiedTracks.size(), topGenresFromTracks(copiedTracks));
+        return PlaylistResponse.fromEntity(playlist, true, false, copiedTracks.size(),
+                topGenresFromTracks(copiedTracks));
     }
 
     private Playlist createPlaylist(String name, boolean isPublic, User owner) {
@@ -196,8 +203,8 @@ public class PlaylistService {
 
         List<PlaylistTrack> tracks = playlistTrackRepository.findByPlaylistIdOrderByPosition(id);
 
-        return PlaylistResponse.fromEntity(playlist, isSubscribed(id, caller.getId()), tracks.size(),
-                topGenresFromTracks(tracks));
+        return PlaylistResponse.fromEntity(playlist, isSubscribed(id, caller.getId()),
+                isSyncEnabled(id, caller.getId()), tracks.size(), topGenresFromTracks(tracks));
     }
 
     @Transactional
@@ -207,6 +214,7 @@ public class PlaylistService {
 
         playlistLastViewedRepository.deleteByPlaylistId(id);
         playlistSubscriptionRepository.deleteByPlaylistId(id);
+        playlistSyncRepository.deleteByPlaylistId(id);
         // Nothing cascades this automatically — PlaylistTrack rows aren't an owned Hibernate
         // collection on Playlist, so they'd otherwise be orphaned once the playlist itself is gone.
         playlistTrackRepository.deleteByPlaylistId(id);
@@ -228,7 +236,8 @@ public class PlaylistService {
             playlistSubscriptionRepository.save(subscription);
         }
 
-        return PlaylistDetailResponse.fromEntity(playlist, canEditTracks(playlist, caller), true, trackCount(id));
+        return PlaylistDetailResponse.fromEntity(playlist, canEditTracks(playlist, caller), true,
+                isSyncEnabled(id, caller.getId()), trackCount(id));
     }
 
     @Transactional
@@ -237,7 +246,43 @@ public class PlaylistService {
 
         playlistSubscriptionRepository.deleteByPlaylistIdAndUserId(id, caller.getId());
 
-        return PlaylistDetailResponse.fromEntity(playlist, canEditTracks(playlist, caller), false, trackCount(id));
+        return PlaylistDetailResponse.fromEntity(playlist, canEditTracks(playlist, caller), false,
+                isSyncEnabled(id, caller.getId()), trackCount(id));
+    }
+
+    /**
+     * Marks this playlist to be downloaded to the caller's local library by the desktop app.
+     * Fully independent of {@link #subscribe} — enabling sync neither requires nor implies a
+     * subscription (and vice versa), and owning a playlist doesn't auto-enable sync either; every
+     * caller, owner or not, opts in explicitly.
+     */
+    @Transactional
+    public PlaylistDetailResponse enableSync(Long id, AppUserDetails caller) {
+        Playlist playlist = findOrThrow(id);
+
+        if (playlistSyncRepository.findByPlaylistIdAndUserId(id, caller.getId()).isEmpty()) {
+            User user = userRepository.findById(caller.getId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+            PlaylistSync sync = new PlaylistSync();
+            sync.setPlaylist(playlist);
+            sync.setUser(user);
+            sync.setSyncEnabledAt(Instant.now());
+            playlistSyncRepository.save(sync);
+        }
+
+        return PlaylistDetailResponse.fromEntity(playlist, canEditTracks(playlist, caller),
+                isSubscribed(id, caller.getId()), true, trackCount(id));
+    }
+
+    @Transactional
+    public PlaylistDetailResponse disableSync(Long id, AppUserDetails caller) {
+        Playlist playlist = findOrThrow(id);
+
+        playlistSyncRepository.deleteByPlaylistIdAndUserId(id, caller.getId());
+
+        return PlaylistDetailResponse.fromEntity(playlist, canEditTracks(playlist, caller),
+                isSubscribed(id, caller.getId()), false, trackCount(id));
     }
 
     @Transactional
@@ -258,7 +303,7 @@ public class PlaylistService {
         }
 
         return PlaylistDetailResponse.fromEntity(playlist, true, isSubscribed(playlistId, caller.getId()),
-                trackCount(playlistId));
+                isSyncEnabled(playlistId, caller.getId()), trackCount(playlistId));
     }
 
     @Transactional
@@ -269,7 +314,7 @@ public class PlaylistService {
         playlistTrackRepository.deleteByPlaylistIdAndTrackId(playlistId, trackId);
 
         return PlaylistDetailResponse.fromEntity(playlist, true, isSubscribed(playlistId, caller.getId()),
-                trackCount(playlistId));
+                isSyncEnabled(playlistId, caller.getId()), trackCount(playlistId));
     }
 
     /**
@@ -325,7 +370,7 @@ public class PlaylistService {
         }
 
         return PlaylistDetailResponse.fromEntity(playlist, true, isSubscribed(playlistId, caller.getId()),
-                trackCount(playlistId));
+                isSyncEnabled(playlistId, caller.getId()), trackCount(playlistId));
     }
 
     private static int indexOfTrack(List<PlaylistTrack> tracks, Long trackId) {
@@ -372,6 +417,10 @@ public class PlaylistService {
 
     private boolean isSubscribed(Long playlistId, Long userId) {
         return playlistSubscriptionRepository.findByPlaylistIdAndUserId(playlistId, userId).isPresent();
+    }
+
+    private boolean isSyncEnabled(Long playlistId, Long userId) {
+        return playlistSyncRepository.findByPlaylistIdAndUserId(playlistId, userId).isPresent();
     }
 
     private void recordView(Playlist playlist, AppUserDetails caller) {

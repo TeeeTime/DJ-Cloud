@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, Globe, Lock, Loader2, AlertCircle, Menu } from "lucide-react";
+import { Search, UserRound, UsersRound, Loader2, AlertCircle, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
@@ -88,7 +88,7 @@ export function PlaylistBrowserView() {
                         <span className="truncate block" title={pl.name}>{pl.name}</span>
                       </CardTitle>
                       <div className="flex items-center gap-1.5 text-xs text-zinc-500 min-w-0">
-                        {pl.isPublic ? <Globe className="w-3 h-3 shrink-0" /> : <Lock className="w-3 h-3 shrink-0" />}
+                        {pl.isPublic ? <UsersRound className="w-3 h-3 shrink-0" /> : <UserRound className="w-3 h-3 shrink-0" />}
                         <span className="truncate" title={pl.ownerUsername}>by {pl.ownerUsername}</span>
                       </div>
                     </CardHeader>

@@ -586,6 +586,27 @@ doesn't exist.
 
 ---
 
+## `GET /api/genres`
+
+**Requires a valid JWT** (any role) — unlike the rest of genre browsing below, this isn't public,
+since the result is personalized (`syncEnabled`) even though the genre set itself isn't
+caller-specific. This is what the desktop client uses to decide which genres to sync locally.
+
+Returns every genre that exists, sorted alphabetically by name, each annotated with whether the
+caller has sync enabled for it (see the sync endpoints below). There is no separate "subscribe"
+concept for genres (unlike playlists) — genres have no owner and the web UI's genre list always
+shows every genre unconditionally, so sync is the only thing this flag controls.
+
+Response `200`:
+```json
+[
+  { "id": 2, "name": "Deep House", "syncEnabled": false },
+  { "id": 1, "name": "Tech House", "syncEnabled": true }
+]
+```
+
+---
+
 ## `GET /api/genres/autocomplete`
 
 **Public.** Case-insensitive substring search over genre names, for a search-as-you-type field.
@@ -678,8 +699,33 @@ Response `200`: the updated genre. `404` if the genre doesn't exist.
 ## `DELETE /api/genres/{id}`
 
 **Requires a JWT with role `EDITOR` or `ADMIN`.** Deletes a genre and untags it from every track that
-referenced it (tracks themselves are not deleted). Response: `204 No Content`, or `404` if the genre
-doesn't exist.
+referenced it (tracks themselves are not deleted). Also removes every sync toggle pointing at it.
+Response: `204 No Content`, or `404` if the genre doesn't exist.
+
+---
+
+## `POST /api/genres/{name}/sync`
+
+**Requires a valid JWT — any role.** Marks this genre to be downloaded to the caller's local
+library by the desktop app, matched case-insensitively by name (not id) — same lookup as
+`GET /api/genres/{name}/tracks`. Reflected as `syncEnabled` on `GET /api/genres`; has no effect on
+the web UI's genre list, which always shows every genre regardless of sync state. Idempotent:
+enabling sync twice is a no-op the second time.
+
+Response `200`: `{ "id": 1, "name": "Tech House", "syncEnabled": true }`.
+
+`404` if no genre with that name exists.
+
+---
+
+## `DELETE /api/genres/{name}/sync`
+
+**Requires a valid JWT — any role.** Disables sync for the caller, matched case-insensitively by
+name. Idempotent: disabling when not enabled is a no-op.
+
+Response `200`: `{ "id": 1, "name": "Tech House", "syncEnabled": false }`.
+
+`404` if no genre with that name exists.
 
 ---
 
@@ -708,6 +754,11 @@ ownership or access), so `subscribed` alone would incorrectly hide it. This endp
 returns the full set (subscribed or not) so callers can also use it to find playlists to subscribe
 to or add tracks to.
 
+`syncEnabled` is entirely independent of `subscribed` — it's what the desktop app uses to decide
+whether to download this playlist's tracks locally (see `POST/DELETE .../sync` below). Unlike
+`subscribed`, ownership never implies `syncEnabled`: an owner must explicitly enable sync on their
+own playlists too, same as anyone else.
+
 Each entry also includes `topGenres`: up to 3 genre names, ranked by how many of the playlist's
 tracks carry that genre (ties broken alphabetically); an empty array if the playlist has no tracks
 or none of its tracks have genres assigned.
@@ -723,6 +774,7 @@ Response `200`:
     "createdAt": "2026-08-29T14:03:11.123Z",
     "trackCount": 12,
     "subscribed": true,
+    "syncEnabled": false,
     "topGenres": ["Techno", "House"]
   }
 ]
@@ -749,13 +801,16 @@ Response `200`:
   "createdAt": "2026-08-29T14:03:11.123Z",
   "canEditTracks": true,
   "subscribed": true,
+  "syncEnabled": false,
   "trackCount": 12
 }
 ```
 `canEditTracks` tells the frontend whether the caller is allowed to add/remove tracks on this
 playlist right now (see the rule under `POST .../tracks` below) — computed server-side so the
 frontend doesn't need to re-derive it. `subscribed` reflects the caller's own subscription (see
-`POST .../subscription` below) — unrelated to `canEditTracks` and to ownership.
+`POST .../subscription` below) — unrelated to `canEditTracks` and to ownership. `syncEnabled`
+reflects the caller's own sync toggle (see `POST .../sync` below) — independent of `subscribed`,
+`canEditTracks`, and ownership alike.
 
 `404` if the playlist doesn't exist.
 
@@ -796,7 +851,8 @@ from disk is silently skipped rather than failing the whole download.
 
 **Requires a JWT with role `EDITOR` or `ADMIN`.** Creates a playlist owned by the caller. The owner is
 automatically subscribed to it (see `POST .../subscription` below), so it shows up in their own
-subscribed-playlists view right away.
+subscribed-playlists view right away. Sync is **not** auto-enabled — the owner must explicitly call
+`POST .../sync` like anyone else if they want it downloaded to their own desktop library.
 
 Request:
 ```json
@@ -804,7 +860,7 @@ Request:
 ```
 
 Response `201`: the created playlist, same shape as one entry from `GET /api/playlists`
-(`subscribed: true`).
+(`subscribed: true`, `syncEnabled: false`).
 
 ---
 
@@ -814,7 +870,7 @@ Response `201`: the created playlist, same shape as one entry from `GET /api/pla
 seeded with a one-time snapshot of the source playlist's (`id` in the path) current tracks. The copy
 is fully independent afterward — there is no ongoing link to the source; adding or removing tracks on
 either playlist has no effect on the other. The owner is automatically subscribed to the new playlist,
-same as `POST /api/playlists` above.
+same as `POST /api/playlists` above — and, likewise, sync is not auto-enabled on it either.
 
 Any authenticated `EDITOR`/`ADMIN` can copy any playlist regardless of who owns it or its
 public/private flag — copying only requires read access to the source, which every authenticated user
@@ -858,8 +914,8 @@ Errors:
 ## `DELETE /api/playlists/{id}`
 
 **Same permission rule as `PUT /api/playlists/{id}` above — owner only.** Deletes the playlist itself
-(not its tracks — the tracks stay in the library). Also removes every subscription and last-viewed
-record pointing at it.
+(not its tracks — the tracks stay in the library). Also removes every subscription, sync toggle, and
+last-viewed record pointing at it.
 
 Response: `204 No Content`. Same `403`/`404` semantics as `PUT /api/playlists/{id}`.
 
@@ -869,9 +925,10 @@ Response: `204 No Content`. Same `403`/`404` semantics as `PUT /api/playlists/{i
 
 **Requires a valid JWT — any role.** Subscribes the caller to this playlist. This is what determines
 whether a playlist shows up in a caller-scoped view like a sidebar (via `subscribed` on
-`GET /api/playlists`/`GET /api/playlists/{id}`) — separate from visibility and from edit rights. Any
-authenticated user can subscribe to any playlist, public or private. Idempotent: subscribing twice is
-a no-op the second time.
+`GET /api/playlists`/`GET /api/playlists/{id}`) — separate from visibility, from edit rights, and
+from sync (see `POST .../sync` below — subscribing has no effect on what the desktop app downloads).
+Any authenticated user can subscribe to any playlist, public or private. Idempotent: subscribing
+twice is a no-op the second time.
 
 Response `200`: the playlist, same shape as `GET /api/playlists/{id}` (`subscribed: true`).
 
@@ -884,9 +941,37 @@ Response `200`: the playlist, same shape as `GET /api/playlists/{id}` (`subscrib
 **Requires a valid JWT — any role.** Unsubscribes the caller. Idempotent: unsubscribing when not
 subscribed is a no-op. Note this applies even to a playlist's own owner — unsubscribing from your own
 playlist removes it from your subscribed-playlists view too (ownership is unaffected; you can still
-open and edit it directly).
+open and edit it directly). Has no effect on `syncEnabled` — see `POST/DELETE .../sync` below.
 
 Response `200`: the playlist, same shape as `GET /api/playlists/{id}` (`subscribed: false`).
+
+`404` if the playlist doesn't exist.
+
+---
+
+## `POST /api/playlists/{id}/sync`
+
+**Requires a valid JWT — any role.** Marks this playlist to be downloaded to the caller's local
+library by the desktop app (`syncEnabled` on `GET /api/playlists`/`GET /api/playlists/{id}`) — fully
+independent of `POST .../subscription` above: enabling sync neither requires nor implies a
+subscription, and vice versa. **Ownership doesn't auto-enable sync either** — every caller, owner or
+not, must call this explicitly for each playlist they want synced. Idempotent: enabling sync twice is
+a no-op the second time.
+
+Response `200`: the playlist, same shape as `GET /api/playlists/{id}` (`syncEnabled: true`).
+
+`404` if the playlist doesn't exist.
+
+---
+
+## `DELETE /api/playlists/{id}/sync`
+
+**Requires a valid JWT — any role.** Disables sync for the caller. Idempotent: disabling when not
+enabled is a no-op. Has no effect on `subscribed` — see `POST/DELETE .../subscription` above.
+
+Response `200`: the playlist, same shape as `GET /api/playlists/{id}` (`syncEnabled: false`).
+
+`404` if the playlist doesn't exist.
 
 ---
 
