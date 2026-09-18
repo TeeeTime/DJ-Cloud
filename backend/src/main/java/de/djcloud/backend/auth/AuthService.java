@@ -52,6 +52,10 @@ public class AuthService {
         return UserResponse.fromUserDetails(userDetails);
     }
 
+    public MediaTokenResponse mediaToken(AppUserDetails userDetails) {
+        return MediaTokenResponse.fromMediaToken(jwtService.generateMediaToken(userDetails));
+    }
+
     @Transactional
     public void register(RegisterRequest request) {
         RegistrationCode registrationCode = registrationCodeRepository.findByCode(request.registrationCode())

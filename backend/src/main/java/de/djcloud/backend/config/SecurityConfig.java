@@ -30,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final RateLimitingFilter rateLimitingFilter;
 
     @Value("${app.cors.allowed-origin}")
     private String allowedOrigin;
@@ -51,6 +52,11 @@ public class SecurityConfig {
                         // so these two are carved out of the broader permitAll rule below.
                         .requestMatchers(HttpMethod.GET, "/api/tracks/*/download").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/genres/*/download").authenticated()
+                        // Streaming full audio (even at a reduced bitrate) and reading cover art are
+                        // just as sensitive as downloading — carved out the same way. A browser can't
+                        // attach an Authorization header to an <audio>/<img> src, so JwtAuthFilter also
+                        // accepts a short-lived media token as a ?token= query param here specifically.
+                        .requestMatchers(HttpMethod.GET, "/api/tracks/*/audio", "/api/tracks/*/cover").authenticated()
                         // Personalized (carries the caller's own sync-enabled flags), so — like
                         // GET /api/playlists below — this must be authenticated even though the
                         // broader genre-browsing endpoints (autocomplete, distribution, tracks,
@@ -77,7 +83,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/playlists/**").hasAnyRole("EDITOR", "ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/playlists/**").hasAnyRole("EDITOR", "ADMIN")
                         .anyRequest().authenticated())
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

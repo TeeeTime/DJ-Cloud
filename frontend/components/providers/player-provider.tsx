@@ -2,9 +2,11 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Track, isPlayableStatus } from "@/lib/data";
-import { tracksApi, TrackFilters } from "@/lib/api";
+import { tracksApi, authApi, TrackFilters } from "@/lib/api";
 import { usePagedTracks, FetchTracksPageParams } from "@/lib/use-paged-tracks";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
+import { appendMediaToken, setMediaToken } from "@/lib/media-token";
+import { useAuth } from "@/components/providers/auth-provider";
 
 type FilterType = { type: 'all' | 'playlist' | 'genre', value: string };
 type SortConfig = { key: keyof Track, direction: 'asc' | 'desc' } | null;
@@ -45,6 +47,9 @@ interface PlayerContextType {
   trackFilters: TrackFilters;
   setTrackFilters: React.Dispatch<React.SetStateAction<TrackFilters>>;
   audioRef: React.RefObject<HTMLAudioElement | null>;
+  // True while handleAudioError is minting a fresh media token and reloading the <audio> src —
+  // BottomPlayer's play/pause-sync effect must not call .play() during this window (see there).
+  audioNeedsRetry: boolean;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -62,6 +67,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const debouncedSearchQuery = useDebouncedValue(searchQuery);
   const [trackFilters, setTrackFilters] = useState<TrackFilters>({});
   const audioRef = React.useRef<HTMLAudioElement>(null);
+  const { token: authToken } = useAuth();
+  const [audioNeedsRetry, setAudioNeedsRetry] = useState(false);
   const [registeredOrder, setRegisteredOrder] = useState<Track[] | null>(null);
   const [onOrderExhausted, setOnOrderExhausted] = useState<(() => Promise<Track[] | null>) | null>(null);
 
@@ -100,9 +107,44 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // not-yet-processed track (no preview available yet) must never be auto-selected.
   const currentTrack = selectedTrack ?? tracks.find(t => isPlayableStatus(t.status)) ?? null;
 
+  // The <audio> element's src is recomputed fresh from currentTrack on every render (not read
+  // directly off the frozen currentTrack.audioUrl field, whose baked-in media token — see
+  // lib/data.ts — can be stale, e.g. unset on first paint before AuthProvider's token fetch
+  // resolves). handleAudioError below can override it with a freshly re-minted one via
+  // retriedAudioSrc — also doubling as the "already retried this track" guard, since it's non-null
+  // only after a retry — cleared whenever the track itself changes, using the same
+  // compare-during-render reset idiom as TrackThumbnail/TrackCover (see track-row-parts.tsx) rather
+  // than an effect, so it doesn't cost an extra render pass.
+  const baseAudioSrc = currentTrack ? appendMediaToken(tracksApi.audioUrl(currentTrack.id)) : undefined;
+  const [retriedAudioSrc, setRetriedAudioSrc] = useState<string | undefined>(undefined);
+  const [prevTrackId, setPrevTrackId] = useState<number | null>(null);
+  if ((currentTrack?.id ?? null) !== prevTrackId) {
+    setPrevTrackId(currentTrack?.id ?? null);
+    setRetriedAudioSrc(undefined);
+  }
+  const audioSrc = retriedAudioSrc ?? baseAudioSrc;
+
   // Whichever view is currently mounted (genre/playlist/overview) can override this with its own
   // visible order; falls back to the library list when nothing has registered one.
   const activeTrackOrder = registeredOrder ?? tracks;
+
+  // The media token embedded in audioSrc is short-lived — if it's missing (first-paint race, before
+  // the initial media-token fetch resolves) or has expired (idle for a while), mint a fresh one and
+  // retry the same track once instead of leaving playback stuck on 401.
+  const handleAudioError = useCallback(async () => {
+    if (!currentTrack || !authToken || retriedAudioSrc !== undefined) return;
+    setAudioNeedsRetry(true);
+
+    try {
+      const { token } = await authApi.mediaToken(authToken);
+      setMediaToken(token);
+      setRetriedAudioSrc(appendMediaToken(tracksApi.audioUrl(currentTrack.id)));
+    } finally {
+      // Flip back regardless of outcome — on genuine failure, the play/pause-sync effect below
+      // re-running is what surfaces the real error instead of leaving playback silently stuck.
+      setAudioNeedsRetry(false);
+    }
+  }, [currentTrack, authToken, retriedAudioSrc]);
 
   const handleSort = (key: keyof Track) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -142,13 +184,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       trackFilters,
       setTrackFilters,
       audioRef,
+      audioNeedsRetry,
       handleSort,
     }}>
       {/* Hidden Audio Element for actual playback */}
       <audio
         ref={audioRef}
-        src={currentTrack?.audioUrl}
+        src={audioSrc}
         onEnded={() => setIsPlaying(false)}
+        onError={handleAudioError}
         preload="metadata"
       />
       {children}

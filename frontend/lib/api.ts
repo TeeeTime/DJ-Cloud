@@ -55,6 +55,11 @@ export interface MeResponse {
   role: Role;
 }
 
+export interface MediaTokenResponse {
+  token: string;
+  expiresAt: string;
+}
+
 export const authApi = {
   login: (username: string, password: string) =>
     request<AuthResponse>("/api/auth/login", {
@@ -65,6 +70,8 @@ export const authApi = {
   refresh: (token: string) => request<AuthResponse>("/api/auth/refresh", { method: "POST" }, token),
 
   me: (token: string) => request<MeResponse>("/api/auth/me", { method: "GET" }, token),
+
+  mediaToken: (token: string) => request<MediaTokenResponse>("/api/auth/media-token", { method: "GET" }, token),
 
   logout: (token: string) => request<void>("/api/auth/logout", { method: "POST" }, token),
 
