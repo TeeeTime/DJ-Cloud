@@ -84,6 +84,9 @@ Response `200`:
 `401` with `"Invalid username or password"` on bad credentials (username and password failures are not
 distinguished, by design).
 
+`429` `"Too many attempts — try again later"` if too many requests come from the same IP within the
+configured window (default 10 per 60s — see `RateLimitingFilter`).
+
 ---
 
 ## `POST /api/auth/refresh`
@@ -112,6 +115,24 @@ decoding the JWT client-side.
 Response `200`:
 ```json
 { "id": 1, "username": "tom", "role": "USER" }
+```
+
+---
+
+## `GET /api/auth/media-token`
+
+**Requires a valid JWT.** Issues a short-lived (2 minutes by default — `app.media-token.expiration`),
+single-purpose token for `GET /api/tracks/{id}/audio` and `/cover`, which is the only place it's ever
+accepted. It cannot be used as a normal session token on any other endpoint, even before it expires.
+
+This exists because a browser `<audio>`/`<img>` element can't set an `Authorization` header, so the
+frontend fetches one of these and appends it as `?token=...` to the audio/cover URL instead. The
+frontend should refresh it well before its `expiresAt`, the same way it refreshes the main session token
+via `POST /api/auth/refresh`.
+
+Response `200`:
+```json
+{ "token": "eyJhbGciOi...", "expiresAt": "2026-09-18T12:02:00Z" }
 ```
 
 ---
@@ -173,6 +194,7 @@ below) — call `/api/auth/login` next to get a token.
 Errors:
 - `400` `"Invalid or already used registration code"` — code doesn't exist or was already consumed.
 - `409` `"Username is already taken"`.
+- `429` `"Too many attempts — try again later"` — same per-IP limiter as `/api/auth/login`.
 
 ---
 
@@ -313,9 +335,15 @@ of them.
 
 ## `GET /api/tracks/{id}/audio`
 
-**Public.** Streams the track's generated streaming preview — **never the original upload**. The preview
-is a lower-bitrate MP3 transcode produced by the analysis pipeline (see `POST /api/tracks` below); it only
-exists once analysis has finished successfully (`status == READY`).
+**Requires a valid JWT** (any role) — like `/download` below, streaming full audio is more sensitive than
+browsing metadata, so this isn't public. Since an `<audio>` element can't set an `Authorization` header,
+this endpoint additionally accepts a short-lived **media token** (see `GET /api/auth/media-token` above)
+as a `?token=...` query parameter, as an alternative to the header.
+
+Streams the track's generated streaming preview — **never the original upload**. The preview is a
+lower-bitrate MP3 transcode produced by the analysis pipeline (see `POST /api/tracks` below) — it's the
+**entire track**, not a short clip, just at reduced quality; it only exists once analysis has finished
+successfully (`status == READY`).
 
 Supports HTTP range requests (`Range: bytes=...`), so a `<audio>`/`<video>` element can seek without
 downloading the whole file first.
@@ -323,6 +351,8 @@ downloading the whole file first.
 Response `206` (always partial content, even without a `Range` header — the first response is capped to
 a ~1MB chunk so the client naturally follows up with further range requests): the raw audio bytes,
 `Content-Type` always `audio/mpeg` (previews are always MP3, regardless of the original's `fileFormat`).
+
+`401` if neither a valid `Authorization` header nor a valid, unexpired media token query param is present.
 
 `404` `"No preview available for this track yet"` if the track doesn't exist, or has no preview yet —
 this includes any track that's `QUEUED`, `PROCESSING`, or `FAILED`, and legacy rows from before this
@@ -352,12 +382,17 @@ same track names, regardless of who uploaded them.
 
 ## `GET /api/tracks/{id}/cover`
 
-**Public.** Reads the embedded cover art straight out of the track's audio file (ID3 `APIC`/similar tag)
-and streams it back. Nothing is cached, resized, or persisted separately — every call re-reads the tag
-from the file on disk. There's no fallback image; a frontend should show its own placeholder on `404`.
+**Requires a valid JWT** (any role), same as `/audio` above — including accepting a media token as
+`?token=...` in place of the `Authorization` header, since `<img>` tags can't set one either.
+
+Reads the embedded cover art straight out of the track's audio file (ID3 `APIC`/similar tag) and streams
+it back. Nothing is cached, resized, or persisted separately — every call re-reads the tag from the file
+on disk. There's no fallback image; a frontend should show its own placeholder on `404`.
 
 Response `200`: the raw image bytes, `Content-Type` taken from the tag itself (typically `image/jpeg` or
 `image/png`).
+
+`401` if neither a valid `Authorization` header nor a valid, unexpired media token query param is present.
 
 `404` if the track doesn't exist, has no file on disk, or the file has no embedded artwork.
 

@@ -1,7 +1,9 @@
 package de.djcloud.backend.auth;
 
 import java.io.IOException;
+import java.util.regex.Pattern;
 
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -22,6 +24,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private static final String BEARER_PREFIX = "Bearer ";
 
+    // Matches GET /api/tracks/{id}/audio and /cover — the only endpoints a media token (see JwtService)
+    // is accepted for, since <audio>/<img> tags can't set an Authorization header and so must carry
+    // auth as a URL query param instead.
+    private static final Pattern MEDIA_ENDPOINT_PATTERN = Pattern.compile("^/api/tracks/[^/]+/(audio|cover)$");
+
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
 
@@ -29,21 +36,34 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         String authHeader = request.getHeader("Authorization");
+        String token;
+        boolean requireMediaPurpose;
 
-        if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {
+        if (authHeader != null && authHeader.startsWith(BEARER_PREFIX)) {
+            token = authHeader.substring(BEARER_PREFIX.length());
+            requireMediaPurpose = false;
+        } else if (isMediaEndpoint(request)) {
+            token = request.getParameter("token");
+            requireMediaPurpose = true;
+        } else {
+            token = null;
+            requireMediaPurpose = false;
+        }
+
+        if (token == null) {
             filterChain.doFilter(request, response);
             return;
         }
-
-        String token = authHeader.substring(BEARER_PREFIX.length());
 
         try {
             String username = jwtService.extractUsername(token);
 
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 AppUserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                boolean valid = requireMediaPurpose ? jwtService.isMediaTokenValid(token, userDetails)
+                        : jwtService.isTokenValid(token, userDetails);
 
-                if (jwtService.isTokenValid(token, userDetails)) {
+                if (valid) {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities());
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -56,5 +76,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isMediaEndpoint(HttpServletRequest request) {
+        return HttpMethod.GET.matches(request.getMethod()) && MEDIA_ENDPOINT_PATTERN.matcher(request.getRequestURI()).matches();
     }
 }

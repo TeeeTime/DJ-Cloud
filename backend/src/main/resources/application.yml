@@ -44,6 +44,16 @@ app:
   cors:
     # Origin the frontend is served from. Override via env var for anything other than local dev.
     allowed-origin: ${FRONTEND_ORIGIN:http://localhost:3000}
+  media-token:
+    # 2 minutes, in ms - short-lived token passed as ?token= to GET /api/tracks/{id}/audio and /cover,
+    # since <audio>/<img> tags can't send an Authorization header. See JwtService.generateMediaToken.
+    expiration: ${MEDIA_TOKEN_EXPIRATION_MS:120000}
+  rate-limit:
+    auth:
+      # Per-IP fixed-window limit on POST /api/auth/login and /register, the two endpoints that must
+      # stay unauthenticated. See RateLimitingFilter.
+      max-attempts: ${AUTH_RATE_LIMIT_MAX:10}
+      window-seconds: ${AUTH_RATE_LIMIT_WINDOW_SECONDS:60}
   admin:
     # Seeds the first admin account on startup if no admin exists yet. Override both via env vars.
     username: ${ADMIN_USERNAME:admin}
