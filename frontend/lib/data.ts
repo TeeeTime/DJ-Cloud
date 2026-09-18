@@ -1,4 +1,5 @@
 import { TrackResponse, TrackStatus, tracksApi } from "./api";
+import { appendMediaToken } from "./media-token";
 
 export type Track = {
   id: number;
@@ -76,7 +77,8 @@ export function bumpCoverVersion(id: number) {
 
 export function buildCoverUrl(id: number): string {
   const version = coverVersions.get(id);
-  return version === undefined ? tracksApi.coverUrl(id) : `${tracksApi.coverUrl(id)}?v=${version}`;
+  const url = version === undefined ? tracksApi.coverUrl(id) : `${tracksApi.coverUrl(id)}?v=${version}`;
+  return appendMediaToken(url);
 }
 
 export function mapTrackResponse(t: TrackResponse): Track {
@@ -94,7 +96,7 @@ export function mapTrackResponse(t: TrackResponse): Track {
     status: t.status,
     duration: formatDuration(t.durationSeconds),
     durationSeconds: t.durationSeconds,
-    audioUrl: tracksApi.audioUrl(t.id),
+    audioUrl: appendMediaToken(tracksApi.audioUrl(t.id)),
     coverUrl: buildCoverUrl(t.id),
   };
 }

@@ -601,7 +601,7 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                     </TableCell>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-3 min-w-0">
-                        <TrackThumbnail src={track.coverUrl} />
+                        <TrackThumbnail src={track.coverUrl} trackId={track.id} />
                         <span
                           className={`block truncate min-w-0 flex-1 text-sm ${currentTrack?.id === track.id ? 'text-white' : 'text-zinc-200'}`}
                           title={track.title}
