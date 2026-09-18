@@ -252,6 +252,13 @@ export interface TrackListParams extends TrackFilters {
   excludePlaylistId?: number;
 }
 
+export interface TrackBoundsResponse {
+  minBpm: number | null;
+  maxBpm: number | null;
+  minDurationSeconds: number | null;
+  maxDurationSeconds: number | null;
+}
+
 export const tracksApi = {
   list: (params: TrackListParams = {}) => {
     const query = new URLSearchParams();
@@ -268,6 +275,23 @@ export const tracksApi = {
     if (params.genres && params.genres.length > 0) query.set("genres", params.genres.join(","));
     const qs = query.toString();
     return request<PageResponse<TrackResponse>>(`/api/tracks${qs ? `?${qs}` : ""}`, { method: "GET" });
+  },
+
+  extremes: async (): Promise<TrackBoundsResponse> => {
+    try {
+      return await request<TrackBoundsResponse>("/api/tracks/extremes", { method: "GET" });
+    } catch {
+      // Fallback: fetch track list and calculate client-side
+      const res = await request<PageResponse<TrackResponse>>("/api/tracks?page=0&size=1000", { method: "GET" });
+      const validBpms = res.content.map(t => t.bpm).filter((b): b is number => typeof b === "number" && b > 0);
+      const validDurations = res.content.map(t => t.durationSeconds).filter((d): d is number => typeof d === "number" && d > 0);
+      return {
+        minBpm: validBpms.length > 0 ? Math.min(...validBpms) : null,
+        maxBpm: validBpms.length > 0 ? Math.max(...validBpms) : null,
+        minDurationSeconds: validDurations.length > 0 ? Math.min(...validDurations) : null,
+        maxDurationSeconds: validDurations.length > 0 ? Math.max(...validDurations) : null,
+      };
+    }
   },
 
   recent: (limit: number, token: string) =>

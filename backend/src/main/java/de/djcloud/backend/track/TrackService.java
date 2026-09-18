@@ -232,6 +232,16 @@ public class TrackService {
         return findOrThrow(id);
     }
 
+    @Transactional(readOnly = true)
+    public TrackBoundsResponse getExtremes() {
+        return new TrackBoundsResponse(
+                trackRepository.findMinBpm(),
+                trackRepository.findMaxBpm(),
+                trackRepository.findMinDurationSeconds(),
+                trackRepository.findMaxDurationSeconds()
+        );
+    }
+
     private Track findOrThrow(Long id) {
         return trackRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Track not found"));

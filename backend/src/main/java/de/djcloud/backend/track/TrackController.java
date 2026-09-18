@@ -63,6 +63,11 @@ public class TrackController {
         return trackService.search(criteria);
     }
 
+    @GetMapping("/extremes")
+    public TrackBoundsResponse getExtremes() {
+        return trackService.getExtremes();
+    }
+
     /** Most-recently-added tracks first, with each one flagged whether the caller has seen it yet. */
     @GetMapping("/recent")
     public RecentTracksResponse getRecentTracks(Authentication authentication, @RequestParam(defaultValue = "20") int limit) {

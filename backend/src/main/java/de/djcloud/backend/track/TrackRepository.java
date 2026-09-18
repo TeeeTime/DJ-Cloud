@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import de.djcloud.backend.artist.Artist;
@@ -41,4 +42,16 @@ public interface TrackRepository extends JpaRepository<Track, Long>, JpaSpecific
     List<Track> findAllByOrderByAddedAtDesc(Pageable pageable);
 
     long countByAddedAtAfter(Instant instant);
+
+    @Query("SELECT MIN(t.bpm) FROM Track t WHERE t.bpm > 0")
+    Integer findMinBpm();
+
+    @Query("SELECT MAX(t.bpm) FROM Track t WHERE t.bpm > 0")
+    Integer findMaxBpm();
+
+    @Query("SELECT MIN(t.durationSeconds) FROM Track t WHERE t.durationSeconds > 0")
+    Integer findMinDurationSeconds();
+
+    @Query("SELECT MAX(t.durationSeconds) FROM Track t WHERE t.durationSeconds > 0")
+    Integer findMaxDurationSeconds();
 }
