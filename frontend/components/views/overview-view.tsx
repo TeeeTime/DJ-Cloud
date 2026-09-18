@@ -201,9 +201,9 @@ export function OverviewView() {
   };
 
   return (
-    <main className="flex-1 flex flex-col min-w-0 bg-black relative h-full">
+    <main className="flex-1 flex flex-col min-w-0 bg-black ambient-surface-main relative h-full">
       {/* Header */}
-      <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-10 shrink-0 gap-4">
+      <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl ambient-surface-header sticky top-0 z-10 shrink-0 gap-4">
         <div className="flex items-center gap-4 flex-1">
           {/* Mobile Menu Trigger */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -246,7 +246,7 @@ export function OverviewView() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="md:col-span-8 bg-zinc-950 border border-zinc-900 rounded-xl p-6 hover:border-zinc-800 transition-all duration-300 flex flex-col h-full min-h-[400px]"
+              className="md:col-span-8 bg-zinc-950 border border-zinc-900 ambient-surface-card rounded-xl p-6 hover:border-zinc-800 transition-all duration-300 flex flex-col h-full min-h-[400px]"
             >
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-base font-semibold text-white">Recently Added</h3>
@@ -315,7 +315,7 @@ export function OverviewView() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
-              className="bg-zinc-950 border border-zinc-900 rounded-xl p-6 hover:border-zinc-800 transition-all duration-300 flex flex-col"
+              className="bg-zinc-950 border border-zinc-900 ambient-surface-card rounded-xl p-6 hover:border-zinc-800 transition-all duration-300 flex flex-col"
             >
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-base font-semibold text-white">Top Genres</h3>

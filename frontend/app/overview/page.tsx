@@ -8,7 +8,7 @@ import { RequireAuth } from "@/components/providers/require-auth";
 export default function OverviewPage() {
   return (
     <RequireAuth>
-      <div className="flex flex-1 overflow-hidden bg-black text-zinc-300 font-sans selection:bg-zinc-800 animate-in fade-in duration-500">
+      <div className="flex flex-1 overflow-hidden bg-black ambient-surface-page text-zinc-300 font-sans selection:bg-zinc-800 animate-in fade-in duration-500">
         <Sidebar />
         <OverviewView />
       </div>

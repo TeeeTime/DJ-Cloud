@@ -1,63 +1,200 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { usePlayer } from "@/components/providers/player-provider";
 import { useGenres } from "@/components/providers/genre-provider";
-import { TrackFilters, hasActiveTrackFilters } from "@/lib/api";
+import { TrackFilters, hasActiveTrackFilters, tracksApi } from "@/lib/api";
+
+const DEFAULT_MIN_BPM = 60;
+const DEFAULT_MAX_BPM = 200;
+const DEFAULT_MIN_DURATION = 0;
+const DEFAULT_MAX_DURATION = 900; // 15 min
+
+type TrackBounds = {
+  minBpm: number;
+  maxBpm: number;
+  minDurationSeconds: number;
+  maxDurationSeconds: number;
+};
 
 type DraftFilters = {
-  minBpm: string;
-  maxBpm: string;
-  minLengthMinutes: string;
-  maxLengthMinutes: string;
+  bpm: [number, number];
+  durationSeconds: [number, number];
   genres: string[];
 };
 
-const EMPTY_DRAFT: DraftFilters = { minBpm: "", maxBpm: "", minLengthMinutes: "", maxLengthMinutes: "", genres: [] };
+function clamp(val: number, min: number, max: number): number {
+  return Math.min(Math.max(val, min), max);
+}
 
-// Restyles the native number-input spin buttons so they don't look out of place against the
-// app's dark theme: `color-scheme:dark` gets Firefox (and Chrome) to render them with dark
-// native chrome instead of a jarring light-mode widget, and the webkit pseudo-elements get a
-// bit of spacing/opacity polish on top since Chrome/Edge otherwise render them flush and dim.
-const NUMBER_INPUT_CLASS =
-  "bg-zinc-900/50 border-zinc-800 [color-scheme:dark] " +
-  "[&::-webkit-inner-spin-button]:ml-1.5 [&::-webkit-inner-spin-button]:opacity-70 [&::-webkit-inner-spin-button]:cursor-pointer [&::-webkit-inner-spin-button]:hover:opacity-100 " +
-  "[&::-webkit-outer-spin-button]:cursor-pointer";
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
 
-function toDraft(filters: TrackFilters): DraftFilters {
+function getBpmDisplay(bpm: [number, number], minBound: number, maxBound: number): string {
+  const [min, max] = bpm;
+  if (min <= minBound && max >= maxBound) {
+    return "All";
+  }
+  if (min === max) {
+    return `${min} BPM`;
+  }
+  if (min <= minBound) {
+    return `≤ ${max} BPM`;
+  }
+  if (max >= maxBound) {
+    return `≥ ${min} BPM`;
+  }
+  return `${min} – ${max} BPM`;
+}
+
+function getDurationDisplay(duration: [number, number], minBound: number, maxBound: number): string {
+  const [min, max] = duration;
+  if (min <= minBound && max >= maxBound) {
+    return "All";
+  }
+  if (min === max) {
+    return `${formatDuration(min)} min`;
+  }
+  if (min <= minBound) {
+    return `≤ ${formatDuration(max)} min`;
+  }
+  if (max >= maxBound) {
+    return `≥ ${formatDuration(min)} min`;
+  }
+  return `${formatDuration(min)} – ${formatDuration(max)} min`;
+}
+
+function toDraft(filters: TrackFilters, bounds: TrackBounds): DraftFilters {
   return {
-    minBpm: filters.minBpm !== undefined ? String(filters.minBpm) : "",
-    maxBpm: filters.maxBpm !== undefined ? String(filters.maxBpm) : "",
-    minLengthMinutes: filters.minDurationSeconds !== undefined ? String(filters.minDurationSeconds / 60) : "",
-    maxLengthMinutes: filters.maxDurationSeconds !== undefined ? String(filters.maxDurationSeconds / 60) : "",
+    bpm: [
+      filters.minBpm !== undefined ? clamp(filters.minBpm, bounds.minBpm, bounds.maxBpm) : bounds.minBpm,
+      filters.maxBpm !== undefined ? clamp(filters.maxBpm, bounds.minBpm, bounds.maxBpm) : bounds.maxBpm,
+    ],
+    durationSeconds: [
+      filters.minDurationSeconds !== undefined
+        ? clamp(filters.minDurationSeconds, bounds.minDurationSeconds, bounds.maxDurationSeconds)
+        : bounds.minDurationSeconds,
+      filters.maxDurationSeconds !== undefined
+        ? clamp(filters.maxDurationSeconds, bounds.minDurationSeconds, bounds.maxDurationSeconds)
+        : bounds.maxDurationSeconds,
+    ],
     genres: filters.genres ?? [],
   };
 }
 
-function toFilters(draft: DraftFilters): TrackFilters {
+function toFilters(draft: DraftFilters, bounds: TrackBounds): TrackFilters {
   const filters: TrackFilters = {};
-  if (draft.minBpm !== "") filters.minBpm = Number(draft.minBpm);
-  if (draft.maxBpm !== "") filters.maxBpm = Number(draft.maxBpm);
-  if (draft.minLengthMinutes !== "") filters.minDurationSeconds = Math.round(Number(draft.minLengthMinutes) * 60);
-  if (draft.maxLengthMinutes !== "") filters.maxDurationSeconds = Math.round(Number(draft.maxLengthMinutes) * 60);
-  if (draft.genres.length > 0) filters.genres = draft.genres;
+
+  if (draft.bpm[0] === draft.bpm[1]) {
+    filters.minBpm = Math.round(draft.bpm[0]);
+    filters.maxBpm = Math.round(draft.bpm[1]);
+  } else {
+    if (draft.bpm[0] > bounds.minBpm) filters.minBpm = Math.round(draft.bpm[0]);
+    if (draft.bpm[1] < bounds.maxBpm) filters.maxBpm = Math.round(draft.bpm[1]);
+  }
+
+  if (draft.durationSeconds[0] === draft.durationSeconds[1]) {
+    filters.minDurationSeconds = Math.round(draft.durationSeconds[0]);
+    filters.maxDurationSeconds = Math.round(draft.durationSeconds[1]);
+  } else {
+    if (draft.durationSeconds[0] > bounds.minDurationSeconds) {
+      filters.minDurationSeconds = Math.round(draft.durationSeconds[0]);
+    }
+    if (draft.durationSeconds[1] < bounds.maxDurationSeconds) {
+      filters.maxDurationSeconds = Math.round(draft.durationSeconds[1]);
+    }
+  }
+
+  if (draft.genres.length > 0) {
+    filters.genres = draft.genres;
+  }
   return filters;
 }
 
 export function TrackFilterMenu() {
-  const { trackFilters, setTrackFilters } = usePlayer();
+  const { trackFilters, setTrackFilters, tracks } = usePlayer();
   const { genreNames } = useGenres();
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<DraftFilters>(EMPTY_DRAFT);
+
+  // Compute immediate bounds from loaded tracks if available
+  const initialBounds = useMemo<TrackBounds>(() => {
+    const validBpms = tracks.map(t => t.bpm).filter((b): b is number => typeof b === "number" && b > 0);
+    const validDurations = tracks.map(t => t.durationSeconds).filter((d): d is number => typeof d === "number" && d > 0);
+    return {
+      minBpm: validBpms.length > 0 ? Math.min(...validBpms) : DEFAULT_MIN_BPM,
+      maxBpm: validBpms.length > 0 ? Math.max(...validBpms) : DEFAULT_MAX_BPM,
+      minDurationSeconds: validDurations.length > 0 ? Math.min(...validDurations) : DEFAULT_MIN_DURATION,
+      maxDurationSeconds: validDurations.length > 0 ? Math.max(...validDurations) : DEFAULT_MAX_DURATION,
+    };
+  }, [tracks]);
+
+  const [bounds, setBounds] = useState<TrackBounds>(initialBounds);
+  const [draft, setDraft] = useState<DraftFilters>(() => toDraft(trackFilters, initialBounds));
+
+  // Ensure min !== max for Base UI Slider
+  const effectiveMinBpm = bounds.minBpm === bounds.maxBpm ? Math.max(1, bounds.minBpm - 5) : bounds.minBpm;
+  const effectiveMaxBpm = bounds.minBpm === bounds.maxBpm ? bounds.maxBpm + 5 : bounds.maxBpm;
+  const effectiveMinDuration =
+    bounds.minDurationSeconds === bounds.maxDurationSeconds
+      ? Math.max(0, bounds.minDurationSeconds - 30)
+      : bounds.minDurationSeconds;
+  const effectiveMaxDuration =
+    bounds.minDurationSeconds === bounds.maxDurationSeconds
+      ? bounds.maxDurationSeconds + 30
+      : bounds.maxDurationSeconds;
+
+  const effectiveBounds = useMemo<TrackBounds>(
+    () => ({
+      minBpm: effectiveMinBpm,
+      maxBpm: effectiveMaxBpm,
+      minDurationSeconds: effectiveMinDuration,
+      maxDurationSeconds: effectiveMaxDuration,
+    }),
+    [effectiveMinBpm, effectiveMaxBpm, effectiveMinDuration, effectiveMaxDuration]
+  );
+
+  const fetchExtremes = useCallback(async () => {
+    try {
+      const res = await tracksApi.extremes();
+      setBounds(prev => ({
+        minBpm: res.minBpm ?? prev.minBpm,
+        maxBpm: res.maxBpm ?? prev.maxBpm,
+        minDurationSeconds: res.minDurationSeconds ?? prev.minDurationSeconds,
+        maxDurationSeconds: res.maxDurationSeconds ?? prev.maxDurationSeconds,
+      }));
+    } catch {
+      // Keep previous bounds if request fails
+    }
+  }, []);
+
+  // Fetch full library extremes on mount
+  useEffect(() => {
+    tracksApi.extremes()
+      .then(res => {
+        setBounds(prev => ({
+          minBpm: res.minBpm ?? prev.minBpm,
+          maxBpm: res.maxBpm ?? prev.maxBpm,
+          minDurationSeconds: res.minDurationSeconds ?? prev.minDurationSeconds,
+          maxDurationSeconds: res.maxDurationSeconds ?? prev.maxDurationSeconds,
+        }));
+      })
+      .catch(() => {});
+  }, []);
 
   const activeFilters = hasActiveTrackFilters(trackFilters);
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (nextOpen) setDraft(toDraft(trackFilters));
+    if (nextOpen) {
+      fetchExtremes();
+      setDraft(toDraft(trackFilters, effectiveBounds));
+    }
     setOpen(nextOpen);
   };
 
@@ -68,13 +205,48 @@ export function TrackFilterMenu() {
     }));
   };
 
+  const handleBpmChange = (val: number | readonly number[]) => {
+    if (Array.isArray(val) && val.length === 2) {
+      const sorted: [number, number] = [Math.min(val[0], val[1]), Math.max(val[0], val[1])];
+      setDraft(prev => ({ ...prev, bpm: sorted }));
+    }
+  };
+
+  const handleDurationChange = (val: number | readonly number[]) => {
+    if (Array.isArray(val) && val.length === 2) {
+      const sorted: [number, number] = [Math.min(val[0], val[1]), Math.max(val[0], val[1])];
+      setDraft(prev => ({ ...prev, durationSeconds: sorted }));
+    }
+  };
+
+  const isBpmFiltered = draft.bpm[0] > effectiveBounds.minBpm || draft.bpm[1] < effectiveBounds.maxBpm;
+  const isDurationFiltered =
+    draft.durationSeconds[0] > effectiveBounds.minDurationSeconds ||
+    draft.durationSeconds[1] < effectiveBounds.maxDurationSeconds;
+
+  const resetBpm = () => {
+    setDraft(prev => ({ ...prev, bpm: [effectiveBounds.minBpm, effectiveBounds.maxBpm] }));
+  };
+
+  const resetLength = () => {
+    setDraft(prev => ({
+      ...prev,
+      durationSeconds: [effectiveBounds.minDurationSeconds, effectiveBounds.maxDurationSeconds],
+    }));
+  };
+
   const handleApply = () => {
-    setTrackFilters(toFilters(draft));
+    setTrackFilters(toFilters(draft, effectiveBounds));
     setOpen(false);
   };
 
   const handleClearAll = () => {
-    setDraft(EMPTY_DRAFT);
+    const emptyDraft: DraftFilters = {
+      bpm: [effectiveBounds.minBpm, effectiveBounds.maxBpm],
+      durationSeconds: [effectiveBounds.minDurationSeconds, effectiveBounds.maxDurationSeconds],
+      genres: [],
+    };
+    setDraft(emptyDraft);
     setTrackFilters({});
   };
 
@@ -91,53 +263,88 @@ export function TrackFilterMenu() {
             <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-white" />
           )}
         </PopoverTrigger>
-        <PopoverContent align="start" className="bg-zinc-950 border-zinc-800 text-white">
-          <div className="flex flex-col gap-4">
-            <div>
-              <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5 block">BPM</label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  placeholder="Min"
-                  value={draft.minBpm}
-                  onChange={(e) => setDraft(prev => ({ ...prev, minBpm: e.target.value }))}
-                  className={NUMBER_INPUT_CLASS}
-                />
-                <span className="text-zinc-600 text-xs">to</span>
-                <Input
-                  type="number"
-                  placeholder="Max"
-                  value={draft.maxBpm}
-                  onChange={(e) => setDraft(prev => ({ ...prev, maxBpm: e.target.value }))}
-                  className={NUMBER_INPUT_CLASS}
-                />
+        <PopoverContent align="start" className="bg-zinc-950 border-zinc-800 text-white w-80">
+          <div className="flex flex-col gap-5">
+            {/* BPM Slider Section */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                  BPM
+                </label>
+                <div className="flex items-center gap-1.5">
+                  {isBpmFiltered && (
+                    <button
+                      type="button"
+                      onClick={resetBpm}
+                      className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  )}
+                  <span className="text-xs font-normal tabular-nums px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-300">
+                    {getBpmDisplay(draft.bpm, effectiveBounds.minBpm, effectiveBounds.maxBpm)}
+                  </span>
+                </div>
+              </div>
+              <Slider
+                value={draft.bpm}
+                min={effectiveBounds.minBpm}
+                max={effectiveBounds.maxBpm}
+                step={1}
+                minStepsBetweenValues={0}
+                onValueChange={handleBpmChange}
+                className="py-1"
+              />
+              <div className="flex justify-between text-[10px] font-mono text-zinc-500 -mt-1">
+                <span>{effectiveBounds.minBpm}</span>
+                <span>{effectiveBounds.maxBpm}</span>
               </div>
             </div>
 
-            <div>
-              <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5 block">Length (min)</label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  placeholder="Min"
-                  value={draft.minLengthMinutes}
-                  onChange={(e) => setDraft(prev => ({ ...prev, minLengthMinutes: e.target.value }))}
-                  className={NUMBER_INPUT_CLASS}
-                />
-                <span className="text-zinc-600 text-xs">to</span>
-                <Input
-                  type="number"
-                  placeholder="Max"
-                  value={draft.maxLengthMinutes}
-                  onChange={(e) => setDraft(prev => ({ ...prev, maxLengthMinutes: e.target.value }))}
-                  className={NUMBER_INPUT_CLASS}
-                />
+            {/* Length Slider Section */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                  Length
+                </label>
+                <div className="flex items-center gap-1.5">
+                  {isDurationFiltered && (
+                    <button
+                      type="button"
+                      onClick={resetLength}
+                      className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  )}
+                  <span className="text-xs font-normal tabular-nums px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-300">
+                    {getDurationDisplay(
+                      draft.durationSeconds,
+                      effectiveBounds.minDurationSeconds,
+                      effectiveBounds.maxDurationSeconds
+                    )}
+                  </span>
+                </div>
+              </div>
+              <Slider
+                value={draft.durationSeconds}
+                min={effectiveBounds.minDurationSeconds}
+                max={effectiveBounds.maxDurationSeconds}
+                step={1}
+                minStepsBetweenValues={0}
+                onValueChange={handleDurationChange}
+                className="py-1"
+              />
+              <div className="flex justify-between text-[10px] font-mono text-zinc-500 -mt-1">
+                <span>{formatDuration(effectiveBounds.minDurationSeconds)}</span>
+                <span>{formatDuration(effectiveBounds.maxDurationSeconds)}</span>
               </div>
             </div>
 
+            {/* Genres Section */}
             <div>
-              <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1.5 block">Genres</label>
-              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+              <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2 block">Genres</label>
+              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
                 {genreNames.map(name => {
                   const selected = draft.genres.includes(name);
                   return (
@@ -145,9 +352,9 @@ export function TrackFilterMenu() {
                       key={name}
                       type="button"
                       onClick={() => toggleGenre(name)}
-                      className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-colors ${
+                      className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border transition-colors cursor-pointer ${
                         selected
-                          ? "bg-white text-black border-white"
+                          ? "bg-white text-black border-white font-medium"
                           : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-700"
                       }`}
                     >
@@ -159,13 +366,12 @@ export function TrackFilterMenu() {
               </div>
             </div>
 
-            {/* Transparent border in place of the old visible separator — same box size (and
-                therefore same spacing above this row) as the border it replaces, just invisible. */}
-            <div className="flex items-center justify-between gap-2 pt-1 border-t border-transparent">
-              <Button variant="ghost" size="sm" onClick={handleClearAll} className="text-zinc-400 hover:text-white">
+            {/* Actions */}
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-zinc-800/80">
+              <Button variant="ghost" size="sm" onClick={handleClearAll} className="text-zinc-400 hover:text-white cursor-pointer">
                 Clear all
               </Button>
-              <Button variant="default" size="sm" onClick={handleApply}>
+              <Button variant="default" size="sm" onClick={handleApply} className="cursor-pointer">
                 Apply
               </Button>
             </div>
@@ -177,7 +383,7 @@ export function TrackFilterMenu() {
         <Button
           variant="ghost"
           size="icon"
-          className="text-zinc-500 hover:text-white"
+          className="text-zinc-500 hover:text-white cursor-pointer"
           onClick={() => setTrackFilters({})}
           title="Clear active filters"
         >

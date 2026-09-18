@@ -27,7 +27,7 @@ export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
   // the "Add to Playlist" submenu (see add-to-playlist-menu.tsx).
   const sidebarPlaylists = playlists.filter(pl => pl.subscribed || pl.ownerUsername === user?.username);
   return (
-    <aside className={`w-64 border-r border-zinc-900 bg-black flex-col z-20 shrink-0 h-full ${isMobile ? 'flex' : 'hidden md:flex'}`}>
+    <aside className={`w-64 border-r border-zinc-900 bg-black ambient-surface-sidebar flex-col z-20 shrink-0 h-full ${isMobile ? 'flex' : 'hidden md:flex'}`}>
       {/* Brand */}
       <Link href="/">
         <div className="h-20 flex items-center px-6 border-b border-zinc-900 cursor-pointer group">

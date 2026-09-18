@@ -31,7 +31,8 @@ export function isPlayableStatus(status: TrackStatus): boolean {
   return status === 'READY';
 }
 
-function formatDuration(totalSeconds: number): string {
+export function formatDuration(totalSeconds: number): string {
+  if (!totalSeconds || totalSeconds <= 0) return "—";
   const m = Math.floor(totalSeconds / 60);
   const s = Math.floor(totalSeconds % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;

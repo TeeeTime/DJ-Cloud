@@ -28,9 +28,9 @@ export function PlaylistBrowserView() {
   }, [playlists, debouncedQuery]);
 
   return (
-    <main className="flex-1 flex flex-col min-w-0 bg-zinc-950/30 relative h-full">
+    <main className="flex-1 flex flex-col min-w-0 bg-zinc-950/30 ambient-surface-main relative h-full">
       {/* Header */}
-      <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-10 shrink-0 gap-4">
+      <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl ambient-surface-header sticky top-0 z-10 shrink-0 gap-4">
         <div className="flex items-center gap-4 flex-1">
           {/* Mobile Menu Trigger */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
