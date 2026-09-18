@@ -2,12 +2,13 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Ticket, Copy, Check, Loader2, AlertCircle, MoreHorizontal, LogOut } from "lucide-react";
+import { KeyRound, Ticket, Copy, Check, Loader2, AlertCircle, MoreHorizontal, LogOut, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/components/providers/auth-provider";
+import { usePlayer } from "@/components/providers/player-provider";
 import { ApiError, authApi, Role } from "@/lib/api";
 
 const ROLES: Role[] = ["USER", "EDITOR", "ADMIN"];
@@ -223,6 +224,7 @@ function GenerateCodeDialog({ open, onOpenChange }: { open: boolean; onOpenChang
 
 export function ProfileMenu() {
   const { user, logout } = useAuth();
+  const { ambientMode, toggleAmbientMode } = usePlayer();
   const router = useRouter();
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [generateCodeOpen, setGenerateCodeOpen] = useState(false);
@@ -251,7 +253,7 @@ export function ProfileMenu() {
               <MoreHorizontal className="w-4 h-4" />
             </button>
           } />
-          <DropdownMenuContent align="end" side="top" sideOffset={8} className="w-56 bg-zinc-950 border-zinc-800 text-zinc-300 rounded-lg p-1 shadow-2xl">
+          <DropdownMenuContent align="end" side="top" sideOffset={8} className="w-60 bg-zinc-950 border-zinc-800 text-zinc-300 rounded-lg p-1 shadow-2xl">
             <DropdownMenuItem
               onClick={() => setChangePasswordOpen(true)}
               className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
@@ -266,6 +268,14 @@ export function ProfileMenu() {
                 <Ticket className="w-4 h-4 mr-2" /> <span className="text-sm">Generate Registration Code</span>
               </DropdownMenuItem>
             )}
+            <DropdownMenuItem
+              closeOnClick={false}
+              onClick={toggleAmbientMode}
+              className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
+            >
+              <Sparkles className={`w-4 h-4 mr-2 ${ambientMode ? "text-white" : "text-zinc-500"}`} />
+              <span className="text-sm">{ambientMode ? "Disable Ambient Mode" : "Enable Ambient Mode"}</span>
+            </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-zinc-800 my-1" />
             <DropdownMenuItem
               onClick={handleLogout}

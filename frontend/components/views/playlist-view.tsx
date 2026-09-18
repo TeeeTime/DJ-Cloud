@@ -384,8 +384,8 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
   };
 
   return (
-    <main className="flex-1 flex flex-col min-w-0 bg-zinc-950/30 relative h-full">
-      <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-10 shrink-0 gap-4">
+    <main className="flex-1 flex flex-col min-w-0 bg-zinc-950/30 ambient-surface-main relative h-full">
+      <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl ambient-surface-header sticky top-0 z-10 shrink-0 gap-4">
         <div className="flex items-center gap-4 flex-1">
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden text-zinc-400 hover:text-white shrink-0" />}>
@@ -507,12 +507,12 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
           )}
 
           {error ? (
-            <div className="rounded-xl border border-zinc-900 bg-black/50 py-24 flex flex-col items-center justify-center gap-3 text-center">
+            <div className="rounded-xl border border-zinc-900 bg-black/50 ambient-surface-card py-24 flex flex-col items-center justify-center gap-3 text-center">
               <AlertCircle className="w-6 h-6 text-zinc-600" />
               <p className="text-zinc-400 text-sm">{error}</p>
             </div>
           ) : (
-          <div ref={tableWrapperRef} className="rounded-xl border border-zinc-900 bg-black/50 overflow-hidden w-full">
+          <div ref={tableWrapperRef} className="rounded-xl border border-zinc-900 bg-black/50 ambient-surface-card overflow-hidden w-full">
             {tracksListError && (
               <div className="m-4 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
                 <AlertCircle className="w-4 h-4 shrink-0" />
@@ -530,33 +530,39 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                 <TableRow className="border-zinc-900 hover:bg-transparent">
                   <TableHead className="w-[4%] text-center h-11">#</TableHead>
                   <TableHead
-                    className="w-[24%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    className="w-[21%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
                     onClick={() => handleSort('title')}
                   >
                     <div className="flex items-center">Title {renderSortIcon('title')}</div>
                   </TableHead>
                   <TableHead
-                    className="w-[16%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    className="w-[15%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
                     onClick={() => handleSort('artist')}
                   >
                     <div className="flex items-center">Artist {renderSortIcon('artist')}</div>
                   </TableHead>
-                  <TableHead className="w-[14%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Genre</TableHead>
+                  <TableHead className="w-[13%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Genre</TableHead>
                   <TableHead
-                    className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    className="w-[7%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
                     onClick={() => handleSort('bpm')}
                   >
                     <div className="flex items-center">BPM {renderSortIcon('bpm')}</div>
                   </TableHead>
-                  <TableHead className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Key</TableHead>
+                  <TableHead className="w-[7%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Key</TableHead>
                   <TableHead
-                    className="w-[12%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    className="w-[11%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
                     onClick={() => handleSort('addedAt')}
                   >
                     <div className="flex items-center">Date Added {renderSortIcon('addedAt')}</div>
                   </TableHead>
-                  <TableHead className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Status</TableHead>
-                  <TableHead className="w-[8%] text-right text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11"></TableHead>
+                  <TableHead
+                    className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    onClick={() => handleSort('durationSeconds')}
+                  >
+                    <div className="flex items-center">Length {renderSortIcon('durationSeconds')}</div>
+                  </TableHead>
+                  <TableHead className="w-[7%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Status</TableHead>
+                  <TableHead className="w-[7%] text-right text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -564,7 +570,7 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                   <React.Fragment key={track.id}>
                     {showInsertionLineAt(index) && (
                       <TableRow className="border-none hover:bg-transparent pointer-events-none">
-                        <TableCell colSpan={9} className="h-0 p-0">
+                        <TableCell colSpan={10} className="h-0 p-0">
                           <div className="h-[2px] bg-white rounded-full" />
                         </TableCell>
                       </TableRow>
@@ -627,6 +633,11 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                     <TableCell>
                       <span className="text-xs text-zinc-400">
                         {formatDateAdded(track.dateAdded)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs font-mono text-zinc-400">
+                        {track.duration}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -698,14 +709,14 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                 ))}
                 {showInsertionLineAt(tracks.length) && (
                   <TableRow className="border-none hover:bg-transparent pointer-events-none">
-                    <TableCell colSpan={9} className="h-0 p-0">
+                    <TableCell colSpan={10} className="h-0 p-0">
                       <div className="h-[2px] bg-white rounded-full" />
                     </TableCell>
                   </TableRow>
                 )}
                 {tracksLoading && (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-32 text-center text-zinc-500">
+                    <TableCell colSpan={10} className="h-32 text-center text-zinc-500">
                       <div className="flex items-center justify-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Loading playlist…
@@ -715,14 +726,14 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                 )}
                 {!tracksLoading && tracks.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-32 text-center text-zinc-500">
+                    <TableCell colSpan={10} className="h-32 text-center text-zinc-500">
                       No tracks in this playlist yet.
                     </TableCell>
                   </TableRow>
                 )}
                 {!tracksLoading && hasMoreTracks && (
                   <TableRow ref={loadMoreRef} className="border-none hover:bg-transparent">
-                    <TableCell colSpan={9} className="h-16 text-center text-zinc-500">
+                    <TableCell colSpan={10} className="h-16 text-center text-zinc-500">
                       {tracksLoadingMore && (
                         <div className="flex items-center justify-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />

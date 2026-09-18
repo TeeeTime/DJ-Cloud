@@ -64,7 +64,7 @@ export function BottomPlayer() {
     audioRef,
     activeTrackOrder,
     onOrderExhausted,
-    setCurrentTrack
+    setCurrentTrack,
   } = usePlayer();
 
   const [currentTime, setCurrentTime] = useState(0);
@@ -246,18 +246,18 @@ export function BottomPlayer() {
     // centered via the two equal 1fr side columns, while giving Right Controls a real, predictable
     // gap-4 next to it — `justify-between` on a plain flex row pinned Right Controls to the bar's
     // true right edge instead, which is what made that gap balloon out on wide screens.
-    <div className="h-24 shrink-0 bg-black border-t border-zinc-900 z-50 grid grid-cols-[1fr_42rem_1fr] items-center px-4 md:px-8 gap-4 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+    <div className="h-24 shrink-0 bg-black border-t border-zinc-900 ambient-surface-player z-50 grid grid-cols-[1fr_42rem_1fr] items-center px-4 md:px-8 gap-4 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
       {/* Track Info */}
       <div className="flex items-center gap-4 min-w-0">
-        {/* Easter Egg 4: Vinyl Spinning & Scratching */}
+        {/* Cover thumbnail: hold to scratch */}
         <div 
-          className={`relative w-14 h-14 shrink-0 rounded-md bg-zinc-900 flex items-center justify-center border border-zinc-800 overflow-hidden cursor-pointer ${scratching ? 'scale-110 skew-x-12' : 'transition-transform'}`}
+          className={`relative w-14 h-14 shrink-0 rounded-md bg-zinc-900 flex items-center justify-center border border-zinc-800 transition-all select-none overflow-hidden ${scratching ? 'scale-110 skew-x-12' : 'hover:scale-105 active:scale-95'}`}
           onMouseDown={() => setScratching(true)}
           onMouseUp={() => setScratching(false)}
           onMouseLeave={() => setScratching(false)}
         >
           {isPlaying && !scratching && (
-            <div className="absolute inset-0 bg-white/5 animate-pulse"></div>
+            <div className="absolute inset-0 bg-white/5 animate-pulse pointer-events-none"></div>
           )}
           <TrackCover key={currentTrack.id} src={currentTrack.coverUrl} isPlaying={isPlaying} scratching={scratching} />
         </div>

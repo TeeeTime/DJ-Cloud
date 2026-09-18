@@ -44,7 +44,11 @@ public enum TrackSortField {
     }
 
     public static TrackSortField fromParam(String sortBy) {
-        TrackSortField field = BY_WIRE_VALUE.get(sortBy.trim());
+        String trimmed = sortBy.trim();
+        if ("duration".equalsIgnoreCase(trimmed)) {
+            return DURATION;
+        }
+        TrackSortField field = BY_WIRE_VALUE.get(trimmed);
         if (field == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown sortBy value: " + sortBy);
         }

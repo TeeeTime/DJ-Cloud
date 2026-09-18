@@ -45,16 +45,41 @@ interface PlayerContextType {
   trackFilters: TrackFilters;
   setTrackFilters: React.Dispatch<React.SetStateAction<TrackFilters>>;
   audioRef: React.RefObject<HTMLAudioElement | null>;
+  ambientMode: boolean;
+  setAmbientMode: React.Dispatch<React.SetStateAction<boolean>>;
+  toggleAmbientMode: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
 const fetchLibraryPage = (params: FetchTracksPageParams) => tracksApi.list(params);
 
+const AMBIENT_STORAGE_KEY = "djcloud_ambient_mode";
+
+function loadStoredAmbient(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(AMBIENT_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
   const [scratching, setScratching] = useState(false);
+  const [ambientMode, setAmbientMode] = useState(loadStoredAmbient);
+
+  const toggleAmbientMode = useCallback(() => {
+    setAmbientMode(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem(AMBIENT_STORAGE_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
   const [activeFilter, setActiveFilter] = useState<FilterType>({ type: 'all', value: 'All Tracks' });
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const [themeIndex, setThemeIndex] = useState(0);
@@ -143,6 +168,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setTrackFilters,
       audioRef,
       handleSort,
+      ambientMode,
+      setAmbientMode,
+      toggleAmbientMode,
     }}>
       {/* Hidden Audio Element for actual playback */}
       <audio

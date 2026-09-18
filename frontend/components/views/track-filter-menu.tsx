@@ -176,8 +176,17 @@ export function TrackFilterMenu() {
 
   // Fetch full library extremes on mount
   useEffect(() => {
-    fetchExtremes();
-  }, [fetchExtremes]);
+    tracksApi.extremes()
+      .then(res => {
+        setBounds(prev => ({
+          minBpm: res.minBpm ?? prev.minBpm,
+          maxBpm: res.maxBpm ?? prev.maxBpm,
+          minDurationSeconds: res.minDurationSeconds ?? prev.minDurationSeconds,
+          maxDurationSeconds: res.maxDurationSeconds ?? prev.maxDurationSeconds,
+        }));
+      })
+      .catch(() => {});
+  }, []);
 
   const activeFilters = hasActiveTrackFilters(trackFilters);
 
