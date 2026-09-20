@@ -8,11 +8,8 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { QueueStatusWidget } from "@/components/layout/queue-status";
 import { usePlayer } from "@/components/providers/player-provider";
-import { isPlayableStatus, buildCoverUrl } from "@/lib/data";
+import { isPlayableStatus } from "@/lib/data";
 import { usePathname } from "next/navigation";
-import { authApi } from "@/lib/api";
-import { setMediaToken } from "@/lib/media-token";
-import { useAuth } from "@/components/providers/auth-provider";
 
 const VOLUME_STORAGE_KEY = "djcloud_volume";
 
@@ -27,11 +24,8 @@ function loadStoredVolume(): number {
   }
 }
 
-function TrackCover({ src, trackId, isPlaying, scratching }: { src: string; trackId: number; isPlaying: boolean; scratching: boolean }) {
-  const { token: authToken } = useAuth();
+function TrackCover({ src, isPlaying, scratching }: { src: string; isPlaying: boolean; scratching: boolean }) {
   const [error, setError] = useState(false);
-  const [retriedSrc, setRetriedSrc] = useState<string | null>(null);
-  const [hasRetried, setHasRetried] = useState(false);
 
   // A cover that previously 404'd must be re-attempted once `src` actually changes (e.g. after
   // editing the cover) — otherwise this instance stays stuck on the fallback icon forever.
@@ -39,27 +33,7 @@ function TrackCover({ src, trackId, isPlaying, scratching }: { src: string; trac
   if (src !== prevSrc) {
     setPrevSrc(src);
     setError(false);
-    setRetriedSrc(null);
-    setHasRetried(false);
   }
-
-  // The media token embedded in `src` can be stale — e.g. this rendered before the initial
-  // media-token fetch resolved, or a long-idle session's token has since expired. Mint a fresh one
-  // and retry once before giving up and showing the fallback icon.
-  const handleError = async () => {
-    if (hasRetried || !authToken) {
-      setError(true);
-      return;
-    }
-    setHasRetried(true);
-    try {
-      const { token } = await authApi.mediaToken(authToken);
-      setMediaToken(token);
-      setRetriedSrc(buildCoverUrl(trackId));
-    } catch {
-      setError(true);
-    }
-  };
 
   if (error) {
     return isPlaying ? (
@@ -71,9 +45,9 @@ function TrackCover({ src, trackId, isPlaying, scratching }: { src: string; trac
 
   return (
     <img
-      src={retriedSrc ?? src}
+      src={src}
       alt=""
-      onError={() => (retriedSrc ? setError(true) : handleError())}
+      onError={() => setError(true)}
       className="absolute inset-0 w-full h-full object-cover"
     />
   );
@@ -88,7 +62,6 @@ export function BottomPlayer() {
     scratching,
     setScratching,
     audioRef,
-    audioNeedsRetry,
     activeTrackOrder,
     onOrderExhausted,
     setCurrentTrack,
@@ -102,7 +75,14 @@ export function BottomPlayer() {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && (
+          e.target.isContentEditable ||
+          Boolean(e.target.closest('button, [role="button"], [role="menuitem"], [role="menu"], [role="slider"], [data-slot="dropdown-menu-content"], [data-slot="dialog-content"], select, input, textarea'))
+        ))
+      ) {
         return;
       }
       if (e.code === 'Space') {
@@ -125,18 +105,22 @@ export function BottomPlayer() {
   // Sync play/pause — gated on the track actually being ready (a preview file must exist) as a
   // last line of defense: whatever set `isPlaying`/`currentTrack` (row click, spacebar, skip,
   // default-selection) should already guarantee this, but a real .play() call must never be
-  // attempted against a track whose GET /api/tracks/{id}/audio would 404. Also skipped while
-  // audioNeedsRetry is true — the src briefly has a stale/missing media token right after mount or
-  // once one expires, and player-provider's handleAudioError is already re-minting one and
-  // reloading the element; attempting .play() mid-reload would just log a spurious rejection.
+  // attempted against a track whose GET /api/tracks/{id}/audio would 404.
   useEffect(() => {
-    if (!audioRef.current || audioNeedsRetry) return;
+    const audio = audioRef.current;
+    if (!audio) return;
     if (isPlaying && currentTrack && isPlayableStatus(currentTrack.status)) {
-      audioRef.current.play().catch(e => console.error("Playback failed:", e));
+      if (audio.paused) {
+        audio.play().catch(e => console.error("Playback failed:", e));
+      }
     } else {
-      audioRef.current.pause();
+      if (!audio.paused) {
+        audio.pause();
+      }
     }
-  }, [isPlaying, currentTrack, audioRef, audioNeedsRetry]);
+    // Keying on id/status deliberately avoids re-triggering play/pause on track object reference updates
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, currentTrack?.id, currentTrack?.status, audioRef]);
 
   // Sync time and duration
   useEffect(() => {
@@ -289,7 +273,7 @@ export function BottomPlayer() {
           {isPlaying && !scratching && (
             <div className="absolute inset-0 bg-white/5 animate-pulse pointer-events-none"></div>
           )}
-          <TrackCover key={currentTrack.id} src={currentTrack.coverUrl} trackId={currentTrack.id} isPlaying={isPlaying} scratching={scratching} />
+          <TrackCover key={currentTrack.id} src={currentTrack.coverUrl} isPlaying={isPlaying} scratching={scratching} />
         </div>
 
         <div className="flex flex-col truncate">
@@ -305,7 +289,12 @@ export function BottomPlayer() {
             <SkipBack className="w-4 h-4 fill-current" />
           </button>
           <button
-            onClick={() => setIsPlaying(!isPlaying)}
+            onClick={() => {
+              if (!isPlaying && currentTrack) {
+                setCurrentTrack(currentTrack);
+              }
+              setIsPlaying(!isPlaying);
+            }}
             className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-zinc-200 text-black transition-all active:scale-95"
           >
             {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
