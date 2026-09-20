@@ -90,6 +90,11 @@ public class TrackController {
      * Streams the generated streaming preview — never the original upload (see API.md). Only exists
      * once a track's analysis has completed successfully. Supports HTTP range requests so browsers
      * can seek and start playback without downloading the whole file first.
+     *
+     * <p>Requires authentication — like {@code downloadTrack} below, streaming full audio is more
+     * sensitive than browsing metadata (see {@code SecurityConfig}). Since an {@code <audio>} element
+     * can't set an {@code Authorization} header, {@code JwtAuthFilter} also accepts a short-lived media
+     * token (see {@code JwtService#generateMediaToken}) as a {@code ?token=} query param here.
      */
     @GetMapping("/{id}/audio")
     public ResponseEntity<ResourceRegion> getAudio(@PathVariable Long id, @RequestHeader HttpHeaders headers)
@@ -133,6 +138,9 @@ public class TrackController {
     /**
      * Reads the embedded cover art directly out of the audio file's tag and streams it back — no
      * separate cover image is ever stored; this just re-reads the source file on each request.
+     *
+     * <p>Requires authentication, same as {@code getAudio} above — including the media-token query
+     * param, since {@code <img>} tags can't set an {@code Authorization} header either.
      */
     @GetMapping("/{id}/cover")
     public ResponseEntity<byte[]> getCover(@PathVariable Long id) {

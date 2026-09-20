@@ -8,8 +8,11 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { QueueStatusWidget } from "@/components/layout/queue-status";
 import { usePlayer } from "@/components/providers/player-provider";
-import { isPlayableStatus } from "@/lib/data";
+import { isPlayableStatus, buildCoverUrl } from "@/lib/data";
 import { usePathname } from "next/navigation";
+import { authApi } from "@/lib/api";
+import { setMediaToken } from "@/lib/media-token";
+import { useAuth } from "@/components/providers/auth-provider";
 
 const VOLUME_STORAGE_KEY = "djcloud_volume";
 
@@ -24,8 +27,11 @@ function loadStoredVolume(): number {
   }
 }
 
-function TrackCover({ src, isPlaying, scratching }: { src: string; isPlaying: boolean; scratching: boolean }) {
+function TrackCover({ src, trackId, isPlaying, scratching }: { src: string; trackId: number; isPlaying: boolean; scratching: boolean }) {
+  const { token: authToken } = useAuth();
   const [error, setError] = useState(false);
+  const [retriedSrc, setRetriedSrc] = useState<string | null>(null);
+  const [hasRetried, setHasRetried] = useState(false);
 
   // A cover that previously 404'd must be re-attempted once `src` actually changes (e.g. after
   // editing the cover) — otherwise this instance stays stuck on the fallback icon forever.
@@ -33,7 +39,27 @@ function TrackCover({ src, isPlaying, scratching }: { src: string; isPlaying: bo
   if (src !== prevSrc) {
     setPrevSrc(src);
     setError(false);
+    setRetriedSrc(null);
+    setHasRetried(false);
   }
+
+  // The media token embedded in `src` can be stale — e.g. this rendered before the initial
+  // media-token fetch resolved, or a long-idle session's token has since expired. Mint a fresh one
+  // and retry once before giving up and showing the fallback icon.
+  const handleError = async () => {
+    if (hasRetried || !authToken) {
+      setError(true);
+      return;
+    }
+    setHasRetried(true);
+    try {
+      const { token } = await authApi.mediaToken(authToken);
+      setMediaToken(token);
+      setRetriedSrc(buildCoverUrl(trackId));
+    } catch {
+      setError(true);
+    }
+  };
 
   if (error) {
     return isPlaying ? (
@@ -45,9 +71,9 @@ function TrackCover({ src, isPlaying, scratching }: { src: string; isPlaying: bo
 
   return (
     <img
-      src={src}
+      src={retriedSrc ?? src}
       alt=""
-      onError={() => setError(true)}
+      onError={() => (retriedSrc ? setError(true) : handleError())}
       className="absolute inset-0 w-full h-full object-cover"
     />
   );
@@ -62,6 +88,7 @@ export function BottomPlayer() {
     scratching,
     setScratching,
     audioRef,
+    audioNeedsRetry,
     activeTrackOrder,
     onOrderExhausted,
     setCurrentTrack,
@@ -105,10 +132,13 @@ export function BottomPlayer() {
   // Sync play/pause — gated on the track actually being ready (a preview file must exist) as a
   // last line of defense: whatever set `isPlaying`/`currentTrack` (row click, spacebar, skip,
   // default-selection) should already guarantee this, but a real .play() call must never be
-  // attempted against a track whose GET /api/tracks/{id}/audio would 404.
+  // attempted against a track whose GET /api/tracks/{id}/audio would 404. Also skipped while
+  // audioNeedsRetry is true — the src briefly has a stale/missing media token right after mount or
+  // once one expires, and player-provider's handleAudioError is already re-minting one and
+  // reloading the element; attempting .play() mid-reload would just log a spurious rejection.
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || audioNeedsRetry) return;
     if (isPlaying && currentTrack && isPlayableStatus(currentTrack.status)) {
       if (audio.paused) {
         audio.play().catch(e => console.error("Playback failed:", e));
@@ -118,7 +148,7 @@ export function BottomPlayer() {
         audio.pause();
       }
     }
-  }, [isPlaying, currentTrack?.id, currentTrack?.status, audioRef]);
+  }, [isPlaying, currentTrack?.id, currentTrack?.status, audioRef, audioNeedsRetry]);
 
   // Sync time and duration
   useEffect(() => {
@@ -271,7 +301,7 @@ export function BottomPlayer() {
           {isPlaying && !scratching && (
             <div className="absolute inset-0 bg-white/5 animate-pulse pointer-events-none"></div>
           )}
-          <TrackCover key={currentTrack.id} src={currentTrack.coverUrl} isPlaying={isPlaying} scratching={scratching} />
+          <TrackCover key={currentTrack.id} src={currentTrack.coverUrl} trackId={currentTrack.id} isPlaying={isPlaying} scratching={scratching} />
         </div>
 
         <div className="flex flex-col truncate">
