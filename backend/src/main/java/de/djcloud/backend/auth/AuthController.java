@@ -35,6 +35,12 @@ public class AuthController {
         return authService.me((AppUserDetails) authentication.getPrincipal());
     }
 
+    /** Short-lived token for {@code GET /api/tracks/{id}/audio} and {@code /cover} — see {@code JwtAuthFilter}. */
+    @GetMapping("/media-token")
+    public MediaTokenResponse mediaToken(Authentication authentication) {
+        return authService.mediaToken((AppUserDetails) authentication.getPrincipal());
+    }
+
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public void register(@Valid @RequestBody RegisterRequest request) {

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Ticket, Copy, Check, Loader2, AlertCircle, MoreHorizontal, LogOut, Sparkles } from "lucide-react";
+import { KeyRound, Ticket, Copy, Check, Loader2, AlertCircle, MoreHorizontal, LogOut, Sparkles, Sparkle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -275,7 +275,7 @@ export function ProfileMenu() {
               }}
               className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
             >
-              <Sparkles className={`w-4 h-4 mr-2 ${ambientMode ? "text-purple-400" : "text-zinc-500"}`} />
+              {ambientMode ? <Sparkles className="w-4 h-4 mr-2" /> : <Sparkle className="w-4 h-4 mr-2" />}
               <span className="text-sm">{ambientMode ? "Disable Ambient Mode" : "Enable Ambient Mode"}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-zinc-800 my-1" />
