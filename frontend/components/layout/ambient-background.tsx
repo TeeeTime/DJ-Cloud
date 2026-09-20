@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { usePlayer } from "@/components/providers/player-provider";
 
 const AMBIENT_PALETTES = [
@@ -24,20 +24,31 @@ function getTrackPalette(trackId?: number, title?: string) {
   return AMBIENT_PALETTES[index];
 }
 
+function AmbientCoverImage({ coverUrl }: { coverUrl: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+
+  if (error) return null;
+
+  return (
+    <img
+      src={coverUrl}
+      alt=""
+      onLoad={() => setLoaded(true)}
+      onError={() => setError(true)}
+      className={`absolute inset-0 w-full h-full object-cover scale-110 transition-opacity duration-1000 ${
+        loaded ? "opacity-100" : "opacity-0"
+      }`}
+    />
+  );
+}
+
 export function AmbientBackground() {
   const { currentTrack, ambientMode, isPlaying } = usePlayer();
-  const [coverLoaded, setCoverLoaded] = useState(false);
-  const [coverError, setCoverError] = useState(false);
 
   const coverUrl = currentTrack?.coverUrl;
   const trackId = currentTrack?.id;
   const isVisible = ambientMode && !!currentTrack;
-
-  // Reset cover load state whenever the active track changes
-  useEffect(() => {
-    setCoverLoaded(false);
-    setCoverError(false);
-  }, [trackId, coverUrl]);
 
   const palette = getTrackPalette(currentTrack?.id, currentTrack?.title);
 
@@ -125,20 +136,8 @@ export function AmbientBackground() {
         </div>
 
         {/* Real Cover Image Layer (Fades in over generative mesh when artwork is available and successfully loaded) */}
-        {coverUrl && !coverError && (
-          <img
-            key={`${trackId}-${coverUrl}`}
-            src={coverUrl}
-            alt=""
-            onLoad={() => setCoverLoaded(true)}
-            onError={() => {
-              setCoverLoaded(false);
-              setCoverError(true);
-            }}
-            className={`absolute inset-0 w-full h-full object-cover scale-110 transition-opacity duration-1000 ${
-              coverLoaded ? "opacity-100" : "opacity-0"
-            }`}
-          />
+        {coverUrl && (
+          <AmbientCoverImage key={`${trackId}-${coverUrl}`} coverUrl={coverUrl} />
         )}
       </div>
 

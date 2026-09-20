@@ -118,6 +118,8 @@ export function BottomPlayer() {
         audio.pause();
       }
     }
+    // Keying on id/status deliberately avoids re-triggering play/pause on track object reference updates
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, currentTrack?.id, currentTrack?.status, audioRef]);
 
   // Sync time and duration
