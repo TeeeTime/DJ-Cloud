@@ -269,11 +269,13 @@ export function ProfileMenu() {
               </DropdownMenuItem>
             )}
             <DropdownMenuItem
-              closeOnClick={false}
-              onClick={toggleAmbientMode}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleAmbientMode();
+              }}
               className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
             >
-              <Sparkles className={`w-4 h-4 mr-2 ${ambientMode ? "text-white" : "text-zinc-500"}`} />
+              <Sparkles className={`w-4 h-4 mr-2 ${ambientMode ? "text-purple-400" : "text-zinc-500"}`} />
               <span className="text-sm">{ambientMode ? "Disable Ambient Mode" : "Enable Ambient Mode"}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-zinc-800 my-1" />

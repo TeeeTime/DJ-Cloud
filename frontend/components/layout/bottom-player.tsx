@@ -75,7 +75,14 @@ export function BottomPlayer() {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && (
+          e.target.isContentEditable ||
+          Boolean(e.target.closest('button, [role="button"], [role="menuitem"], [role="menu"], [role="slider"], [data-slot="dropdown-menu-content"], [data-slot="dialog-content"], select, input, textarea'))
+        ))
+      ) {
         return;
       }
       if (e.code === 'Space') {
@@ -100,13 +107,18 @@ export function BottomPlayer() {
   // default-selection) should already guarantee this, but a real .play() call must never be
   // attempted against a track whose GET /api/tracks/{id}/audio would 404.
   useEffect(() => {
-    if (!audioRef.current) return;
+    const audio = audioRef.current;
+    if (!audio) return;
     if (isPlaying && currentTrack && isPlayableStatus(currentTrack.status)) {
-      audioRef.current.play().catch(e => console.error("Playback failed:", e));
+      if (audio.paused) {
+        audio.play().catch(e => console.error("Playback failed:", e));
+      }
     } else {
-      audioRef.current.pause();
+      if (!audio.paused) {
+        audio.pause();
+      }
     }
-  }, [isPlaying, currentTrack, audioRef]);
+  }, [isPlaying, currentTrack?.id, currentTrack?.status, audioRef]);
 
   // Sync time and duration
   useEffect(() => {
@@ -275,7 +287,12 @@ export function BottomPlayer() {
             <SkipBack className="w-4 h-4 fill-current" />
           </button>
           <button
-            onClick={() => setIsPlaying(!isPlaying)}
+            onClick={() => {
+              if (!isPlaying && currentTrack) {
+                setCurrentTrack(currentTrack);
+              }
+              setIsPlaying(!isPlaying);
+            }}
             className="w-10 h-10 flex items-center justify-center rounded-full bg-white hover:bg-zinc-200 text-black transition-all active:scale-95"
           >
             {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}

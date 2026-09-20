@@ -11,7 +11,7 @@ import { colorThemes } from "@/lib/data";
 function PlayerLayout({ children }: { children: React.ReactNode }) {
   const [raveMode, setRaveMode] = useState(false);
   const { themeIndex, ambientMode, currentTrack } = usePlayer();
-  const isAmbientActive = ambientMode && !!currentTrack?.coverUrl;
+  const isAmbientActive = ambientMode && !!currentTrack;
 
   // Easter Egg 1: Konami Code
   useEffect(() => {
