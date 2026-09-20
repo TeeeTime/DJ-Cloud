@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Track, isPlayableStatus } from "@/lib/data";
 import { tracksApi, authApi, TrackFilters } from "@/lib/api";
 import { usePagedTracks, FetchTracksPageParams } from "@/lib/use-paged-tracks";
@@ -132,15 +132,26 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // not-yet-processed track (no preview available yet) must never be auto-selected.
   const currentTrack = selectedTrack ?? tracks.find(t => isPlayableStatus(t.status)) ?? null;
 
-  // The <audio> element's src is recomputed fresh from currentTrack on every render (not read
-  // directly off the frozen currentTrack.audioUrl field, whose baked-in media token — see
-  // lib/data.ts — can be stale, e.g. unset on first paint before AuthProvider's token fetch
-  // resolves). handleAudioError below can override it with a freshly re-minted one via
-  // retriedAudioSrc — also doubling as the "already retried this track" guard, since it's non-null
-  // only after a retry — cleared whenever the track itself changes, using the same
-  // compare-during-render reset idiom as TrackThumbnail/TrackCover (see track-row-parts.tsx) rather
-  // than an effect, so it doesn't cost an extra render pass.
-  const baseAudioSrc = currentTrack ? appendMediaToken(tracksApi.audioUrl(currentTrack.id)) : undefined;
+  // The <audio> element's src is derived fresh from currentTrack (not read directly off the frozen
+  // currentTrack.audioUrl field, whose baked-in media token — see lib/data.ts — can be stale, e.g.
+  // unset on first paint before AuthProvider's token fetch resolves). handleAudioError below can
+  // override it with a freshly re-minted one via retriedAudioSrc — also doubling as the "already
+  // retried this track" guard, since it's non-null only after a retry — cleared whenever the track
+  // itself changes, using the same compare-during-render reset idiom as TrackThumbnail/TrackCover
+  // (see track-row-parts.tsx) rather than an effect, so it doesn't cost an extra render pass.
+  //
+  // Memoized on currentTrack?.id alone — NOT recomputed on every render — because appendMediaToken
+  // reads a mutable module-level token (lib/media-token.ts) that AuthProvider rotates on a timer
+  // outside React. Recomputing this on every render would pick up whatever token happens to be
+  // current right now, and any unrelated state change owned by this provider (ambientMode, search,
+  // sort, filters, ...) would then swap the live <audio> element's src mid-playback — which aborts
+  // and reloads the stream per the HTML media spec, with nothing left to resume it.
+  const baseAudioSrc = useMemo(
+    () => currentTrack ? appendMediaToken(tracksApi.audioUrl(currentTrack.id)) : undefined,
+    // Keying on id alone is deliberate — see comment above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentTrack?.id]
+  );
   const [retriedAudioSrc, setRetriedAudioSrc] = useState<string | undefined>(undefined);
   const [prevTrackId, setPrevTrackId] = useState<number | null>(null);
   if ((currentTrack?.id ?? null) !== prevTrackId) {
