@@ -16,11 +16,12 @@ import { Track, buildCoverUrl, formatTimeAgo, isPlayableStatus, resolveTrack } f
 import { motion } from "motion/react";
 import { UploadDialog } from "./upload-dialog";
 import { DesktopDownloadCard } from "./desktop-download-card";
+import { genreHref } from "./genre-links";
 
 const RECENT_TRACKS_LIMIT = 7;
 const TOP_GENRES_COUNT = 4;
 
-type GenreBar = { name: string; percent: number };
+type GenreBar = { name: string; percent: number; isOther?: boolean };
 
 function toGenreBars(distribution: GenreDistributionResponse[]): GenreBar[] {
   const total = distribution.reduce((sum, g) => sum + g.count, 0);
@@ -28,11 +29,11 @@ function toGenreBars(distribution: GenreDistributionResponse[]): GenreBar[] {
 
   const top = distribution.slice(0, TOP_GENRES_COUNT);
   const rest = distribution.slice(TOP_GENRES_COUNT);
-  const bars = top.map(g => ({ name: g.name, percent: Math.round((g.count / total) * 100) }));
+  const bars: GenreBar[] = top.map(g => ({ name: g.name, percent: Math.round((g.count / total) * 100) }));
 
   if (rest.length > 0) {
     const otherCount = rest.reduce((sum, g) => sum + g.count, 0);
-    bars.push({ name: "Other", percent: Math.round((otherCount / total) * 100) });
+    bars.push({ name: "Other", percent: Math.round((otherCount / total) * 100), isOther: true });
   }
 
   return bars;
@@ -334,7 +335,16 @@ export function OverviewView() {
                   topGenres.map((genre, i) => (
                     <div key={genre.name} className="group cursor-default">
                       <div className="flex justify-between text-sm mb-2">
-                        <span className={`transition-colors ${i === 0 ? 'text-white font-medium' : 'text-zinc-400 group-hover:text-zinc-300'}`}>{genre.name}</span>
+                        {genre.isOther ? (
+                          <span className={`transition-colors ${i === 0 ? 'text-white font-medium' : 'text-zinc-400 group-hover:text-zinc-300'}`}>{genre.name}</span>
+                        ) : (
+                          <Link
+                            href={genreHref(genre.name)}
+                            className={`transition-colors cursor-pointer hover:underline hover:text-white ${i === 0 ? 'text-white font-medium' : 'text-zinc-400 group-hover:text-zinc-300'}`}
+                          >
+                            {genre.name}
+                          </Link>
+                        )}
                         <span className="text-zinc-500 font-mono text-xs">{genre.percent}%</span>
                       </div>
                       <div className="h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden">

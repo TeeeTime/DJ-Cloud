@@ -16,6 +16,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { TrackEditDialog } from "./track-edit-dialog";
 import { TrackDeleteDialog } from "./track-delete-dialog";
 import { StatusBadge, TrackThumbnail } from "./track-row-parts";
+import { GenreLinks } from "./genre-links";
 import { AddToPlaylistMenu } from "./add-to-playlist-menu";
 import { UploadDialog } from "./upload-dialog";
 import { TrackFilterMenu } from "./track-filter-menu";
@@ -225,10 +226,8 @@ export function LibraryView() {
                     <TableCell className="text-zinc-400 text-sm">
                       <span className="block truncate" title={track.artist}>{track.artist}</span>
                     </TableCell>
-                    <TableCell className="text-zinc-400 text-sm">
-                      <span className="block truncate" title={track.genres.join(", ")}>
-                        {track.genres.length > 0 ? track.genres.join(", ") : "—"}
-                      </span>
+                    <TableCell className="text-zinc-400 text-sm" onClick={(e) => e.stopPropagation()}>
+                      <GenreLinks genres={track.genres} />
                     </TableCell>
                     <TableCell className="text-zinc-400 text-sm font-mono">{track.bpm ?? "—"}</TableCell>
                     <TableCell>

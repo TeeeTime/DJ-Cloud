@@ -17,6 +17,7 @@ import { usePagedTracks, FetchTracksPageParams } from "@/lib/use-paged-tracks";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { Sidebar } from "@/components/layout/sidebar";
 import { StatusBadge, TrackThumbnail } from "./track-row-parts";
+import { GenreLinks } from "./genre-links";
 import { AddToPlaylistMenu } from "./add-to-playlist-menu";
 import { PlaylistTrackSearch } from "./playlist-track-search";
 import { TrackEditDialog } from "./track-edit-dialog";
@@ -619,10 +620,12 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
                     <TableCell className="text-zinc-400 text-sm">
                       <span className="block truncate" title={track.artist}>{track.artist}</span>
                     </TableCell>
-                    <TableCell className="text-zinc-400 text-sm">
-                      <span className="block truncate" title={track.genres.join(", ")}>
-                        {track.genres.length > 0 ? track.genres.join(", ") : "—"}
-                      </span>
+                    <TableCell
+                      className="text-zinc-400 text-sm"
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
+                      <GenreLinks genres={track.genres} />
                     </TableCell>
                     <TableCell className="text-zinc-400 text-sm font-mono">{track.bpm ?? "—"}</TableCell>
                     <TableCell>

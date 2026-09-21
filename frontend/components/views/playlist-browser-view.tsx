@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/s
 import { usePlaylists } from "@/components/providers/playlist-provider";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { Sidebar } from "@/components/layout/sidebar";
+import { GenreLinks } from "./genre-links";
 
 export function PlaylistBrowserView() {
   const { playlists, playlistsLoading, playlistsError } = usePlaylists();
@@ -94,16 +95,7 @@ export function PlaylistBrowserView() {
                     </CardHeader>
                     <CardContent>
                       {pl.topGenres.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {pl.topGenres.map(genre => (
-                            <span
-                              key={genre}
-                              className="text-xs text-zinc-300 border border-zinc-700 bg-zinc-800 px-2 py-0.5 rounded-full"
-                            >
-                              {genre}
-                            </span>
-                          ))}
-                        </div>
+                        <GenreLinks genres={pl.topGenres} variant="badge" />
                       ) : (
                         <span className="text-xs text-zinc-600">No genres tagged</span>
                       )}
