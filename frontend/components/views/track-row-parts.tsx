@@ -17,6 +17,7 @@ export function StatusBadge({ status }: { status: Track["status"] }) {
 export function TrackThumbnail({ src, trackId }: { src: string; trackId: number }) {
   const { token: authToken } = useAuth();
   const [error, setError] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [retriedSrc, setRetriedSrc] = useState<string | null>(null);
   const [hasRetried, setHasRetried] = useState(false);
 
@@ -26,6 +27,7 @@ export function TrackThumbnail({ src, trackId }: { src: string; trackId: number 
   if (src !== prevSrc) {
     setPrevSrc(src);
     setError(false);
+    setLoaded(false);
     setRetriedSrc(null);
     setHasRetried(false);
   }
@@ -48,20 +50,21 @@ export function TrackThumbnail({ src, trackId }: { src: string; trackId: number 
     }
   };
 
-  if (error) {
-    return (
-      <div className="w-8 h-8 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
-        <Music2 className="w-3.5 h-3.5 text-zinc-700" />
-      </div>
-    );
-  }
-
+  // The fallback icon is always the base layer, not just an on-error state — that way there's
+  // never a gap (pending, stuck, or otherwise not-yet-resolved) where neither the icon nor the
+  // real cover is visible. The real <img> just fades in on top once it actually finishes loading.
   return (
-    <img
-      src={retriedSrc ?? src}
-      alt=""
-      onError={() => (retriedSrc ? setError(true) : handleError())}
-      className="w-8 h-8 rounded object-cover border border-zinc-800 shrink-0"
-    />
+    <div className="relative w-8 h-8 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 overflow-hidden">
+      <Music2 className="w-3.5 h-3.5 text-zinc-700" />
+      {!error && (
+        <img
+          src={retriedSrc ?? src}
+          alt=""
+          onLoad={() => setLoaded(true)}
+          onError={() => (retriedSrc ? setError(true) : handleError())}
+          className={`absolute inset-0 w-8 h-8 object-cover transition-opacity duration-200 ${loaded ? "opacity-100" : "opacity-0"}`}
+        />
+      )}
+    </div>
   );
 }
