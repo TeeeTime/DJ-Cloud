@@ -30,6 +30,7 @@ function loadStoredVolume(): number {
 function TrackCover({ src, trackId, isPlaying, scratching }: { src: string; trackId: number; isPlaying: boolean; scratching: boolean }) {
   const { token: authToken } = useAuth();
   const [error, setError] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [retriedSrc, setRetriedSrc] = useState<string | null>(null);
   const [hasRetried, setHasRetried] = useState(false);
 
@@ -39,6 +40,7 @@ function TrackCover({ src, trackId, isPlaying, scratching }: { src: string; trac
   if (src !== prevSrc) {
     setPrevSrc(src);
     setError(false);
+    setLoaded(false);
     setRetriedSrc(null);
     setHasRetried(false);
   }
@@ -61,21 +63,26 @@ function TrackCover({ src, trackId, isPlaying, scratching }: { src: string; trac
     }
   };
 
-  if (error) {
-    return isPlaying ? (
-      <Disc3 className={`w-8 h-8 text-zinc-300 ${scratching ? 'animate-none rotate-45 text-white' : 'animate-[spin_2s_linear_infinite]'}`} />
-    ) : (
-      <Music2 className="w-5 h-5 text-zinc-600" />
-    );
-  }
-
+  // The fallback icon is always the base layer, not just an on-error state — that way there's
+  // never a gap (pending, stuck, or otherwise not-yet-resolved) where neither the icon nor the
+  // real cover is visible. The real <img> just fades in on top once it actually finishes loading.
   return (
-    <img
-      src={retriedSrc ?? src}
-      alt=""
-      onError={() => (retriedSrc ? setError(true) : handleError())}
-      className="absolute inset-0 w-full h-full object-cover"
-    />
+    <>
+      {isPlaying ? (
+        <Disc3 className={`w-8 h-8 text-zinc-300 ${scratching ? 'animate-none rotate-45 text-white' : 'animate-[spin_2s_linear_infinite]'}`} />
+      ) : (
+        <Music2 className="w-5 h-5 text-zinc-600" />
+      )}
+      {!error && (
+        <img
+          src={retriedSrc ?? src}
+          alt=""
+          onLoad={() => setLoaded(true)}
+          onError={() => (retriedSrc ? setError(true) : handleError())}
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${loaded ? "opacity-100" : "opacity-0"}`}
+        />
+      )}
+    </>
   );
 }
 
