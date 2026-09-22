@@ -2,6 +2,10 @@
 
 import React, { useState } from "react";
 import { usePlayer } from "@/components/providers/player-provider";
+import { useAuth } from "@/components/providers/auth-provider";
+import { buildCoverUrl } from "@/lib/data";
+import { authApi } from "@/lib/api";
+import { setMediaToken } from "@/lib/media-token";
 
 const AMBIENT_PALETTES = [
   { c1: "#7c3aed", c2: "#2563eb", c3: "#06b6d4", c4: "#db2777" }, // Violet / Cobalt / Cyan / Pink
@@ -24,18 +28,50 @@ function getTrackPalette(trackId?: number, title?: string) {
   return AMBIENT_PALETTES[index];
 }
 
-function AmbientCoverImage({ coverUrl }: { coverUrl: string }) {
+function AmbientCoverImage({ coverUrl, trackId }: { coverUrl: string; trackId: number }) {
+  const { token: authToken } = useAuth();
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
+  const [retriedSrc, setRetriedSrc] = useState<string | null>(null);
+  const [hasRetried, setHasRetried] = useState(false);
+
+  // A cover that previously errored must be re-attempted once `coverUrl` actually changes —
+  // otherwise this instance stays stuck on the gradient-mesh fallback forever.
+  const [prevSrc, setPrevSrc] = useState(coverUrl);
+  if (coverUrl !== prevSrc) {
+    setPrevSrc(coverUrl);
+    setError(false);
+    setLoaded(false);
+    setRetriedSrc(null);
+    setHasRetried(false);
+  }
+
+  // The media token embedded in `coverUrl` can be stale — e.g. this rendered before the initial
+  // media-token fetch resolved (the "first batch on app boot" race), or a long-idle session's
+  // token has since expired. Mint a fresh one and retry once before giving up.
+  const handleError = async () => {
+    if (hasRetried || !authToken) {
+      setError(true);
+      return;
+    }
+    setHasRetried(true);
+    try {
+      const { token } = await authApi.mediaToken(authToken);
+      setMediaToken(token);
+      setRetriedSrc(buildCoverUrl(trackId));
+    } catch {
+      setError(true);
+    }
+  };
 
   if (error) return null;
 
   return (
     <img
-      src={coverUrl}
+      src={retriedSrc ?? coverUrl}
       alt=""
       onLoad={() => setLoaded(true)}
-      onError={() => setError(true)}
+      onError={() => (retriedSrc ? setError(true) : handleError())}
       className={`absolute inset-0 w-full h-full object-cover scale-110 transition-opacity duration-1000 ${
         loaded ? "opacity-100" : "opacity-0"
       }`}
@@ -136,8 +172,8 @@ export function AmbientBackground() {
         </div>
 
         {/* Real Cover Image Layer (Fades in over generative mesh when artwork is available and successfully loaded) */}
-        {coverUrl && (
-          <AmbientCoverImage key={`${trackId}-${coverUrl}`} coverUrl={coverUrl} />
+        {coverUrl && trackId !== undefined && (
+          <AmbientCoverImage key={`${trackId}-${coverUrl}`} coverUrl={coverUrl} trackId={trackId} />
         )}
       </div>
 
