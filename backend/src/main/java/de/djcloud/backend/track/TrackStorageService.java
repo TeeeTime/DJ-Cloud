@@ -26,7 +26,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class TrackStorageService {
 
-    private static final List<String> ALLOWED_EXTENSIONS = List.of("mp3", "wav");
+    private static final List<String> ALLOWED_EXTENSIONS = List.of("mp3", "wav", "flac", "aiff", "aif", "m4a",
+            "ogg");
 
     @Value("${app.storage.tracks-dir}")
     private String tracksDir;
@@ -97,6 +98,12 @@ class TrackStorageService {
         return Path.of(previewsDir, UUID.randomUUID() + ".mp3").toFile();
     }
 
+    /** Allocates a fresh, not-yet-existing file path in tracksDir — used by the remux step for
+     * its output, before it replaces the track's original file. */
+    File newTrackFile(String extension) {
+        return Path.of(tracksDir, UUID.randomUUID() + "." + extension).toFile();
+    }
+
     File resolvePreview(String previewFileName) {
         return Path.of(previewsDir, previewFileName).toFile();
     }
@@ -114,7 +121,7 @@ class TrackStorageService {
 
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Unsupported file type — only .mp3 and .wav are accepted");
+                    "Unsupported file type — only .mp3, .wav, .flac, .aiff, .aif, .m4a and .ogg are accepted");
         }
 
         return extension;

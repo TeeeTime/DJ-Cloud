@@ -1,8 +1,8 @@
 package de.djcloud.backend.track;
 
 import java.io.File;
+import java.util.Collection;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.jaudiotagger.audio.AudioFile;
 import org.jaudiotagger.audio.AudioFileIO;
@@ -41,12 +41,26 @@ class AudioMetadataWriter {
     private final WavId3ChunkWriter wavId3ChunkWriter;
 
     void write(File file, String title, String key, int bpm, Set<Artist> artists, Set<Genre> genres) {
+        write(file, title, key, bpm, artists.stream().map(Artist::getName).toList(),
+                genres.stream().map(Genre::getName).toList());
+    }
+
+    /**
+     * Same as {@link #write(File, String, String, int, Set, Set)}, for callers that already have
+     * plain artist/genre names rather than entities — namely the analysis pipeline, which runs on
+     * a background thread with no open Hibernate session ({@code open-in-view: false}) and so
+     * can't safely touch a {@link Track}'s lazy {@code artists}/{@code genres} collections
+     * directly; it fetches plain names inside one of {@link TrackAnalysisStatusService}'s short
+     * transactions instead.
+     */
+    void write(File file, String title, String key, int bpm, Collection<String> artistNames,
+            Collection<String> genreNames) {
         try {
             AudioFile audioFile = AudioFileIO.read(file);
             Tag tag = audioFile.getTagOrCreateAndSetDefault();
 
-            String artistValue = artists.stream().map(Artist::getName).collect(Collectors.joining("; "));
-            String genreValue = genres.stream().map(Genre::getName).collect(Collectors.joining("; "));
+            String artistValue = String.join("; ", artistNames);
+            String genreValue = String.join("; ", genreNames);
             String bpmValue = bpm > 0 ? String.valueOf(bpm) : null;
 
             if (tag instanceof WavTag wavTag) {

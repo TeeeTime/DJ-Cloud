@@ -225,7 +225,7 @@ export interface GenreDistributionResponse {
   count: number;
 }
 
-export type AnalysisStep = "PREVIEW_GENERATION" | "BPM_ANALYSIS" | "KEY_ANALYSIS";
+export type AnalysisStep = "VALIDATION" | "REMUX" | "PREVIEW_GENERATION" | "BPM_ANALYSIS" | "KEY_ANALYSIS";
 
 export interface QueueStatus {
   queued: { trackId: number; title: string }[];
@@ -308,7 +308,9 @@ export const tracksApi = {
 
   upload: (file: File, token: string, confirmDuplicate = false) => {
     const formData = new FormData();
-    formData.append("file", file);
+    // Explicit filename: Chromium otherwise sends a folder-dropped file's relative path
+    // ("tech housie/track.wav") as the multipart filename.
+    formData.append("file", file, file.name);
     const path = confirmDuplicate ? "/api/tracks?confirmDuplicate=true" : "/api/tracks";
     return request<TrackResponse>(path, { method: "POST", body: formData }, token);
   },

@@ -247,7 +247,7 @@ export function UploadDialog() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".mp3,.wav"
+            accept=".mp3,.wav,.flac,.aiff,.aif,.m4a,.ogg"
             multiple
             className="hidden"
             onChange={(e) => {
@@ -310,7 +310,7 @@ export function UploadDialog() {
             ) : (
               <div>
                 <p className="text-sm font-medium text-zinc-300">Drag & drop files or a folder, or click to browse</p>
-                <p className="text-xs text-zinc-600 mt-1">MP3 or WAV (max 200MB) · Drop a folder to upload it as a playlist</p>
+                <p className="text-xs text-zinc-600 mt-1">MP3, WAV, FLAC, AIFF, M4A, or OGG (max 200MB) · Drop a folder to upload it as a playlist</p>
               </div>
             )}
           </div>

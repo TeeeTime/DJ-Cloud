@@ -31,6 +31,23 @@ final class DownloadFilenames {
         return sanitize(raw, "Untitled");
     }
 
+    /**
+     * ASCII-safe fallback for the legacy {@code Content-Disposition} {@code filename} parameter —
+     * replaces every character outside printable ASCII with {@code '_'}. Raw high-byte characters
+     * (e.g. an accented name written directly into the header, as {@link
+     * org.springframework.http.ContentDisposition} does for this parameter) are technically legal
+     * per RFC 6266 but break HTTP clients that reject any non-ASCII byte in a header value — the
+     * full-fidelity name is still carried by the RFC 5987 {@code filename*} parameter alongside it.
+     */
+    static String asciiFallback(String name) {
+        StringBuilder result = new StringBuilder(name.length());
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            result.append(c >= 0x20 && c <= 0x7E ? c : '_');
+        }
+        return result.toString();
+    }
+
     private static String sanitize(String raw, String fallback) {
         String value = raw == null ? "" : raw.trim();
         value = ILLEGAL_CHARS.matcher(value).replaceAll("-");

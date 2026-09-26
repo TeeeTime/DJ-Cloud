@@ -7,12 +7,14 @@ const POLL_INTERVAL_MS = 2500;
 const HOVER_PREVIEW_COUNT = 5;
 
 const STEP_LABELS: Record<AnalysisStep, string> = {
+  VALIDATION: "Validating file",
+  REMUX: "Cleaning up metadata",
   PREVIEW_GENERATION: "Generating preview",
   BPM_ANALYSIS: "Analyzing BPM",
   KEY_ANALYSIS: "Detecting key",
 };
 
-const STEP_ORDER: AnalysisStep[] = ["PREVIEW_GENERATION", "BPM_ANALYSIS", "KEY_ANALYSIS"];
+const STEP_ORDER: AnalysisStep[] = ["VALIDATION", "REMUX", "PREVIEW_GENERATION", "BPM_ANALYSIS", "KEY_ANALYSIS"];
 
 export function QueueStatusWidget() {
   const [status, setStatus] = useState<QueueStatus | null>(null);

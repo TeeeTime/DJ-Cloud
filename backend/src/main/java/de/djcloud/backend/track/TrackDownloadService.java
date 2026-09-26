@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -143,9 +144,16 @@ public class TrackDownloadService {
     }
 
     private String mediaTypeFor(String fileFormat) {
-        if (fileFormat != null && fileFormat.equalsIgnoreCase("wav")) {
-            return "audio/wav";
+        if (fileFormat == null) {
+            return "audio/mpeg";
         }
-        return "audio/mpeg";
+        return switch (fileFormat.toLowerCase(Locale.ROOT)) {
+            case "wav" -> "audio/wav";
+            case "flac" -> "audio/flac";
+            case "aiff", "aif" -> "audio/aiff";
+            case "m4a" -> "audio/mp4";
+            case "ogg" -> "audio/ogg";
+            default -> "audio/mpeg";
+        };
     }
 }
