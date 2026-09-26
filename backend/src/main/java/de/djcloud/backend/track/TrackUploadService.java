@@ -121,7 +121,11 @@ public class TrackUploadService {
             return "Untitled";
         }
 
-        int dotIndex = originalFilename.lastIndexOf('.');
-        return dotIndex < 0 ? originalFilename : originalFilename.substring(0, dotIndex);
+        // Browsers may send a folder-relative path ("tech housie/track.wav") as the filename;
+        // only the last path segment belongs in the title.
+        String baseName = originalFilename.substring(
+                Math.max(originalFilename.lastIndexOf('/'), originalFilename.lastIndexOf('\\')) + 1);
+        int dotIndex = baseName.lastIndexOf('.');
+        return dotIndex < 0 ? baseName : baseName.substring(0, dotIndex);
     }
 }

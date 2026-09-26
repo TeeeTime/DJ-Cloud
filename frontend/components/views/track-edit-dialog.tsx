@@ -329,7 +329,10 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
         bpm: bpm ? parseInt(bpm, 10) : 0,
         key: key || null,
         status,
-        fileFormat: track.format || "mp3",
+        // track.format is upper-cased for display (see lib/data.ts) — the backend stores/expects
+        // the raw lower-case extension, so round-tripping the display value back unchanged would
+        // silently corrupt it (e.g. "wav" -> "WAV") on every edit.
+        fileFormat: (track.format || "mp3").toLowerCase(),
         artistIds: finalArtistIds,
         genreIds: finalGenreIds
       }, token);

@@ -373,10 +373,10 @@ Response `200`:
 }
 ```
 `queued` is every track waiting its turn, in the order they'll be processed. `processing` is `null`
-when the worker is idle; otherwise the track currently being analyzed and which of the three steps is
-running: `PREVIEW_GENERATION`, `BPM_ANALYSIS`, or `KEY_ANALYSIS`. Tracks are always processed one at a
-time, in the order they were queued. `title` is included on every entry so every client can render the
-same track names, regardless of who uploaded them.
+when the worker is idle; otherwise the track currently being analyzed and which of the five steps is
+running, in pipeline order: `VALIDATION`, `REMUX`, `PREVIEW_GENERATION`, `BPM_ANALYSIS`, or
+`KEY_ANALYSIS`. Tracks are always processed one at a time, in the order they were queued. `title` is
+included on every entry so every client can render the same track names, regardless of who uploaded them.
 
 ---
 
@@ -404,8 +404,12 @@ Response `200`: the raw image bytes, `Content-Type` taken from the tag itself (t
 since actually downloading audio bytes is more sensitive than browsing metadata. Downloads the
 **original uploaded file** (never the streaming preview — contrast with `GET /{id}/audio` above).
 
-Response `200`: the raw audio bytes. `Content-Type` is `audio/mpeg` for an mp3 or `audio/wav` for a
-wav (based on `fileFormat`). `Content-Disposition: attachment; filename="..."` gives the file a
+Response `200`: the raw audio bytes. `Content-Type` is based on `fileFormat`: `audio/mpeg` (mp3),
+`audio/wav` (wav), `audio/flac` (flac), `audio/aiff` (aiff/aif), `audio/mp4` (m4a), `audio/ogg`
+(ogg) — a `READY` track's `fileFormat` is always mp3 or wav (see `POST /api/tracks`'s pipeline
+description below for why), but a track that failed validation/remux keeps its original,
+possibly-non-mp3/wav file and format, and remains downloadable. `Content-Disposition:
+attachment; filename="..."` gives the file a
 human-readable name — `"{Title} - {Artist(s)}.{ext}"` — sanitized for both Windows and macOS
 filesystems (illegal characters replaced, trailing dots/spaces stripped, reserved device names like
 `CON` suffixed), instead of the internal UUID name it's stored under on disk. The downloaded file's
@@ -423,13 +427,13 @@ client can read this back to identify which track a file is without relying on i
 fully saved to disk *and* its metadata has been read; a failed/rejected upload never leaves a row behind
 or an orphaned file on disk.
 
-Request: `multipart/form-data` with a single part named `file` — an `.mp3` or `.wav` file (checked by
-extension; max 200MB). Optional query param `confirmDuplicate` (default `false`) — see "Duplicate
-detection" below.
+Request: `multipart/form-data` with a single part named `file` — an `.mp3`, `.wav`, `.flac`, `.aiff`,
+`.aif`, `.m4a`, or `.ogg` file (checked by extension; max 200MB). Optional query param
+`confirmDuplicate` (default `false`) — see "Duplicate detection" below.
 
 Behavior:
 - `title` comes from the file's ID3/tag data if present; otherwise falls back to the uploaded filename
-  minus its extension.
+  minus its extension (and minus any folder path a client sent along with it).
 - `artists` comes from the file's artist tag if present (an artist with that name is found or created);
   otherwise the track is created with zero artists — there's no fake "Unknown Artist" placeholder.
 - `genres` comes from the file's genre tag if present (up to 3, split on `;`/`/`/`,` and deduped
@@ -438,12 +442,16 @@ Behavior:
   file with no tags at all.
 - `bpm` (`0`) and `key` (`null`) are placeholders until analysis finishes — see below.
 - `status` starts at `QUEUED`.
-- `fileFormat` is the file's extension (`mp3`/`wav`).
+- `fileFormat` is initially the uploaded file's own extension (`mp3`/`wav`/`flac`/`aiff`/`aif`/`m4a`/
+  `ogg`), then updated to reflect the remux step's output once analysis reaches that point (see
+  below) — always `mp3` or `wav` from then on, since every other accepted format is re-encoded to
+  wav during remux.
 - `sizeBytes` is the stored audio file's size in bytes — lets clients (e.g. the desktop sync client)
-  estimate required disk space before downloading.
+  estimate required disk space before downloading; updated after the remux step, same as `fileFormat`.
 - The track's own numeric `id` is embedded into the stored file's tags right after the row is saved
   (see `GET /{id}/download` above) — best-effort; a failure here doesn't fail the upload and is
-  self-healed on the next server restart.
+  self-healed on the next server restart. It's re-embedded again once the remux step runs, since
+  remuxing strips it along with everything else.
 - `dateAdded` is today's date (server-side, `yyyy-MM-dd`) — the day the track was uploaded. Not
   settable by the client and not part of `PUT /api/tracks/{id}`'s editable fields.
 - `addedAt` is the exact upload instant (server-side) — same purpose as `dateAdded` but precise to the
@@ -451,11 +459,19 @@ Behavior:
   client and not part of `PUT /api/tracks/{id}`'s editable fields.
 
 The upload response returns immediately with `status: QUEUED`; the track is then picked up asynchronously
-(one track at a time, in upload order) for analysis: a streaming preview is generated, then BPM is
-detected, then musical key is detected. `status` moves to `PROCESSING` once its turn comes, then to
-`READY` (with real `bpm`/`key` values, and a preview now servable via `GET /{id}/audio`) if all three
-steps succeed, or `FAILED` if any one of them fails — nothing further happens to a `FAILED` track unless
-the server is restarted (see "Not yet implemented" below). Poll `GET /api/tracks/queue` for live progress.
+(one track at a time, in upload order) for a five-step analysis pipeline: first the file is validated for
+integrity (a full ffmpeg decode pass, not just a header check), then it's remuxed — its container/tags are
+rebuilt from scratch, stripping anything a DJ tool may have embedded (hotcues, Traktor's "NITR" chunk,
+Serato marker frames, etc.), re-encoded losslessly to WAV if it wasn't already mp3/wav (preserving the
+source's native sample rate and bit depth), and re-validated before it replaces the uploaded file — then a
+streaming preview is generated from the cleaned file, then BPM is detected, then musical key is detected.
+`status` moves to `PROCESSING` once its turn comes, then to `READY` (with real `bpm`/`key` values, and a
+preview now servable via `GET /{id}/audio`) if all five steps succeed, or `FAILED` if any one of them
+fails — nothing further happens to a `FAILED` track unless the server is restarted (see "Not yet
+implemented" below). A track that fails validation or remuxing keeps its original uploaded file untouched
+(it's never partially overwritten). Poll `GET /api/tracks/queue` for live progress, including which of the
+five steps (`VALIDATION`, `REMUX`, `PREVIEW_GENERATION`, `BPM_ANALYSIS`, `KEY_ANALYSIS`) is currently
+running.
 
 Response `201`: the created track, same shape as `GET /api/tracks/{id}`.
 
@@ -473,9 +489,11 @@ Re-submit the same request with `confirmDuplicate=true` to upload anyway — thi
 
 Errors — on every one of these, no `Track` row is created and no file is left on disk:
 - `400` `"Uploaded file is empty"`.
-- `400` `"Unsupported file type — only .mp3 and .wav are accepted"`.
+- `400` `"Unsupported file type — only .mp3, .wav, .flac, .aiff, .aif, .m4a and .ogg are accepted"`.
 - `400` `"Uploaded file could not be read as audio"` — right extension, but the content isn't valid/
-  parsable audio.
+  parsable audio (this is a quick tag-level read at upload time; a deeper full-decode integrity
+  check runs asynchronously as the pipeline's `VALIDATION` step — a file that passes this check but
+  fails that one ends up `FAILED`, not rejected here).
 - `409` — see "Duplicate detection" above.
 - `413` if the file exceeds the 200MB request-size limit.
 - `500` `"Track could not be saved"` — an error after the file was already written (e.g. a DB error); the

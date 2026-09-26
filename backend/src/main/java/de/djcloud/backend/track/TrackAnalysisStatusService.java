@@ -1,10 +1,15 @@
 package de.djcloud.backend.track;
 
+import java.util.LinkedHashSet;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import de.djcloud.backend.artist.Artist;
+import de.djcloud.backend.genre.Genre;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -49,5 +54,31 @@ class TrackAnalysisStatusService {
             track.setStatus(TrackStatus.FAILED);
             trackRepository.save(track);
         });
+    }
+
+    /** Plain artist/genre names for re-embedding into a remuxed file — see {@link
+     * AudioMetadataWriter}'s name-collection {@code write} overload for why these are extracted
+     * here, inside the transaction, rather than handed out as entities. */
+    record RemuxMetadata(String title, Set<String> artistNames, Set<String> genreNames) {
+    }
+
+    @Transactional(readOnly = true)
+    Optional<RemuxMetadata> findRemuxMetadata(Long trackId) {
+        return trackRepository.findById(trackId).map(track -> new RemuxMetadata(track.getTitle(),
+                track.getArtists().stream().map(Artist::getName).collect(Collectors.toCollection(LinkedHashSet::new)),
+                track.getGenres().stream().map(Genre::getName).collect(Collectors.toCollection(LinkedHashSet::new))));
+    }
+
+    /** Swaps a track's stored file over to the remux step's output. Returns false (a safe no-op
+     * for the caller) if the track was deleted mid-pipeline. */
+    @Transactional
+    boolean completeRemux(Long trackId, String newFileName, String newFileFormat, long newSizeBytes) {
+        return trackRepository.findById(trackId).map(track -> {
+            track.setFileName(newFileName);
+            track.setFileFormat(newFileFormat);
+            track.setSizeBytes(newSizeBytes);
+            trackRepository.save(track);
+            return true;
+        }).orElse(false);
     }
 }

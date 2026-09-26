@@ -1,4 +1,4 @@
-export const ACCEPTED_EXTENSIONS = [".mp3", ".wav"];
+export const ACCEPTED_EXTENSIONS = [".mp3", ".wav", ".flac", ".aiff", ".aif", ".m4a", ".ogg"];
 export const MAX_FILE_SIZE = 200 * 1024 * 1024;
 
 export function hasAudioExtension(name: string): boolean {

@@ -180,9 +180,20 @@ public class TrackController {
                 .filename(file.fileName(), StandardCharsets.UTF_8)
                 .build();
 
+        // Spring's ContentDisposition embeds a title/artist containing a non-ASCII character
+        // (e.g. an accented name) into the legacy "filename" parameter as a raw high-byte
+        // character rather than percent-encoding it — technically legal per RFC 6266, but it
+        // breaks HTTP clients that reject any non-ASCII byte in a header value outright (confirmed
+        // against the desktop sync client's Rust HTTP stack). The RFC 5987 "filename*" parameter
+        // Spring generates alongside it is already correctly percent-encoded and unaffected; only
+        // the legacy fallback needs sanitizing, so every client gets a usable filename either way.
+        String headerValue = disposition.toString()
+                .replace("filename=\"" + file.fileName() + "\"",
+                        "filename=\"" + DownloadFilenames.asciiFallback(file.fileName()) + "\"");
+
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(file.mediaType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .header(HttpHeaders.CONTENT_DISPOSITION, headerValue)
                 .body(file.data());
     }
 

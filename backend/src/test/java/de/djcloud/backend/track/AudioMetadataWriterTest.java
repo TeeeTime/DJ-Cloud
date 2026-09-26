@@ -8,6 +8,7 @@ import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
 import javax.sound.sampled.AudioFileFormat;
@@ -23,6 +24,9 @@ import org.jaudiotagger.tag.Tag;
 import org.jaudiotagger.tag.TagOptionSingleton;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+
+import de.djcloud.backend.artist.Artist;
+import de.djcloud.backend.genre.Genre;
 
 /**
  * Confirms the internal-id tag (written via {@code FieldKey.CUSTOM1}) round-trips on a WAV file,
@@ -91,7 +95,7 @@ class AudioMetadataWriterTest {
         writeSilentWav(wav);
         byte[] foreignChunkBefore = appendForeignChunk(wav);
 
-        writer.write(wav, "Test Title", "Am", 128, Set.of(), Set.of());
+        writer.write(wav, "Test Title", "Am", 128, Set.<Artist>of(), Set.<Genre>of());
 
         assertThat(readChunk(wav, "NITR", foreignChunkBefore.length - 8)).isEqualTo(foreignChunkBefore);
     }
@@ -119,6 +123,33 @@ class AudioMetadataWriterTest {
         writer.removeArtwork(wav);
 
         assertThat(readChunk(wav, "NITR", foreignChunkBefore.length - 8)).isEqualTo(foreignChunkBefore);
+    }
+
+    /**
+     * The name-collection overload (used by the analysis pipeline, which has no open Hibernate
+     * session to read {@code Artist}/{@code Genre} entities from) must produce the exact same tag
+     * output as the entity-based overload (used by {@code TrackService}) for equivalent names.
+     */
+    @Test
+    void nameCollectionOverloadMatchesEntityOverload(@TempDir Path tempDir) throws Exception {
+        File viaEntities = tempDir.resolve("via-entities.wav").toFile();
+        File viaNames = tempDir.resolve("via-names.wav").toFile();
+        writeSilentWav(viaEntities);
+        writeSilentWav(viaNames);
+
+        Artist artist = new Artist();
+        artist.setName("Test Artist");
+        Genre genre = new Genre();
+        genre.setName("Techno");
+
+        writer.write(viaEntities, "Test Title", "Am", 128, Set.of(artist), Set.of(genre));
+        writer.write(viaNames, "Test Title", "Am", 128, List.of("Test Artist"), List.of("Techno"));
+
+        AudioMetadata fromEntities = reader.read(viaEntities);
+        AudioMetadata fromNames = reader.read(viaNames);
+        assertThat(fromNames.title()).isEqualTo(fromEntities.title());
+        assertThat(fromNames.artist()).isEqualTo(fromEntities.artist()).isEqualTo("Test Artist");
+        assertThat(fromNames.genres()).isEqualTo(fromEntities.genres()).containsExactly("Techno");
     }
 
     /**

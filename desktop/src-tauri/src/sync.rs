@@ -818,11 +818,16 @@ async fn download_track(
     let response = http::get(client, token, &path).await?;
 
     let bytes_total = response.content_length();
+    // `HeaderValue::to_str()` fails outright if the header contains ANY non-ASCII byte anywhere —
+    // and the server's legacy `filename="..."` parameter can carry a raw non-ASCII byte (e.g. an
+    // accented artist name) even though the `filename*=UTF-8''...` parameter right next to it is
+    // always properly percent-encoded. Decoding lossily instead means one bad byte in the legacy
+    // parameter no longer throws away a perfectly good `filename*=` alongside it.
     let filename = response
         .headers()
         .get(reqwest::header::CONTENT_DISPOSITION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(parse_content_disposition_filename)
+        .map(|value| String::from_utf8_lossy(value.as_bytes()).into_owned())
+        .and_then(|value| parse_content_disposition_filename(&value))
         .map(|name| sanitize_path_component(&name))
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| format!("track-{}.{}", item.track_id, item.file_format));
@@ -1014,6 +1019,45 @@ mod tests {
     #[test]
     fn sanitize_path_component_strips_invalid_characters() {
         assert_eq!(sanitize_path_component("Mix: A/B\\C"), "Mix_ A_B_C");
+    }
+
+    #[test]
+    fn parse_content_disposition_filename_prefers_extended_form() {
+        let header = "attachment; filename=\"fallback.wav\"; filename*=UTF-8''Ti%C3%ABsto.wav";
+        assert_eq!(
+            parse_content_disposition_filename(header),
+            Some("Tiësto.wav".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_content_disposition_filename_falls_back_to_plain_form() {
+        let header = "attachment; filename=\"plain.wav\"";
+        assert_eq!(
+            parse_content_disposition_filename(header),
+            Some("plain.wav".to_string())
+        );
+    }
+
+    /// Regression test for the actual bug: the server's legacy `filename="..."` parameter can
+    /// carry a raw non-ASCII byte (e.g. Spring embedding an accented artist name directly rather
+    /// than percent-encoding it), which makes `HeaderValue::to_str()` fail for the WHOLE header —
+    /// even though the `filename*=UTF-8''...` parameter right next to it is always valid. Decoding
+    /// the raw header bytes lossily (as `download_track` now does) instead of via `to_str()` must
+    /// still recover the correct filename from `filename*=`.
+    #[test]
+    fn parse_content_disposition_filename_recovers_extended_form_despite_raw_byte_in_legacy_form() {
+        let mut raw = Vec::new();
+        raw.extend_from_slice(b"attachment; filename=\"Ti");
+        raw.push(0xEB); // raw ISO-8859-1 'e-with-diaeresis' byte, not percent-encoded
+        raw.extend_from_slice(b"sto.wav\"; filename*=UTF-8''Ti%C3%ABsto.wav");
+
+        let lossy = String::from_utf8_lossy(&raw).into_owned();
+
+        assert_eq!(
+            parse_content_disposition_filename(&lossy),
+            Some("Tiësto.wav".to_string())
+        );
     }
 
     #[test]

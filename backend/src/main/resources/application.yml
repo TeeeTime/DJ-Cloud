@@ -67,9 +67,12 @@ app:
     # Ceiling for each individual external-tool invocation (ffmpeg/aubio/keyfinder-cli) before it's
     # killed and the track is marked FAILED.
     process-timeout-seconds: ${ANALYSIS_TIMEOUT_SECONDS:180}
-    # Used both for preview generation and to decode the original down to a plain WAV before BPM/key
-    # analysis (aubio's plain Windows build can't read mp3 directly).
+    # Used for preview generation, validation, remuxing, and to decode the original down to a plain
+    # WAV before BPM/key analysis (aubio's plain Windows build can't read mp3 directly).
     ffmpeg-command: ${FFMPEG_COMMAND:ffmpeg}
+    # Used by the remux step to detect a source file's native sample format/bit depth so a
+    # re-encode to WAV preserves it instead of falling back to ffmpeg's 16-bit WAV default.
+    ffprobe-command: ${FFPROBE_COMMAND:ffprobe}
     preview:
       bitrate: ${PREVIEW_BITRATE:192k}
     bpm:
