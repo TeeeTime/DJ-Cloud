@@ -36,8 +36,28 @@ class AudioMetadataReader {
         AudioHeader header = audioFile.getAudioHeader();
         Tag tag = audioFile.getTag();
 
-        return new AudioMetadata(readField(tag, FieldKey.TITLE), readField(tag, FieldKey.ARTIST),
-                header.getTrackLength(), readGenres(tag));
+        return new AudioMetadata(readField(tag, FieldKey.TITLE), readArtists(tag), header.getTrackLength(),
+                readGenres(tag));
+    }
+
+    /**
+     * Some taggers write one ARTIST frame/value per artist rather than one combined string, and
+     * {@code getFirst} would only see the first — so every value is joined with "; " here and left
+     * for {@code ArtistService#findOrCreateAllFromTag} to split back apart.
+     */
+    private String readArtists(Tag tag) {
+        if (tag == null) {
+            return null;
+        }
+
+        List<String> rawValues = tag.getAll(FieldKey.ARTIST);
+        if (rawValues == null) {
+            return null;
+        }
+
+        String joined = String.join("; ", rawValues.stream().filter(v -> v != null && !v.isBlank()).map(String::trim)
+                .toList());
+        return joined.isEmpty() ? null : joined;
     }
 
     /**
