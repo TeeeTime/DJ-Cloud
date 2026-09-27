@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Menu, Play, Pause, Ban,
@@ -19,6 +19,7 @@ import { DesktopDownloadCard } from "./desktop-download-card";
 import { genreHref } from "./genre-links";
 
 const RECENT_TRACKS_LIMIT = 7;
+const RECENT_POLL_INTERVAL_MS = 3000;
 const TOP_GENRES_COUNT = 4;
 
 type GenreBar = { name: string; percent: number; isOther?: boolean };
@@ -66,7 +67,7 @@ export function OverviewView() {
   const { user, token } = useAuth();
   const canUpload = user?.role === 'EDITOR' || user?.role === 'ADMIN';
   const {
-    tracks, currentTrack, isPlaying, setCurrentTrack, setIsPlaying, setActiveTrackOrder, setOnOrderExhausted
+    tracks, currentTrack, isPlaying, setCurrentTrack, setIsPlaying, setActiveTrackOrder, setOnOrderExhausted, tracksVersion
   } = usePlayer();
 
   const [recentTracks, setRecentTracks] = useState<RecentTrackResponse[]>([]);
@@ -108,6 +109,37 @@ export function OverviewView() {
       cancelled = true;
     };
   }, [token]);
+
+  // Re-reads the visible list for status/playability changes (analysis pipeline) and for tracks
+  // uploaded/edited/deleted elsewhere. Unlike the initial fetch it never marks anything seen, and
+  // it keeps each already-shown track's "new" badge as it was on first load — the mark-seen call
+  // above would otherwise flip them all off on the next refresh.
+  const refreshRecent = useCallback(() => {
+    if (!token) return;
+    tracksApi.recent(RECENT_TRACKS_LIMIT, token)
+      .then(response => {
+        setRecentTracks(prev => {
+          const shownAsNew = new Map(prev.map(t => [t.id, t.isNew]));
+          return response.tracks.map(t => shownAsNew.has(t.id) ? { ...t, isNew: shownAsNew.get(t.id)! } : t);
+        });
+      })
+      .catch(() => {});
+  }, [token]);
+
+  const hasActiveRecent = recentTracks.some(t => t.status === 'QUEUED' || t.status === 'PROCESSING');
+
+  useEffect(() => {
+    if (!hasActiveRecent) return;
+    const interval = setInterval(refreshRecent, RECENT_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [hasActiveRecent, refreshRecent]);
+
+  // Skip the version present on mount — the initial fetch above already covers it.
+  const mountedTracksVersionRef = useRef(tracksVersion);
+  useEffect(() => {
+    if (tracksVersion === mountedTracksVersionRef.current) return;
+    refreshRecent();
+  }, [tracksVersion, refreshRecent]);
 
   // Resolve the recent-tracks list (plus any skip-driven extension) into full Track objects so it
   // can serve as the bottom player's skip order — checking the already-loaded library list first,

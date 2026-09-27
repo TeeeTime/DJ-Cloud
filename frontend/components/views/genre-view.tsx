@@ -32,7 +32,7 @@ interface GenreViewProps {
 
 export function GenreView({ genreName }: GenreViewProps) {
   const { user, token } = useAuth();
-  const { currentTrack, setCurrentTrack, isPlaying, setIsPlaying, setActiveTrackOrder } = usePlayer();
+  const { currentTrack, setCurrentTrack, isPlaying, setIsPlaying, setActiveTrackOrder, tracksVersion } = usePlayer();
   const { genreSyncs, refreshGenreSyncs } = useGenres();
   const canUpload = user?.role === 'EDITOR' || user?.role === 'ADMIN';
   const isSyncEnabled = genreSyncs.find(g => g.name === genreName)?.syncEnabled ?? false;
@@ -60,6 +60,7 @@ export function GenreView({ genreName }: GenreViewProps) {
     sortConfig,
     defaultSortKey: DEFAULT_SORT_KEY,
     fetchPage: fetchGenreTracksPage,
+    refreshKey: tracksVersion,
   });
 
   // Skip-forward/back in the bottom player should follow this genre's own visible order while
