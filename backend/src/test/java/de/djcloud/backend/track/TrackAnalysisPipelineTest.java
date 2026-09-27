@@ -29,7 +29,7 @@ class TrackAnalysisPipelineTest {
 
     private static final Long TRACK_ID = 42L;
     private static final TrackAnalysisStatusService.RemuxMetadata METADATA = new TrackAnalysisStatusService.RemuxMetadata(
-            "Title", Set.of(), Set.of());
+            "Title", Set.of(), Set.of(), 0, null);
 
     private TrackAnalysisStatusService statusService;
     private TrackStorageService trackStorageService;
@@ -88,7 +88,8 @@ class TrackAnalysisPipelineTest {
         when(audioDecoder.decodeToWav(remuxOutput)).thenReturn(decodedWav);
         when(bpmAnalyzer.analyze(decodedWav)).thenReturn(OptionalInt.of(128));
         when(keyAnalyzer.analyze(decodedWav)).thenReturn(Optional.of("Am"));
-        when(statusService.markReady(TRACK_ID, previewFile.getName(), 128, "Am")).thenReturn(true);
+        when(statusService.markReady(TRACK_ID, previewFile.getName(), 128, "Am"))
+                .thenReturn(Optional.of(new TrackAnalysisStatusService.ReadyResult(null)));
 
         List<AnalysisStep> steps = new ArrayList<>();
         pipeline.run(TRACK_ID, steps::add);
@@ -97,7 +98,59 @@ class TrackAnalysisPipelineTest {
                 AnalysisStep.PREVIEW_GENERATION, AnalysisStep.BPM_ANALYSIS, AnalysisStep.KEY_ANALYSIS);
         verify(trackStorageService).delete(original);
         verify(trackStorageService, never()).delete(remuxOutput);
+        verify(trackStorageService, never()).deletePreviewByFileName(any());
         verify(statusService, never()).markFailed(TRACK_ID);
+    }
+
+    @Test
+    void reanalysisWithExistingBpmAndKey_keepsThemWithoutDecodingAndDeletesOldPreview() {
+        TrackAnalysisStatusService.RemuxMetadata analyzed = new TrackAnalysisStatusService.RemuxMetadata("Title",
+                Set.of(), Set.of(), 124, "F#m");
+        when(statusService.findRemuxMetadata(TRACK_ID)).thenReturn(Optional.of(analyzed));
+        stubSuccessfulRemuxAndPreview(analyzed);
+        when(statusService.markReady(TRACK_ID, previewFile.getName(), 124, "F#m"))
+                .thenReturn(Optional.of(new TrackAnalysisStatusService.ReadyResult("old-preview.mp3")));
+
+        List<AnalysisStep> steps = new ArrayList<>();
+        pipeline.run(TRACK_ID, steps::add);
+
+        assertThat(steps).containsExactly(AnalysisStep.VALIDATION, AnalysisStep.REMUX,
+                AnalysisStep.PREVIEW_GENERATION);
+        verify(audioDecoder, never()).decodeToWav(any());
+        verify(bpmAnalyzer, never()).analyze(any());
+        verify(keyAnalyzer, never()).analyze(any());
+        verify(statusService).markReady(TRACK_ID, previewFile.getName(), 124, "F#m");
+        verify(trackStorageService).deletePreviewByFileName("old-preview.mp3");
+        verify(statusService, never()).markFailed(TRACK_ID);
+    }
+
+    @Test
+    void reanalysisWithOnlyKeySet_detectsBpmButKeepsKey() {
+        TrackAnalysisStatusService.RemuxMetadata keyOnly = new TrackAnalysisStatusService.RemuxMetadata("Title",
+                Set.of(), Set.of(), 0, "Am");
+        when(statusService.findRemuxMetadata(TRACK_ID)).thenReturn(Optional.of(keyOnly));
+        stubSuccessfulRemuxAndPreview(keyOnly);
+        when(audioDecoder.decodeToWav(remuxOutput)).thenReturn(decodedWav);
+        when(bpmAnalyzer.analyze(decodedWav)).thenReturn(OptionalInt.of(128));
+        when(statusService.markReady(TRACK_ID, previewFile.getName(), 128, "Am"))
+                .thenReturn(Optional.of(new TrackAnalysisStatusService.ReadyResult(null)));
+
+        List<AnalysisStep> steps = new ArrayList<>();
+        pipeline.run(TRACK_ID, steps::add);
+
+        assertThat(steps).containsExactly(AnalysisStep.VALIDATION, AnalysisStep.REMUX,
+                AnalysisStep.PREVIEW_GENERATION, AnalysisStep.BPM_ANALYSIS);
+        verify(keyAnalyzer, never()).analyze(any());
+        verify(statusService).markReady(TRACK_ID, previewFile.getName(), 128, "Am");
+        verify(statusService, never()).markFailed(TRACK_ID);
+    }
+
+    private void stubSuccessfulRemuxAndPreview(TrackAnalysisStatusService.RemuxMetadata metadata) {
+        when(audioRemuxer.remux(original, "mp3", remuxOutput, metadata)).thenReturn(true);
+        when(audioIntegrityValidator.validate(remuxOutput)).thenReturn(true);
+        when(statusService.completeRemux(TRACK_ID, remuxOutput.getName(), "mp3", remuxOutput.length()))
+                .thenReturn(true);
+        when(previewGenerator.generate(remuxOutput, previewFile)).thenReturn(true);
     }
 
     @Test

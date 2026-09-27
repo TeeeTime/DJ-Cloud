@@ -14,7 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Runs the five analysis steps for one track, in order: validate the upload's integrity, remux it
  * (strip any DJ-software metadata/chunks, re-encoding to WAV for anything that isn't already
- * mp3/wav), generate a streaming preview, detect BPM, detect musical key. The first step to fail
+ * mp3/wav), generate a streaming preview, detect BPM, detect musical key (the last two only if the
+ * track doesn't already have a value, so a re-analysis never overwrites them). The first step to fail
  * (or any unexpected exception) marks the track {@code FAILED} and skips the rest — this method
  * must never let an exception escape, since it runs directly on the single analysis worker thread
  * and an uncaught exception there would silently kill and respawn that thread.
@@ -110,32 +111,52 @@ class TrackAnalysisPipeline {
                 return;
             }
 
-            // aubio's plain Windows build (and possibly other analysis tools) can't read mp3
-            // directly, so decode to a plain WAV once here and hand that to both BPM and key
-            // analysis instead of the (already remuxed) track file.
-            decodedWav = audioDecoder.decodeToWav(currentFile);
-            if (decodedWav == null) {
-                fail(trackId, previewFile, null, "decoding for analysis");
-                return;
+            // A BPM/key already on the track (from an earlier analysis, or set by the user) is kept
+            // as-is on re-analysis — only missing values are detected.
+            int bpm = metadata.get().bpm();
+            String key = metadata.get().key();
+            boolean needsBpm = bpm <= 0;
+            boolean needsKey = key == null || key.isBlank();
+
+            if (needsBpm || needsKey) {
+                // aubio's plain Windows build (and possibly other analysis tools) can't read mp3
+                // directly, so decode to a plain WAV once here and hand that to both BPM and key
+                // analysis instead of the (already remuxed) track file.
+                decodedWav = audioDecoder.decodeToWav(currentFile);
+                if (decodedWav == null) {
+                    fail(trackId, previewFile, null, "decoding for analysis");
+                    return;
+                }
             }
 
-            onStep.accept(AnalysisStep.BPM_ANALYSIS);
-            OptionalInt bpm = bpmAnalyzer.analyze(decodedWav);
-            if (bpm.isEmpty()) {
-                fail(trackId, previewFile, null, "BPM analysis");
-                return;
+            if (needsBpm) {
+                onStep.accept(AnalysisStep.BPM_ANALYSIS);
+                OptionalInt detectedBpm = bpmAnalyzer.analyze(decodedWav);
+                if (detectedBpm.isEmpty()) {
+                    fail(trackId, previewFile, null, "BPM analysis");
+                    return;
+                }
+                bpm = detectedBpm.getAsInt();
             }
 
-            onStep.accept(AnalysisStep.KEY_ANALYSIS);
-            Optional<String> key = keyAnalyzer.analyze(decodedWav);
-            if (key.isEmpty()) {
-                fail(trackId, previewFile, null, "key analysis");
-                return;
+            if (needsKey) {
+                onStep.accept(AnalysisStep.KEY_ANALYSIS);
+                Optional<String> detectedKey = keyAnalyzer.analyze(decodedWav);
+                if (detectedKey.isEmpty()) {
+                    fail(trackId, previewFile, null, "key analysis");
+                    return;
+                }
+                key = detectedKey.get();
             }
 
-            boolean stillReady = statusService.markReady(trackId, previewFile.getName(), bpm.getAsInt(), key.get());
-            if (!stillReady) {
+            Optional<TrackAnalysisStatusService.ReadyResult> ready = statusService.markReady(trackId,
+                    previewFile.getName(), bpm, key);
+            if (ready.isEmpty()) {
                 trackStorageService.deletePreviewByFileName(previewFile.getName());
+            } else if (ready.get().previousPreviewFileName() != null
+                    && !ready.get().previousPreviewFileName().equals(previewFile.getName())) {
+                // re-analysis of an already-analyzed track — the old preview is now unreferenced
+                trackStorageService.deletePreviewByFileName(ready.get().previousPreviewFileName());
             }
         } catch (Exception ex) {
             log.error("Unexpected error analyzing track {}", trackId, ex);

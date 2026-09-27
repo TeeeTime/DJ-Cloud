@@ -31,7 +31,7 @@ public interface TrackRepository extends JpaRepository<Track, Long>, JpaSpecific
     @EntityGraph(attributePaths = { "artists", "genres" })
     Optional<Track> findFirstByTitleIgnoreCaseAndArtistsContaining(String title, Artist artist);
 
-    List<Track> findByPreviewFileNameIsNullOrderById();
+    List<Track> findAllByOrderById();
 
     List<Track> findByDateAddedIsNull();
 

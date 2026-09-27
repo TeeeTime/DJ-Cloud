@@ -36,16 +36,22 @@ class TrackAnalysisStatusService {
         });
     }
 
+    /** Returns the track's previous preview file name (possibly {@code null}), so the caller can
+     * clean it up after a re-analysis — or empty if the track was deleted mid-pipeline. */
     @Transactional
-    boolean markReady(Long trackId, String previewFileName, int bpm, String key) {
+    Optional<ReadyResult> markReady(Long trackId, String previewFileName, int bpm, String key) {
         return trackRepository.findById(trackId).map(track -> {
+            String previousPreviewFileName = track.getPreviewFileName();
             track.setStatus(TrackStatus.READY);
             track.setPreviewFileName(previewFileName);
             track.setBpm(bpm);
             track.setKey(key);
             trackRepository.save(track);
-            return true;
-        }).orElse(false);
+            return new ReadyResult(previousPreviewFileName);
+        });
+    }
+
+    record ReadyResult(String previousPreviewFileName) {
     }
 
     @Transactional
@@ -58,15 +64,18 @@ class TrackAnalysisStatusService {
 
     /** Plain artist/genre names for re-embedding into a remuxed file — see {@link
      * AudioMetadataWriter}'s name-collection {@code write} overload for why these are extracted
-     * here, inside the transaction, rather than handed out as entities. */
-    record RemuxMetadata(String title, Set<String> artistNames, Set<String> genreNames) {
+     * here, inside the transaction, rather than handed out as entities. Also carries the track's
+     * current BPM/key ({@code 0}/{@code null} when not yet known) so a re-analysis keeps values the
+     * user may have set instead of overwriting them. */
+    record RemuxMetadata(String title, Set<String> artistNames, Set<String> genreNames, int bpm, String key) {
     }
 
     @Transactional(readOnly = true)
     Optional<RemuxMetadata> findRemuxMetadata(Long trackId) {
         return trackRepository.findById(trackId).map(track -> new RemuxMetadata(track.getTitle(),
                 track.getArtists().stream().map(Artist::getName).collect(Collectors.toCollection(LinkedHashSet::new)),
-                track.getGenres().stream().map(Genre::getName).collect(Collectors.toCollection(LinkedHashSet::new))));
+                track.getGenres().stream().map(Genre::getName).collect(Collectors.toCollection(LinkedHashSet::new)),
+                track.getBpm(), track.getKey()));
     }
 
     /** Swaps a track's stored file over to the remux step's output. Returns false (a safe no-op
