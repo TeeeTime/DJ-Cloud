@@ -11,10 +11,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Runs once on startup so tracks never get stuck: any row still {@code PROCESSING} from before a
- * restart is reset to {@code QUEUED} (nothing is actually running for it anymore), and every track
- * without a preview file yet — freshly queued, reset above, previously {@code FAILED}, or a legacy
- * row that predates this pipeline entirely — is (re)queued for analysis.
+ * Runs once on startup and puts every track back through the full analysis pipeline — including
+ * ones already {@code READY}, so the whole library is re-validated and re-cleaned each restart, and
+ * nothing can stay stuck {@code PROCESSING} from before a restart. User-editable data survives: the
+ * pipeline re-embeds title/artists/genres from the DB and the cover from the current file, and keeps
+ * any BPM/key already set (see {@link TrackAnalysisPipeline}).
  */
 @Component
 @RequiredArgsConstructor
@@ -27,16 +28,12 @@ public class TrackAnalysisStartupRunner implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        List<Track> stuck = trackRepository.findByStatus(TrackStatus.PROCESSING);
-        stuck.forEach(track -> track.setStatus(TrackStatus.QUEUED));
-        trackRepository.saveAll(stuck);
+        List<Track> tracks = trackRepository.findAllByOrderById();
+        tracks.forEach(track -> track.setStatus(TrackStatus.QUEUED));
+        trackRepository.saveAll(tracks);
 
-        List<Track> needsAnalysis = trackRepository.findByPreviewFileNameIsNullOrderById();
-        needsAnalysis.forEach(track -> track.setStatus(TrackStatus.QUEUED));
-        trackRepository.saveAll(needsAnalysis);
+        tracks.forEach(track -> trackAnalysisQueue.enqueue(track.getId(), track.getTitle()));
 
-        needsAnalysis.forEach(track -> trackAnalysisQueue.enqueue(track.getId(), track.getTitle()));
-
-        log.info("Requeued {} track(s) for analysis on startup", needsAnalysis.size());
+        log.info("Requeued all {} track(s) for analysis on startup", tracks.size());
     }
 }

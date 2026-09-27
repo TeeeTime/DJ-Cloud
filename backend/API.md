@@ -355,8 +355,9 @@ a ~1MB chunk so the client naturally follows up with further range requests): th
 `401` if neither a valid `Authorization` header nor a valid, unexpired media token query param is present.
 
 `404` `"No preview available for this track yet"` if the track doesn't exist, or has no preview yet —
-this includes any track that's `QUEUED`, `PROCESSING`, or `FAILED`, and legacy rows from before this
-pipeline existed that haven't been reprocessed yet. There is no fallback to the original file.
+this includes a `QUEUED`, `PROCESSING`, or `FAILED` track that has never been analyzed successfully. (A
+track re-queued on startup keeps its previous preview until the new one replaces it, so this may still
+respond for it — but clients should only play `READY` tracks.) There is no fallback to the original file.
 
 ---
 
@@ -469,7 +470,14 @@ streaming preview is generated from the cleaned file, then BPM is detected, then
 preview now servable via `GET /{id}/audio`) if all five steps succeed, or `FAILED` if any one of them
 fails — nothing further happens to a `FAILED` track unless the server is restarted (see "Not yet
 implemented" below). A track that fails validation or remuxing keeps its original uploaded file untouched
-(it's never partially overwritten). Poll `GET /api/tracks/queue` for live progress, including which of the
+(it's never partially overwritten).
+
+**On every server startup, every track (including ones already `READY`) is set back to `QUEUED` and put
+through this pipeline again**, in id order — so right after a restart, tracks aren't playable until their
+turn comes. A re-analysis keeps everything user-editable: title/artists/genres are re-embedded from the DB,
+the cover is carried over from the current file, and any existing `bpm`/`key` is kept (BPM/key detection
+only runs for whichever of the two is still unset). A previously `READY` track that now fails a step
+becomes `FAILED`. Poll `GET /api/tracks/queue` for live progress, including which of the
 five steps (`VALIDATION`, `REMUX`, `PREVIEW_GENERATION`, `BPM_ANALYSIS`, `KEY_ANALYSIS`) is currently
 running.
 
