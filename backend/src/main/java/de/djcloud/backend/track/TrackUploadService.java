@@ -2,6 +2,7 @@ package de.djcloud.backend.track;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -70,14 +71,14 @@ public class TrackUploadService {
             track.setContentHash(contentHash);
             track.setStatus(TrackStatus.QUEUED);
 
-            if (metadata.artist() != null) {
-                // findOrCreateByName and trackRepository.save() below are each independently
-                // transactional (ArtistService / Spring Data JPA) rather than wrapped in one
-                // shared transaction here, since the file I/O above must never run inside one
-                Artist artist = artistService.findOrCreateByName(metadata.artist());
-                track.getArtists().add(artist);
+            // findOrCreateAllFromTag and trackRepository.save() below are each independently
+            // transactional (ArtistService / Spring Data JPA) rather than wrapped in one shared
+            // transaction here, since the file I/O above must never run inside one
+            List<Artist> artists = artistService.findOrCreateAllFromTag(metadata.artist());
+            track.getArtists().addAll(artists);
 
-                if (!confirmDuplicate) {
+            if (!confirmDuplicate) {
+                for (Artist artist : artists) {
                     trackRepository.findFirstByTitleIgnoreCaseAndArtistsContaining(track.getTitle(), artist)
                             .ifPresent(existing -> {
                                 throw new DuplicateTrackException(DuplicateTrackException.Reason.TITLE_AND_ARTIST,

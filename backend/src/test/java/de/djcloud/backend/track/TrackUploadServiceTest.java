@@ -87,7 +87,7 @@ class TrackUploadServiceTest {
         Artist artist = new Artist();
         artist.setId(2L);
         artist.setName("DJ Test");
-        when(artistService.findOrCreateByName("DJ Test")).thenReturn(artist);
+        when(artistService.findOrCreateAllFromTag("DJ Test")).thenReturn(List.of(artist));
 
         Track existing = new Track();
         existing.setId(3L);
@@ -115,5 +115,30 @@ class TrackUploadServiceTest {
 
         verify(trackRepository, never()).findFirstByTitleIgnoreCaseAndArtistsContaining(anyString(), any());
         verify(trackRepository).save(any());
+    }
+
+    @Test
+    void multipleArtistsInTag_areAllLinkedAndEachCheckedForDuplicates() throws AudioMetadataException {
+        when(trackRepository.findFirstByContentHash("hash-123")).thenReturn(Optional.empty());
+        when(audioMetadataReader.read(storedFile.file()))
+                .thenReturn(new AudioMetadata("My Song", "Artist One, Artist Two", 120, List.of()));
+
+        Artist first = new Artist();
+        first.setId(4L);
+        first.setName("Artist One");
+        Artist second = new Artist();
+        second.setId(5L);
+        second.setName("Artist Two");
+        when(artistService.findOrCreateAllFromTag("Artist One, Artist Two")).thenReturn(List.of(first, second));
+        when(trackRepository.findFirstByTitleIgnoreCaseAndArtistsContaining(anyString(), any()))
+                .thenReturn(Optional.empty());
+        when(trackRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        uploadService.upload(file, false);
+
+        verify(trackRepository).findFirstByTitleIgnoreCaseAndArtistsContaining("My Song", first);
+        verify(trackRepository).findFirstByTitleIgnoreCaseAndArtistsContaining("My Song", second);
+        verify(trackRepository).save(org.mockito.ArgumentMatchers.argThat(
+                track -> track.getArtists().containsAll(List.of(first, second)) && track.getArtists().size() == 2));
     }
 }

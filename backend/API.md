@@ -434,8 +434,10 @@ Request: `multipart/form-data` with a single part named `file` — an `.mp3`, `.
 Behavior:
 - `title` comes from the file's ID3/tag data if present; otherwise falls back to the uploaded filename
   minus its extension (and minus any folder path a client sent along with it).
-- `artists` comes from the file's artist tag if present (an artist with that name is found or created);
-  otherwise the track is created with zero artists — there's no fake "Unknown Artist" placeholder.
+- `artists` comes from the file's artist tag(s) if present, split into separate artists on `,`, `;`, ` & `,
+  and `feat.`/`ft.`/`featuring`/`vs.` (not `/`, so e.g. "AC/DC" stays whole); each is matched to an existing
+  artist case-insensitively or created. A tag that exactly matches an existing artist (and contains no `,`/`;`)
+  is kept whole, so e.g. an existing "Simon & Garfunkel" isn't split; otherwise the track is created with zero artists — there's no fake "Unknown Artist" placeholder.
 - `genres` comes from the file's genre tag if present (up to 3, split on `;`/`/`/`,` and deduped
   case-insensitively; each name is found or created); otherwise the track is created with zero genres.
 - `durationSeconds` is always read from the actual audio data, not a placeholder — this works even for a
@@ -478,8 +480,8 @@ Response `201`: the created track, same shape as `GET /api/tracks/{id}`.
 **Duplicate detection**: unless `confirmDuplicate=true` is passed, the upload is checked against the
 existing library two ways, in order:
 1. **Exact file match** — SHA-256 of the uploaded bytes matches an existing track's stored file.
-2. **Probable match** — same `title` (case-insensitive) and the same resolved artist as an existing
-   track. Only checked when the file has an artist tag.
+2. **Probable match** — same `title` (case-insensitive) and any of the same resolved artists as an
+   existing track. Only checked when the file has an artist tag.
 
 Either match returns `409` instead of creating a row, with body:
 ```json
