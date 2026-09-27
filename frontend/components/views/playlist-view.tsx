@@ -64,7 +64,7 @@ function describeLoadError(err: unknown): string {
 
 export function PlaylistView({ playlistId }: PlaylistViewProps) {
   const { token, user } = useAuth();
-  const { currentTrack, setCurrentTrack, isPlaying, setIsPlaying, setActiveTrackOrder } = usePlayer();
+  const { currentTrack, setCurrentTrack, isPlaying, setIsPlaying, setActiveTrackOrder, tracksVersion } = usePlayer();
   const { refreshPlaylists } = usePlaylists();
   const canUpload = user?.role === 'EDITOR' || user?.role === 'ADMIN';
 
@@ -95,6 +95,7 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
     sortConfig,
     defaultSortKey: DEFAULT_SORT_KEY,
     fetchPage: fetchPlaylistTracksPage,
+    refreshKey: tracksVersion,
   });
 
   // Skip-forward/back in the bottom player should follow this playlist's own visible order while
@@ -334,7 +335,8 @@ export function PlaylistView({ playlistId }: PlaylistViewProps) {
         refreshPlaylists();
       })
       .catch((err) => setError(describeLoadError(err)));
-  }, [playlistId, token, applyDetail, refreshPlaylists]);
+    // tracksVersion: re-read the detail (track count etc.) after uploads/edits made elsewhere.
+  }, [playlistId, token, applyDetail, refreshPlaylists, tracksVersion]);
 
   const reload = useCallback(async () => {
     if (!token) return;

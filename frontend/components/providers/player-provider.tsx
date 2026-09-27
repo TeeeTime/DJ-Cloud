@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { Track, isPlayableStatus } from "@/lib/data";
 import { tracksApi, authApi, TrackFilters } from "@/lib/api";
 import { usePagedTracks, FetchTracksPageParams } from "@/lib/use-paged-tracks";
@@ -12,7 +12,6 @@ type FilterType = { type: 'all' | 'playlist' | 'genre', value: string };
 type SortConfig = { key: keyof Track, direction: 'asc' | 'desc' } | null;
 
 const DEFAULT_SORT_KEY = 'title';
-const ACTIVE_TRACKS_POLL_INTERVAL_MS = 3000;
 
 interface PlayerContextType {
   isPlaying: boolean;
@@ -39,6 +38,9 @@ interface PlayerContextType {
   hasMoreTracks: boolean;
   loadMoreTracks: () => void;
   refreshTracks: () => Promise<void>;
+  // Bumped by every refreshTracks() call, so views with their own track lists (genre, playlist,
+  // overview) can refetch after an upload/edit/delete made anywhere in the app.
+  tracksVersion: number;
   handleSort: (key: keyof Track) => void;
   themeIndex: number;
   setThemeIndex: React.Dispatch<React.SetStateAction<number>>;
@@ -105,7 +107,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     hasMore: hasMoreTracks,
     loadMore: loadMoreTracks,
     reset: resetTracks,
-    refreshLoaded,
   } = usePagedTracks({
     query: debouncedSearchQuery,
     sortConfig,
@@ -114,18 +115,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     filters: trackFilters,
   });
 
-  // While any track is still QUEUED/PROCESSING, its status can change server-side (via the
-  // analysis pipeline) without any user action here, so poll until nothing is left in flight.
-  const hasActiveTracks = tracks.some(t => t.status === 'QUEUED' || t.status === 'PROCESSING');
-
-  useEffect(() => {
-    if (!hasActiveTracks) return;
-    const interval = setInterval(refreshLoaded, ACTIVE_TRACKS_POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [hasActiveTracks, refreshLoaded]);
+  const [tracksVersion, setTracksVersion] = useState(0);
 
   const refreshTracks = useCallback(async () => {
     resetTracks();
+    setTracksVersion(v => v + 1);
   }, [resetTracks]);
 
   // Default to the first ready track once the library loads, without forcing playback — a
@@ -213,6 +207,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       hasMoreTracks,
       loadMoreTracks,
       refreshTracks,
+      tracksVersion,
       themeIndex,
       setThemeIndex,
       searchQuery,
