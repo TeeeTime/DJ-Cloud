@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Pause, Ban, Download, Pencil, Trash, MoreHorizontal, Loader2, AlertCircle, Menu as MenuIcon, Search, ArrowUpDown, ChevronUp, ChevronDown, Cloud, CloudCheck } from "lucide-react";
+import { Play, Pause, Ban, Download, Pencil, Trash, MoreHorizontal, Loader2, AlertCircle, Menu as MenuIcon, Search, ArrowUpDown, ChevronUp, ChevronDown, Cloud, CloudCheck, RefreshCw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -125,6 +125,22 @@ export function GenreView({ genreName }: GenreViewProps) {
     }
   };
 
+  const [reanalyzingTrackId, setReanalyzingTrackId] = useState<number | null>(null);
+  const [reanalyzeError, setReanalyzeError] = useState<string | null>(null);
+
+  const handleReanalyzeTrack = async (track: Track) => {
+    if (!token) return;
+    setReanalyzingTrackId(track.id);
+    setReanalyzeError(null);
+    try {
+      await tracksApi.reanalyze(track.id, token);
+    } catch (err) {
+      setReanalyzeError(err instanceof ApiError ? err.message : "Reanalysis failed. Please try again.");
+    } finally {
+      setReanalyzingTrackId(null);
+    }
+  };
+
   const handleDownloadGenre = async () => {
     if (!token) return;
     setIsDownloadingGenre(true);
@@ -234,6 +250,13 @@ export function GenreView({ genreName }: GenreViewProps) {
             <div className="mb-6 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
               <AlertCircle className="w-4 h-4 shrink-0" />
               {downloadError}
+            </div>
+          )}
+
+          {reanalyzeError && (
+            <div className="mb-6 flex items-center gap-2 text-sm text-red-400 border border-red-950 bg-red-950/20 rounded-lg px-4 py-3">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {reanalyzeError}
             </div>
           )}
 
@@ -368,6 +391,18 @@ export function GenreView({ genreName }: GenreViewProps) {
                           {canUpload && (
                             <>
                               <DropdownMenuSeparator className="bg-zinc-800 my-1" />
+                              <DropdownMenuItem
+                                onClick={() => handleReanalyzeTrack(track)}
+                                disabled={reanalyzingTrackId === track.id}
+                                className="focus:!bg-zinc-800 focus:!text-white hover:!bg-zinc-800 hover:!text-white cursor-pointer rounded-md py-2"
+                              >
+                                {reanalyzingTrackId === track.id ? (
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="w-4 h-4 mr-2" />
+                                )}
+                                <span className="text-sm">Reanalyze</span>
+                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => {
                                   setTrackToEdit(track);

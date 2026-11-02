@@ -87,6 +87,18 @@ public class TrackController {
     }
 
     /**
+     * Puts one track back through the full analysis pipeline — the manual way to retry a
+     * {@code FAILED} track (or recover one stuck {@code PROCESSING}/{@code QUEUED} from before a
+     * crash) without restarting the whole server, which only re-queues {@code FAILED} tracks on
+     * its own (see {@code TrackAnalysisStartupRunner}).
+     */
+    @PostMapping("/{id}/reanalyze")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reanalyzeTrack(@PathVariable Long id) {
+        trackService.reanalyze(id);
+    }
+
+    /**
      * Streams the generated streaming preview — never the original upload (see API.md). Only exists
      * once a track's analysis has completed successfully. Supports HTTP range requests so browsers
      * can seek and start playback without downloading the whole file first.

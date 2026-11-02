@@ -36,6 +36,7 @@ public class TrackService {
     private final TrackStorageService trackStorageService;
     private final AudioMetadataWriter audioMetadataWriter;
     private final PlaylistTrackRepository playlistTrackRepository;
+    private final TrackAnalysisQueue trackAnalysisQueue;
 
     /**
      * Backs every backend-driven track listing — the main library ({@code GET /api/tracks}), a single
@@ -212,6 +213,18 @@ public class TrackService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Could not update audio file metadata", ex);
         }
+    }
+
+    /** Puts one track back through the full analysis pipeline on demand — the manual equivalent
+     * of what {@code TrackAnalysisStartupRunner} does automatically for {@code FAILED} tracks on
+     * startup. Works on a track in any status, not just {@code FAILED} (e.g. also recovers one
+     * stuck {@code PROCESSING} from before a crash). */
+    @Transactional
+    public void reanalyze(Long id) {
+        Track track = findOrThrow(id);
+        track.setStatus(TrackStatus.QUEUED);
+        trackRepository.save(track);
+        trackAnalysisQueue.enqueue(track.getId(), track.getTitle());
     }
 
     @Transactional
