@@ -334,6 +334,9 @@ export const tracksApi = {
   delete: (id: number, token: string) =>
     request<void>(`/api/tracks/${id}`, { method: "DELETE" }, token),
 
+  reanalyze: (id: number, token: string) =>
+    request<void>(`/api/tracks/${id}/reanalyze`, { method: "POST" }, token),
+
   audioUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/audio`,
 
   coverUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/cover`,

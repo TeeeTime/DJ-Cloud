@@ -470,16 +470,17 @@ source's native sample rate and bit depth), and re-validated before it replaces 
 streaming preview is generated from the cleaned file, then BPM is detected, then musical key is detected.
 `status` moves to `PROCESSING` once its turn comes, then to `READY` (with real `bpm`/`key` values, and a
 preview now servable via `GET /{id}/audio`) if all five steps succeed, or `FAILED` if any one of them
-fails — nothing further happens to a `FAILED` track unless the server is restarted (see "Not yet
-implemented" below). A track that fails validation or remuxing keeps its original uploaded file untouched
-(it's never partially overwritten).
+fails — nothing further happens to a `FAILED` track on its own; retry it with
+`POST /api/tracks/{id}/reanalyze` below (or wait for the next server restart, which does this
+automatically for every `FAILED` track). A track that fails validation or remuxing keeps its original
+uploaded file untouched (it's never partially overwritten).
 
-**On every server startup, every track (including ones already `READY`) is set back to `QUEUED` and put
-through this pipeline again**, in id order — so right after a restart, tracks aren't playable until their
-turn comes. A re-analysis keeps everything user-editable: title/artists/genres are re-embedded from the DB,
-the cover is carried over from the current file, and any existing `bpm`/`key` is kept (BPM/key detection
-only runs for whichever of the two is still unset). A previously `READY` track that now fails a step
-becomes `FAILED`. Poll `GET /api/tracks/queue` for live progress, including which of the
+**On every server startup, every track still `FAILED`** (not `READY`/`QUEUED`/`PROCESSING` ones) **is set
+back to `QUEUED` and put through this pipeline again**, in id order. A re-analysis — whether triggered this
+way or via `POST /api/tracks/{id}/reanalyze` — keeps everything user-editable: title/artists/genres are
+re-embedded from the DB, the cover is carried over from the current file, and any existing `bpm`/`key` is
+kept (BPM/key detection only runs for whichever of the two is still unset). A previously `READY` track that
+now fails a step becomes `FAILED`. Poll `GET /api/tracks/queue` for live progress, including which of the
 five steps (`VALIDATION`, `REMUX`, `PREVIEW_GENERATION`, `BPM_ANALYSIS`, `KEY_ANALYSIS`) is currently
 running.
 
@@ -592,6 +593,18 @@ Errors:
 
 **Requires a JWT with role `EDITOR` or `ADMIN`.** Also deletes the track's audio file from disk, and its
 generated preview file if one exists.
+Response: `204 No Content`, or `404` if the track doesn't exist.
+
+---
+
+## `POST /api/tracks/{id}/reanalyze`
+
+**Requires a JWT with role `EDITOR` or `ADMIN`.** Puts one track back through the full analysis pipeline
+on demand — sets its `status` to `QUEUED` and enqueues it, same as a fresh upload (see `POST /api/tracks`
+above for what the pipeline does and what survives a re-analysis). Works regardless of the track's current
+status, not just `FAILED` — also useful to recover a track stuck `PROCESSING`/`QUEUED` from before a
+server crash, or to simply force a clean re-check of an already-`READY` track.
+
 Response: `204 No Content`, or `404` if the track doesn't exist.
 
 ---
@@ -1114,7 +1127,6 @@ A `trackId` that doesn't exist, or that isn't in any playlist, simply returns `[
 
 Flagging gaps a frontend might expect but that don't exist yet: no "forgot password" email flow (only
 `POST /api/auth/change-password` for a logged-in user — there's no mail service in this app), no way to
-list/revoke outstanding registration codes, no manual retry for a `FAILED` track (only restarting the
-server re-queues it — see `POST /api/tracks`), no cancelling a queued/in-progress analysis, no
+list/revoke outstanding registration codes, no cancelling a queued/in-progress analysis, no
 push/WebSocket variant of `GET /api/tracks/queue` (polling only), and no way to transfer a playlist's
 ownership to another user.
