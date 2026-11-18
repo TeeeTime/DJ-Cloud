@@ -12,7 +12,7 @@ import { AuroraText } from "@/components/ui/aurora-text";
 import { ProfileMenu } from "@/components/layout/profile-menu";
 import { CreatePlaylistDialog } from "@/components/views/create-playlist-dialog";
 
-export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
+export function Sidebar({ isMobile = false, onNavigate }: { isMobile?: boolean; onNavigate?: () => void }) {
   const { activeFilter, setActiveFilter } = usePlayer();
   const { playlists, playlistsLoading } = usePlaylists();
   const { genreNames, genresLoading, genreSyncs } = useGenres();
@@ -29,7 +29,7 @@ export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
   return (
     <aside className={`w-64 border-r border-zinc-900 bg-black ambient-surface-sidebar flex-col z-20 shrink-0 h-full ${isMobile ? 'flex' : 'hidden md:flex'}`}>
       {/* Brand */}
-      <Link href="/">
+      <Link href="/" onClick={() => onNavigate?.()}>
         <div className="h-20 flex items-center px-6 border-b border-zinc-900 cursor-pointer group">
           <h1 className="text-xl font-black tracking-tighter group-hover:scale-105 transition-transform origin-left">
             <AuroraText colors={["#ffffff", "#a1a1aa", "#52525b", "#ffffff"]}>DJ-CLOUD</AuroraText>
@@ -42,7 +42,7 @@ export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
         
         {/* Main Links */}
         <div className="space-y-1">
-          <Link href="/overview">
+          <Link href="/overview" onClick={() => onNavigate?.()}>
             <button 
               className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pathname === '/overview' ? 'bg-zinc-900 text-white' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}
             >
@@ -50,7 +50,7 @@ export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
               Overview
             </button>
           </Link>
-          <Link href="/library">
+          <Link href="/library" onClick={() => onNavigate?.()}>
             <button 
               onClick={() => {
                 setActiveFilter({ type: 'all', value: 'All Tracks' });
@@ -61,7 +61,7 @@ export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
               All Tracks
             </button>
           </Link>
-          <Link href="/playlists">
+          <Link href="/playlists" onClick={() => onNavigate?.()}>
             <button
               className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pathname === '/playlists' ? 'bg-zinc-900 text-white' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}
             >
@@ -79,7 +79,7 @@ export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
           </div>
           <div className="space-y-0.5">
             {sidebarPlaylists.map(pl => (
-              <Link key={pl.id} href={`/playlist/${pl.id}`}>
+              <Link key={pl.id} href={`/playlist/${pl.id}`} onClick={() => onNavigate?.()}>
                 <button
                   className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pathname === `/playlist/${pl.id}` ? 'bg-zinc-900 text-white' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}
                 >
@@ -107,7 +107,7 @@ export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
             {genreNames.map(name => {
               const syncEnabled = genreSyncs.find(g => g.name === name)?.syncEnabled ?? false;
               return (
-                <Link key={name} href={`/genre/${encodeURIComponent(name)}`}>
+                <Link key={name} href={`/genre/${encodeURIComponent(name)}`} onClick={() => onNavigate?.()}>
                   <button
                     className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pathname === `/genre/${encodeURIComponent(name)}` ? 'bg-zinc-900 text-white' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}
                   >

@@ -155,14 +155,14 @@ export function GenreView({ genreName }: GenreViewProps) {
   return (
     <main className="flex-1 flex flex-col min-w-0 bg-zinc-950/30 ambient-surface-main relative h-full">
       <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-zinc-900 bg-black/50 backdrop-blur-xl ambient-surface-header sticky top-0 z-10 shrink-0 gap-4">
-        <div className="flex items-center gap-4 flex-1">
+        <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden text-zinc-400 hover:text-white shrink-0" />}>
               <MenuIcon className="w-5 h-5" />
             </SheetTrigger>
             <SheetContent side="left" className="p-0 bg-black border-r border-zinc-900 w-64 sm:max-w-64">
               <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-              <Sidebar isMobile={true} />
+              <Sidebar isMobile={true} onNavigate={() => setMobileMenuOpen(false)} />
             </SheetContent>
           </Sheet>
 
@@ -179,9 +179,9 @@ export function GenreView({ genreName }: GenreViewProps) {
       </header>
 
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto pb-6">
-        <div className="px-8 py-8">
-          <div className="flex items-center gap-3 mb-8">
-            <h2 className="text-3xl font-bold text-white tracking-tight">
+        <div className="px-4 py-6 md:px-8 md:py-8">
+          <div className="flex items-center gap-3 mb-6 md:mb-8 min-w-0">
+            <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight truncate">
               {genreName}
             </h2>
             <Button
@@ -241,41 +241,41 @@ export function GenreView({ genreName }: GenreViewProps) {
             <Table className="table-fixed w-full">
               <TableHeader className="bg-zinc-900/30 select-none">
                 <TableRow className="border-zinc-900 hover:bg-transparent">
-                  <TableHead className="w-[4%] text-center h-11">#</TableHead>
+                  <TableHead className="w-10 md:w-[4%] text-center h-11">#</TableHead>
                   <TableHead
-                    className="w-[21%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    className="w-auto md:w-[21%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
                     onClick={() => handleSort('title')}
                   >
                     <div className="flex items-center">Title {renderSortIcon('title')}</div>
                   </TableHead>
                   <TableHead
-                    className="w-[15%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    className="hidden md:table-cell md:w-[15%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
                     onClick={() => handleSort('artist')}
                   >
                     <div className="flex items-center">Artist {renderSortIcon('artist')}</div>
                   </TableHead>
-                  <TableHead className="w-[13%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Genre</TableHead>
+                  <TableHead className="hidden md:table-cell md:w-[13%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Genre</TableHead>
                   <TableHead
-                    className="w-[7%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    className="hidden md:table-cell md:w-[7%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
                     onClick={() => handleSort('bpm')}
                   >
                     <div className="flex items-center">BPM {renderSortIcon('bpm')}</div>
                   </TableHead>
-                  <TableHead className="w-[7%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Key</TableHead>
+                  <TableHead className="hidden md:table-cell md:w-[7%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Key</TableHead>
                   <TableHead
-                    className="w-[11%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    className="hidden md:table-cell md:w-[11%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
                     onClick={() => handleSort('addedAt')}
                   >
                     <div className="flex items-center">Date Added {renderSortIcon('addedAt')}</div>
                   </TableHead>
                   <TableHead
-                    className="w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
+                    className="hidden md:table-cell md:w-[8%] text-xs font-semibold uppercase tracking-wider text-zinc-500 cursor-pointer hover:text-white transition-colors group h-11"
                     onClick={() => handleSort('durationSeconds')}
                   >
                     <div className="flex items-center">Length {renderSortIcon('durationSeconds')}</div>
                   </TableHead>
-                  <TableHead className="w-[7%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Status</TableHead>
-                  <TableHead className="w-[7%] text-right text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11"></TableHead>
+                  <TableHead className="hidden md:table-cell md:w-[7%] text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11">Status</TableHead>
+                  <TableHead className="w-12 md:w-[7%] text-right text-xs font-semibold uppercase tracking-wider text-zinc-500 h-11"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -293,7 +293,7 @@ export function GenreView({ genreName }: GenreViewProps) {
                       }
                     }}
                   >
-                    <TableCell className="w-12 text-center text-zinc-600 relative">
+                    <TableCell className="w-10 md:w-12 text-center text-zinc-600 relative">
                       <span className={`transition-opacity ${currentTrack?.id === track.id ? 'opacity-0' : 'group-hover:opacity-0'}`}>{index + 1}</span>
                       <div className={`absolute inset-0 flex items-center justify-center transition-opacity ${currentTrack?.id === track.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                         {!isPlayableStatus(track.status) ? (
@@ -305,45 +305,50 @@ export function GenreView({ genreName }: GenreViewProps) {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium min-w-0">
                       <div className="flex items-center gap-3 min-w-0">
                         <TrackThumbnail src={track.coverUrl} trackId={track.id} />
-                        <span
-                          className={`block truncate min-w-0 flex-1 text-sm ${currentTrack?.id === track.id ? 'text-white' : 'text-zinc-200'}`}
-                          title={track.title}
-                        >
-                          {track.title}
-                        </span>
+                        <div className="min-w-0 flex-1">
+                          <span
+                            className={`block truncate text-sm ${currentTrack?.id === track.id ? 'text-white' : 'text-zinc-200'}`}
+                            title={track.title}
+                          >
+                            {track.title}
+                          </span>
+                          <span className="block truncate text-xs text-zinc-400 font-normal md:hidden">
+                            {track.artist}
+                          </span>
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-zinc-400 text-sm">
+                    <TableCell className="hidden md:table-cell text-zinc-400 text-sm">
                       <span className="block truncate" title={track.artist}>{track.artist}</span>
                     </TableCell>
-                    <TableCell className="text-zinc-400 text-sm" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="hidden md:table-cell text-zinc-400 text-sm" onClick={(e) => e.stopPropagation()}>
                       <GenreLinks genres={track.genres} />
                     </TableCell>
-                    <TableCell className="text-zinc-400 text-sm font-mono">{track.bpm ?? "—"}</TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell text-zinc-400 text-sm font-mono">{track.bpm ?? "—"}</TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <span className="text-xs font-mono text-zinc-300">
                         {track.key ?? "—"}
                       </span>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <span className="text-xs text-zinc-400">
                         {formatDateAdded(track.dateAdded)}
                       </span>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <span className="text-xs font-mono text-zinc-400">
                         {track.duration}
                       </span>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
                         <StatusBadge status={track.status} />
                       </span>
                     </TableCell>
-                    <TableCell className="text-right pr-4" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="w-12 text-right pr-2 md:pr-4" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger render={
                           <button className="flex items-center justify-center h-8 w-8 text-zinc-500 hover:text-white hover:bg-zinc-800/50 data-[state=open]:bg-zinc-800/50 data-[state=open]:text-white rounded-md transition-colors outline-none cursor-pointer">

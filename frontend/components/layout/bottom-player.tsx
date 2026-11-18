@@ -297,15 +297,17 @@ export function BottomPlayer() {
     // centered via the two equal 1fr side columns, while giving Right Controls a real, predictable
     // gap-4 next to it — `justify-between` on a plain flex row pinned Right Controls to the bar's
     // true right edge instead, which is what made that gap balloon out on wide screens.
-    <div className="h-24 shrink-0 bg-black border-t border-zinc-900 ambient-surface-player z-50 grid grid-cols-[1fr_42rem_1fr] items-center px-4 md:px-8 gap-4 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+    <div className="h-auto md:h-24 shrink-0 bg-black border-t border-zinc-900 ambient-surface-player z-40 md:z-50 grid grid-cols-[1fr_auto] md:grid-cols-[1fr_42rem_1fr] items-center px-4 py-2.5 md:py-0 md:px-8 gap-x-3 gap-y-2 md:gap-4 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
       {/* Track Info */}
-      <div className="flex items-center gap-4 min-w-0">
+      <div className="flex items-center gap-3 md:gap-4 min-w-0 order-1">
         {/* Cover thumbnail: hold to scratch */}
         <div 
-          className={`relative w-14 h-14 shrink-0 rounded-md bg-zinc-900 flex items-center justify-center border border-zinc-800 transition-all select-none overflow-hidden ${scratching ? 'scale-110 skew-x-12' : 'hover:scale-105 active:scale-95'}`}
+          className={`relative w-11 h-11 md:w-14 md:h-14 shrink-0 rounded-md bg-zinc-900 flex items-center justify-center border border-zinc-800 transition-all select-none overflow-hidden ${scratching ? 'scale-110 skew-x-12' : 'hover:scale-105 active:scale-95'}`}
           onMouseDown={() => setScratching(true)}
           onMouseUp={() => setScratching(false)}
           onMouseLeave={() => setScratching(false)}
+          onTouchStart={() => setScratching(true)}
+          onTouchEnd={() => setScratching(false)}
         >
           {isPlaying && !scratching && (
             <div className="absolute inset-0 bg-white/5 animate-pulse pointer-events-none"></div>
@@ -320,7 +322,7 @@ export function BottomPlayer() {
       </div>
 
       {/* Player Controls */}
-      <div className="flex flex-col items-center justify-center gap-2">
+      <div className="col-span-2 md:col-span-1 order-3 md:order-2 flex flex-col items-center justify-center gap-1.5 md:gap-2 min-w-0">
         <div className="flex items-center gap-6">
           <button onClick={playPrev} className="text-zinc-500 hover:text-white transition-colors">
             <SkipBack className="w-4 h-4 fill-current" />
@@ -356,9 +358,9 @@ export function BottomPlayer() {
       </div>
 
       {/* Right Controls (Volume + Queue Status) */}
-      <div className="flex items-center justify-between gap-4 min-w-0">
+      <div className="flex items-center justify-end md:justify-between gap-3 md:gap-4 min-w-0 order-2 md:order-3">
         <div 
-          className="flex items-center gap-3 w-32 group"
+          className="flex items-center gap-2 md:gap-3 w-24 sm:w-28 md:w-32 group"
           onWheel={(e) => {
             const delta = e.deltaY > 0 ? -5 : 5;
             let nextVol = safeVolume + delta;

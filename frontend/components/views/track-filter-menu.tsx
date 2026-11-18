@@ -263,7 +263,7 @@ export function TrackFilterMenu() {
             <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-white" />
           )}
         </PopoverTrigger>
-        <PopoverContent align="start" className="bg-zinc-950 border-zinc-800 text-white w-80">
+        <PopoverContent align="start" className="bg-zinc-950 border-zinc-800 text-white w-80 max-w-[calc(100vw-2rem)]">
           <div className="flex flex-col gap-5">
             {/* BPM Slider Section */}
             <div className="flex flex-col gap-2">

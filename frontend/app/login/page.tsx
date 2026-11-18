@@ -118,12 +118,12 @@ function LoginPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center relative overflow-hidden font-sans selection:bg-zinc-800">
+    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center relative px-4 py-20 md:p-0 overflow-y-auto md:overflow-hidden font-sans selection:bg-zinc-800">
       {/* Dynamic Background Glow */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-zinc-900/30 via-black to-black z-0 pointer-events-none" />
 
       {/* Back Button */}
-      <div className="absolute top-8 left-8 z-20">
+      <div className="absolute top-4 left-4 md:top-8 md:left-8 z-20">
         <Link href="/">
           <Button variant="ghost" className="text-zinc-400 hover:text-white hover:bg-zinc-900/50 rounded-full h-10 px-4 text-sm font-medium transition-colors">
             <ArrowLeft className="w-4 h-4 mr-2" />

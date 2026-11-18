@@ -40,7 +40,7 @@ export function PlaylistBrowserView() {
             </SheetTrigger>
             <SheetContent side="left" className="p-0 bg-black border-r border-zinc-900 w-64 sm:max-w-64">
               <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-              <Sidebar isMobile={true} />
+              <Sidebar isMobile={true} onNavigate={() => setMobileMenuOpen(false)} />
             </SheetContent>
           </Sheet>
 
@@ -58,8 +58,8 @@ export function PlaylistBrowserView() {
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto pb-6">
-        <div className="px-8 py-8">
-          <h2 className="text-3xl font-bold text-white mb-8 tracking-tight">
+        <div className="px-4 py-6 md:px-8 md:py-8">
+          <h2 className="text-2xl md:text-3xl font-bold text-white mb-6 md:mb-8 tracking-tight">
             All Playlists
           </h2>
 

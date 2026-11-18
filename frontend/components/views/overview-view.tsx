@@ -245,7 +245,7 @@ export function OverviewView() {
             </SheetTrigger>
             <SheetContent side="left" className="p-0 bg-black border-r border-zinc-900 w-64 sm:max-w-64">
               <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-              <Sidebar isMobile={true} />
+              <Sidebar isMobile={true} onNavigate={() => setMobileMenuOpen(false)} />
             </SheetContent>
           </Sheet>
         </div>
@@ -304,7 +304,7 @@ export function OverviewView() {
                         onClick={() => playRecentTrack(track)}
                         className={`relative flex items-center justify-between p-3 rounded-lg hover:bg-zinc-900/60 transition-colors group ${isPlayableStatus(track.status) ? 'cursor-pointer' : 'cursor-not-allowed'} ${currentTrack?.id === track.id ? 'bg-zinc-900/40' : ''}`}
                       >
-                        <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0 pr-10 md:pr-0">
                           <RecentTrackCover src={buildCoverUrl(track.id)} />
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
@@ -318,7 +318,7 @@ export function OverviewView() {
                         </div>
                         <div className="flex items-center gap-4">
                           <span className={`text-xs text-zinc-500 hidden sm:block transition-opacity duration-200 ${currentTrack?.id === track.id ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'}`}>{formatTimeAgo(track.addedAt)}</span>
-                          <div className={`absolute right-9 transition-all duration-300 ${currentTrack?.id === track.id ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0'}`}>
+                          <div className={`absolute right-3 md:right-9 transition-all duration-300 ${currentTrack?.id === track.id ? 'opacity-100 translate-x-0' : 'opacity-100 translate-x-0 md:opacity-0 md:translate-x-2 md:group-hover:opacity-100 md:group-hover:translate-x-0'}`}>
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-md ${isPlayableStatus(track.status) ? 'bg-white' : 'bg-zinc-300'}`}>
                               {!isPlayableStatus(track.status) ? (
                                 <Ban className="w-3.5 h-3.5 text-zinc-500" />

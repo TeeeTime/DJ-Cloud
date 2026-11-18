@@ -36,7 +36,7 @@ function PlayerLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div 
-      className={`flex flex-col h-screen overflow-hidden transition-all duration-1000 relative ${raveMode ? 'rave-active' : ''} ${isAmbientActive ? 'ambient-active' : ''}`}
+      className={`flex flex-col h-dvh overflow-hidden transition-all duration-1000 relative ${raveMode ? 'rave-active' : ''} ${isAmbientActive ? 'ambient-active' : ''}`}
       style={{ filter: !raveMode ? colorThemes[themeIndex].filter : undefined }}
     >
       <AmbientBackground />

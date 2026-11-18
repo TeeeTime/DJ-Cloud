@@ -24,15 +24,15 @@ function NetworkAnimation() {
       <div className="flex flex-col justify-between h-full gap-6 z-10">
         <div ref={tomRef} className="w-14 h-14 rounded-2xl bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center overflow-hidden z-10 relative group cursor-pointer hover:border-white transition-colors">
           <Image src="/images/team/Tom_Protait_Professionell.png" alt="Tom" width={150} height={150} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" unoptimized />
-          <span className="absolute -left-14 text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white transition-colors">Tom</span>
+          <span className="absolute left-16 md:left-auto md:-left-14 text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white transition-colors">Tom</span>
         </div>
         <div ref={carlosRef} className="w-14 h-14 rounded-2xl bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center overflow-hidden z-10 relative group cursor-pointer hover:border-white transition-colors">
           <Image src="/images/team/Carlos_Protait_Professionell.png" alt="Carlos" width={150} height={150} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" unoptimized />
-          <span className="absolute -left-16 text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white transition-colors">Carlos</span>
+          <span className="absolute left-16 md:left-auto md:-left-16 text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white transition-colors">Carlos</span>
         </div>
         <div ref={juliusRef} className="w-14 h-14 rounded-2xl bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center overflow-hidden z-10 relative group cursor-pointer hover:border-white transition-colors">
           <Image src="/images/team/Julius_Protait_Professionell.png" alt="Julius" width={150} height={150} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" unoptimized />
-          <span className="absolute -left-16 text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white transition-colors">Julius</span>
+          <span className="absolute left-16 md:left-auto md:-left-16 text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white transition-colors">Julius</span>
         </div>
       </div>
 
@@ -55,7 +55,7 @@ export function LandingPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div ref={scrollRef} className="flex-1 flex flex-col overflow-y-auto bg-black text-white selection:bg-zinc-800 font-sans animate-in fade-in duration-500 scroll-smooth pb-24 no-scrollbar">
+    <div ref={scrollRef} className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden bg-black text-white selection:bg-zinc-800 font-sans animate-in fade-in duration-500 scroll-smooth pb-24 no-scrollbar">
       {/* HERO SECTION (Full Screen) */}
       <section className="relative h-screen shrink-0 flex flex-col items-center justify-center overflow-hidden">
         {/* Background glow */}
@@ -97,7 +97,7 @@ export function LandingPage() {
               </div>
             </div>
 
-            <h1 className="text-6xl md:text-[8rem] font-black tracking-tighter leading-none mb-6">
+            <h1 className="text-5xl sm:text-6xl md:text-[8rem] font-black tracking-tighter leading-none mb-6">
               <AuroraText colors={["#ffffff", "#d4d4d8", "#52525b", "#ffffff"]}>DJ-CLOUD</AuroraText>
             </h1>
             
