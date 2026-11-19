@@ -134,22 +134,25 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // itself changes, using the same compare-during-render reset idiom as TrackThumbnail/TrackCover
   // (see track-row-parts.tsx) rather than an effect, so it doesn't cost an extra render pass.
   //
-  // Memoized on currentTrack?.id alone — NOT recomputed on every render — because appendMediaToken
-  // reads a mutable module-level token (lib/media-token.ts) that AuthProvider rotates on a timer
-  // outside React. Recomputing this on every render would pick up whatever token happens to be
-  // current right now, and any unrelated state change owned by this provider (ambientMode, search,
-  // sort, filters, ...) would then swap the live <audio> element's src mid-playback — which aborts
-  // and reloads the stream per the HTML media spec, with nothing left to resume it.
+  // Memoized on activeTrackId (currentTrack?.id gated on auth) — NOT recomputed on every render —
+  // because appendMediaToken reads a mutable module-level token (lib/media-token.ts) that
+  // AuthProvider rotates on a timer outside React. Recomputing this on every render would pick up
+  // whatever token happens to be current right now, and any unrelated state change owned by this
+  // provider (ambientMode, search, sort, filters, ...) would then swap the live <audio> element's
+  // src mid-playback — which aborts and reloads the stream per the HTML media spec, with nothing
+  // left to resume it. Gating on Boolean(authToken) (not the raw JWT string, which rotates hourly)
+  // avoids unauthenticated 401/ORB loads on `/` or `/login` while immediately building a tokenized
+  // URL once signed in without reloading mid-playback on JWT refreshes.
+  const isAuthenticated = Boolean(authToken);
+  const activeTrackId = isAuthenticated ? (currentTrack?.id ?? null) : null;
   const baseAudioSrc = useMemo(
-    () => currentTrack ? appendMediaToken(tracksApi.audioUrl(currentTrack.id)) : undefined,
-    // Keying on id alone is deliberate — see comment above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentTrack?.id]
+    () => (activeTrackId !== null ? appendMediaToken(tracksApi.audioUrl(activeTrackId)) : undefined),
+    [activeTrackId]
   );
   const [retriedAudioSrc, setRetriedAudioSrc] = useState<string | undefined>(undefined);
   const [prevTrackId, setPrevTrackId] = useState<number | null>(null);
-  if ((currentTrack?.id ?? null) !== prevTrackId) {
-    setPrevTrackId(currentTrack?.id ?? null);
+  if (activeTrackId !== prevTrackId) {
+    setPrevTrackId(activeTrackId);
     setRetriedAudioSrc(undefined);
   }
   const audioSrc = retriedAudioSrc ?? baseAudioSrc;

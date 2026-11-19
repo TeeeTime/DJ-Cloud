@@ -38,7 +38,7 @@ export function PlaylistBrowserView() {
             <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden text-zinc-400 hover:text-white shrink-0" />}>
               <Menu className="w-5 h-5" />
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 bg-black border-r border-zinc-900 w-64 sm:max-w-64">
+            <SheetContent side="left" className="p-0 bg-black border-r border-zinc-900 data-[side=left]:w-64 data-[side=left]:sm:max-w-64">
               <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
               <Sidebar isMobile={true} onNavigate={() => setMobileMenuOpen(false)} />
             </SheetContent>

@@ -243,7 +243,7 @@ export function OverviewView() {
             <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden text-zinc-400 hover:text-white shrink-0" />}>
               <Menu className="w-5 h-5" />
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 bg-black border-r border-zinc-900 w-64 sm:max-w-64">
+            <SheetContent side="left" className="p-0 bg-black border-r border-zinc-900 data-[side=left]:w-64 data-[side=left]:sm:max-w-64">
               <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
               <Sidebar isMobile={true} onNavigate={() => setMobileMenuOpen(false)} />
             </SheetContent>
@@ -317,7 +317,7 @@ export function OverviewView() {
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
-                          <span className={`text-xs text-zinc-500 hidden sm:block transition-opacity duration-200 ${currentTrack?.id === track.id ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'}`}>{formatTimeAgo(track.addedAt)}</span>
+                          <span className={`text-xs text-zinc-500 hidden md:block transition-opacity duration-200 ${currentTrack?.id === track.id ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'}`}>{formatTimeAgo(track.addedAt)}</span>
                           <div className={`absolute right-3 md:right-9 transition-all duration-300 ${currentTrack?.id === track.id ? 'opacity-100 translate-x-0' : 'opacity-100 translate-x-0 md:opacity-0 md:translate-x-2 md:group-hover:opacity-100 md:group-hover:translate-x-0'}`}>
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-md ${isPlayableStatus(track.status) ? 'bg-white' : 'bg-zinc-300'}`}>
                               {!isPlayableStatus(track.status) ? (

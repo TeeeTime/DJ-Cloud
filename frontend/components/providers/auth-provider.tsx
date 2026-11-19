@@ -11,8 +11,8 @@ const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 // so <audio>/<img> src URLs built while a tab stays open keep carrying a live token.
 const MEDIA_TOKEN_REFRESH_INTERVAL_MS = 90 * 1000;
 
-function refreshMediaToken(token: string) {
-  authApi
+function refreshMediaToken(token: string): Promise<void> {
+  return authApi
     .mediaToken(token)
     .then((res) => setMediaToken(res.token))
     .catch(() => setMediaToken(null));
@@ -44,10 +44,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const validated = stored ? authApi.me(stored) : Promise.reject();
 
     validated
-      .then((me) => {
+      .then(async (me) => {
+        await refreshMediaToken(stored as string);
         setToken(stored as string);
         setUser({ username: me.username, role: me.role });
-        refreshMediaToken(stored as string);
       })
       .catch(() => {
         if (stored) localStorage.removeItem(TOKEN_STORAGE_KEY);
@@ -84,9 +84,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (username: string, password: string) => {
     const res = await authApi.login(username, password);
     localStorage.setItem(TOKEN_STORAGE_KEY, res.token);
+    await refreshMediaToken(res.token);
     setToken(res.token);
     setUser({ username: res.username, role: res.role });
-    refreshMediaToken(res.token);
   }, []);
 
   const logout = useCallback(async () => {

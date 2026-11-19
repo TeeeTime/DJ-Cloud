@@ -160,7 +160,7 @@ export function GenreView({ genreName }: GenreViewProps) {
             <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden text-zinc-400 hover:text-white shrink-0" />}>
               <MenuIcon className="w-5 h-5" />
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 bg-black border-r border-zinc-900 w-64 sm:max-w-64">
+            <SheetContent side="left" className="p-0 bg-black border-r border-zinc-900 data-[side=left]:w-64 data-[side=left]:sm:max-w-64">
               <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
               <Sidebar isMobile={true} onNavigate={() => setMobileMenuOpen(false)} />
             </SheetContent>
@@ -195,7 +195,7 @@ export function GenreView({ genreName }: GenreViewProps) {
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger render={
-                <button className="ml-auto flex items-center justify-center h-8 w-8 text-zinc-500 hover:text-white hover:bg-zinc-800/50 data-[state=open]:bg-zinc-800/50 data-[state=open]:text-white rounded-md transition-colors outline-none cursor-pointer">
+                <button className="ml-auto shrink-0 flex items-center justify-center h-8 w-8 text-zinc-500 hover:text-white hover:bg-zinc-800/50 data-[state=open]:bg-zinc-800/50 data-[state=open]:text-white rounded-md transition-colors outline-none cursor-pointer">
                   <MoreHorizontal className="w-4 h-4" />
                 </button>
               } />
@@ -348,7 +348,7 @@ export function GenreView({ genreName }: GenreViewProps) {
                         <StatusBadge status={track.status} />
                       </span>
                     </TableCell>
-                    <TableCell className="w-12 text-right pr-2 md:pr-4" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="w-12 md:w-auto text-right pr-2 md:pr-4" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger render={
                           <button className="flex items-center justify-center h-8 w-8 text-zinc-500 hover:text-white hover:bg-zinc-800/50 data-[state=open]:bg-zinc-800/50 data-[state=open]:text-white rounded-md transition-colors outline-none cursor-pointer">
@@ -400,7 +400,13 @@ export function GenreView({ genreName }: GenreViewProps) {
                 ))}
                 {tracksLoading && (
                   <TableRow>
-                    <TableCell colSpan={10} className="h-32 text-center text-zinc-500">
+                    <TableCell colSpan={10} className="hidden md:table-cell h-32 text-center text-zinc-500">
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Loading tracks…
+                      </div>
+                    </TableCell>
+                    <TableCell colSpan={3} className="md:hidden h-32 text-center text-zinc-500">
                       <div className="flex items-center justify-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Loading tracks…
@@ -410,14 +416,25 @@ export function GenreView({ genreName }: GenreViewProps) {
                 )}
                 {!tracksLoading && tracks.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={10} className="h-32 text-center text-zinc-500">
+                    <TableCell colSpan={10} className="hidden md:table-cell h-32 text-center text-zinc-500">
+                      No tracks found in this genre.
+                    </TableCell>
+                    <TableCell colSpan={3} className="md:hidden h-32 text-center text-zinc-500">
                       No tracks found in this genre.
                     </TableCell>
                   </TableRow>
                 )}
                 {!tracksLoading && hasMoreTracks && (
                   <TableRow ref={loadMoreRef} className="border-none hover:bg-transparent">
-                    <TableCell colSpan={10} className="h-16 text-center text-zinc-500">
+                    <TableCell colSpan={10} className="hidden md:table-cell h-16 text-center text-zinc-500">
+                      {tracksLoadingMore && (
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Loading more…
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell colSpan={3} className="md:hidden h-16 text-center text-zinc-500">
                       {tracksLoadingMore && (
                         <div className="flex items-center justify-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />

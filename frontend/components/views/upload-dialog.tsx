@@ -234,7 +234,7 @@ export function UploadDialog() {
   return (
     <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) resetState(); }}>
       <DialogTrigger render={
-        <Button className="bg-white hover:bg-zinc-200 text-black gap-2 h-10 px-3 md:px-5 rounded-md font-medium transition-colors">
+        <Button aria-label="Upload" className="bg-white hover:bg-zinc-200 text-black gap-2 h-10 px-3 md:px-5 rounded-md font-medium transition-colors">
           <CloudUpload className="w-4 h-4" />
           <span className="hidden sm:inline">Upload</span>
         </Button>

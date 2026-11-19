@@ -308,6 +308,7 @@ export function BottomPlayer() {
           onMouseLeave={() => setScratching(false)}
           onTouchStart={() => setScratching(true)}
           onTouchEnd={() => setScratching(false)}
+          onTouchCancel={() => setScratching(false)}
         >
           {isPlaying && !scratching && (
             <div className="absolute inset-0 bg-white/5 animate-pulse pointer-events-none"></div>

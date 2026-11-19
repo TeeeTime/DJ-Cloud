@@ -34,7 +34,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center relative px-4 py-20 md:p-0 overflow-y-auto md:overflow-hidden font-sans selection:bg-zinc-800">
+    <div className="h-full md:min-h-screen bg-black text-white flex flex-col items-center md:justify-center relative px-4 py-20 md:p-0 overflow-y-auto md:overflow-hidden font-sans selection:bg-zinc-800">
       {/* Dynamic Background Glow */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-zinc-900/30 via-black to-black z-0 pointer-events-none" />
 
@@ -49,7 +49,7 @@ export default function RegisterPage() {
       </div>
 
       {/* Glassmorphism Card */}
-      <div className="relative z-10 w-full max-w-md p-8 md:p-12 bg-zinc-950/40 backdrop-blur-2xl border border-zinc-800/50 rounded-3xl shadow-[0_0_80px_-20px_rgba(0,0,0,1)] animate-in fade-in zoom-in-95 duration-700">
+      <div className="relative z-10 my-auto md:my-0 w-full max-w-md p-8 md:p-12 bg-zinc-950/40 backdrop-blur-2xl border border-zinc-800/50 rounded-3xl shadow-[0_0_80px_-20px_rgba(0,0,0,1)] animate-in fade-in zoom-in-95 duration-700">
         <div className="flex flex-col items-center mb-10 text-center">
           <div className="w-16 h-16 rounded-2xl bg-zinc-900/80 border border-zinc-800 flex items-center justify-center mb-6 shadow-inner">
             <UserPlus className="w-8 h-8 text-zinc-300" />
