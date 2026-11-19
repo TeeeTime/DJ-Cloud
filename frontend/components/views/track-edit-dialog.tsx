@@ -4,7 +4,8 @@ import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Track, bumpCoverVersion } from "@/lib/data";
+import { Track } from "@/lib/data";
+import { noteCoverChanged, useFreshCover } from "@/lib/cover-cache";
 import { useAuth } from "@/components/providers/auth-provider";
 import { tracksApi, artistsApi, ArtistResponse, genresApi, GenreResponse, ApiError } from "@/lib/api";
 import { Loader2, AlertCircle, X, CloudUpload, Pencil } from "lucide-react";
@@ -46,6 +47,9 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
   const [removeCoverStaged, setRemoveCoverStaged] = useState(false);
   const [coverDragActive, setCoverDragActive] = useState(false);
   const [coverLoadError, setCoverLoadError] = useState(false);
+  // Always the cover as currently stored on the server (bypassing caches), even if this tab's track
+  // list is older than another user's cover change. Only fetched while the dialog is open.
+  const currentCover = useFreshCover(open ? track?.id : null, track?.coverVersion ?? 0, 512);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   // The cover square's size can't be derived from its sibling's height with CSS alone — the
@@ -337,12 +341,15 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
         genreIds: finalGenreIds
       }, token);
 
+      // The returned version makes every view in this tab (player, ambient background, lists
+      // that haven't refetched yet) switch to the new cover right away; other users get it with
+      // their next track-data fetch, since it changes the cover URL.
       if (coverFile) {
-        await tracksApi.updateCover(track.id, coverFile, token);
-        bumpCoverVersion(track.id);
+        const { coverVersion } = await tracksApi.updateCover(track.id, coverFile, token);
+        noteCoverChanged(track.id, coverVersion);
       } else if (removeCoverStaged) {
-        await tracksApi.removeCover(track.id, token);
-        bumpCoverVersion(track.id);
+        const { coverVersion } = await tracksApi.removeCover(track.id, token);
+        noteCoverChanged(track.id, coverVersion);
       }
 
       await refreshTracks();
@@ -370,8 +377,8 @@ export function TrackEditDialog({ track, open, onOpenChange }: TrackEditDialogPr
           <div className="py-2 space-y-4">
             <div className="flex gap-4">
               {(() => {
-                const showingImage = !!coverPreviewUrl || (!!track?.coverUrl && !coverLoadError && !removeCoverStaged);
-                const imageSrc = coverPreviewUrl ?? (!removeCoverStaged ? track?.coverUrl : undefined);
+                const showingImage = !!coverPreviewUrl || (!!currentCover && !coverLoadError && !removeCoverStaged);
+                const imageSrc = coverPreviewUrl ?? (!removeCoverStaged ? currentCover ?? undefined : undefined);
                 return (
                   <div
                     onClick={() => coverInputRef.current?.click()}

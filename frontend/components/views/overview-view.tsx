@@ -12,7 +12,8 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/components/providers/auth-provider";
 import { usePlayer } from "@/components/providers/player-provider";
 import { tracksApi, genresApi, authApi, RecentTrackResponse, GenreDistributionResponse } from "@/lib/api";
-import { Track, buildCoverUrl, formatTimeAgo, isPlayableStatus, resolveTrack } from "@/lib/data";
+import { Track, formatTimeAgo, isPlayableStatus, resolveTrack } from "@/lib/data";
+import { useCover } from "@/lib/cover-cache";
 import { motion } from "motion/react";
 import { UploadDialog } from "./upload-dialog";
 import { DesktopDownloadCard } from "./desktop-download-card";
@@ -40,23 +41,15 @@ function toGenreBars(distribution: GenreDistributionResponse[]): GenreBar[] {
   return bars;
 }
 
-function RecentTrackCover({ src }: { src: string }) {
-  const [error, setError] = useState(false);
-
-  // A cover that previously 404'd must be re-attempted once `src` actually changes (e.g. after
-  // editing the cover) — mirrors TrackThumbnail/TrackCover's own fix for the same issue.
-  const [prevSrc, setPrevSrc] = useState(src);
-  if (src !== prevSrc) {
-    setPrevSrc(src);
-    setError(false);
-  }
+function RecentTrackCover({ trackId, coverVersion }: { trackId: number; coverVersion: number }) {
+  const src = useCover(trackId, coverVersion, 128);
 
   return (
     <div className="w-10 h-10 rounded-md bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 overflow-hidden group-hover:bg-zinc-800 group-hover:border-zinc-700 transition-all">
-      {error ? (
-        <Disc3 className="w-5 h-5 text-zinc-500 group-hover:text-white transition-colors" />
+      {src ? (
+        <img src={src} alt="" decoding="async" className="w-full h-full object-cover" />
       ) : (
-        <img src={src} alt="" onError={() => setError(true)} className="w-full h-full object-cover" />
+        <Disc3 className="w-5 h-5 text-zinc-500 group-hover:text-white transition-colors" />
       )}
     </div>
   );
@@ -305,7 +298,7 @@ export function OverviewView() {
                         className={`relative flex items-center justify-between p-3 rounded-lg hover:bg-zinc-900/60 transition-colors group ${isPlayableStatus(track.status) ? 'cursor-pointer' : 'cursor-not-allowed'} ${currentTrack?.id === track.id ? 'bg-zinc-900/40' : ''}`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <RecentTrackCover src={buildCoverUrl(track.id)} />
+                          <RecentTrackCover trackId={track.id} coverVersion={track.coverVersion} />
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-medium text-zinc-200 group-hover:text-white transition-colors truncate">{track.title}</p>

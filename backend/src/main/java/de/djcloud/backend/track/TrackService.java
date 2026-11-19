@@ -93,6 +93,24 @@ public class TrackService {
         return TrackResponse.fromEntity(findOrThrow(id));
     }
 
+    /** Max ids accepted by {@link #findByIds} — the frontend only asks for tracks still being analyzed. */
+    public static final int MAX_BATCH_IDS = 200;
+
+    /**
+     * Current state of the given tracks, in no particular order. Ids that don't exist (e.g. deleted
+     * in the meantime) are silently left out rather than failing the whole batch.
+     */
+    @Transactional(readOnly = true)
+    public List<TrackResponse> findByIds(List<Long> ids) {
+        if (ids.size() > MAX_BATCH_IDS) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "At most " + MAX_BATCH_IDS + " ids may be requested at once");
+        }
+        return trackRepository.findAllById(ids).stream()
+                .map(TrackResponse::fromEntity)
+                .toList();
+    }
+
     @Transactional
     public TrackResponse update(Long id, TrackUpdateRequest request) {
         Track track = findOrThrow(id);
@@ -154,8 +172,8 @@ public class TrackService {
      * Writes a new cover image straight into the track's audio file (there's no separate cover
      * storage — see `GET /{id}/cover`), replacing whatever artwork was embedded before.
      */
-    @Transactional(readOnly = true)
-    public void updateCover(Long id, MultipartFile file) {
+    @Transactional
+    public long updateCover(Long id, MultipartFile file) {
         Track track = findOrThrow(id);
 
         if (track.getFileName() == null) {
@@ -190,11 +208,13 @@ public class TrackService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Could not update audio file metadata", ex);
         }
+
+        return bumpCoverVersion(track);
     }
 
     /** Clears the track's embedded cover art entirely — idempotent, a no-op if there was none. */
-    @Transactional(readOnly = true)
-    public void removeCover(Long id) {
+    @Transactional
+    public long removeCover(Long id) {
         Track track = findOrThrow(id);
 
         if (track.getFileName() == null) {
@@ -212,6 +232,20 @@ public class TrackService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Could not update audio file metadata", ex);
         }
+
+        return bumpCoverVersion(track);
+    }
+
+    /**
+     * Gives the track a new {@code coverVersion} so every client builds a new cover URL for it (see
+     * {@link Track#getCoverVersion}). Strictly increasing even if two changes land in the same
+     * millisecond, so a cached old image can never be served under the new version's URL.
+     */
+    private long bumpCoverVersion(Track track) {
+        long next = Math.max(System.currentTimeMillis(), track.getCoverVersion() + 1);
+        track.setCoverVersion(next);
+        trackRepository.save(track);
+        return next;
     }
 
     @Transactional

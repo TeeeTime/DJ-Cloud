@@ -2,10 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { usePlayer } from "@/components/providers/player-provider";
-import { useAuth } from "@/components/providers/auth-provider";
-import { buildCoverUrl } from "@/lib/data";
-import { authApi } from "@/lib/api";
-import { setMediaToken } from "@/lib/media-token";
+import { useCover } from "@/lib/cover-cache";
 
 const AMBIENT_PALETTES = [
   { c1: "#7c3aed", c2: "#2563eb", c3: "#06b6d4", c4: "#db2777" }, // Violet / Cobalt / Cyan / Pink
@@ -65,73 +62,37 @@ function drawBlurredCover(canvas: HTMLCanvasElement, img: HTMLImageElement): boo
   return true;
 }
 
-function AmbientCoverImage({ coverUrl, trackId }: { coverUrl: string; trackId: number }) {
-  const { token: authToken } = useAuth();
+function AmbientCoverImage({ trackId, coverVersion }: { trackId: number; coverVersion: number }) {
+  // 128px is plenty: it's drawn into a 128px canvas and heavily blurred anyway. Same size as the
+  // bottom player's cover, so this is usually already cached.
+  const src = useCover(trackId, coverVersion, 128);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState(false);
+  const [drawnSrc, setDrawnSrc] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!src) return;
     let cancelled = false;
-    let retried = false;
     const img = new Image();
     img.decoding = "async";
-
-    const release = () => {
-      img.onload = null;
-      img.onerror = null;
-      img.removeAttribute("src");
-    };
-
     img.onload = () => {
-      if (cancelled) return;
       const canvas = canvasRef.current;
-      const ok = !!canvas && drawBlurredCover(canvas, img);
-      // The full-size source isn't needed anymore once it's baked into the small canvas.
-      release();
-      if (ok) setLoaded(true);
-      else setError(true);
+      if (!cancelled && canvas && drawBlurredCover(canvas, img)) setDrawnSrc(src);
     };
-
-    // The media token embedded in `coverUrl` can be stale — e.g. this rendered before the initial
-    // media-token fetch resolved (the "first batch on app boot" race), or a long-idle session's
-    // token has since expired. Mint a fresh one and retry once before giving up.
-    img.onerror = async () => {
-      if (cancelled) return;
-      if (retried || !authToken) {
-        release();
-        setError(true);
-        return;
-      }
-      retried = true;
-      try {
-        const { token } = await authApi.mediaToken(authToken);
-        if (cancelled) return;
-        setMediaToken(token);
-        img.src = buildCoverUrl(trackId);
-      } catch {
-        if (cancelled) return;
-        release();
-        setError(true);
-      }
-    };
-
-    img.src = coverUrl;
-
+    img.src = src;
     return () => {
       cancelled = true;
-      release();
+      img.onload = null;
     };
-  }, [coverUrl, trackId, authToken]);
+  }, [src]);
 
-  if (error) return null;
+  if (!src) return null;
 
   return (
     <canvas
       ref={canvasRef}
       aria-hidden="true"
       className={`absolute inset-0 w-full h-full scale-110 transition-opacity duration-1000 ${
-        loaded ? "opacity-100" : "opacity-0"
+        drawnSrc === src ? "opacity-100" : "opacity-0"
       }`}
     />
   );
@@ -140,8 +101,8 @@ function AmbientCoverImage({ coverUrl, trackId }: { coverUrl: string; trackId: n
 export function AmbientBackground() {
   const { currentTrack, ambientMode, isPlaying } = usePlayer();
 
-  const coverUrl = currentTrack?.coverUrl;
   const trackId = currentTrack?.id;
+  const coverVersion = currentTrack?.coverVersion ?? 0;
   const isVisible = ambientMode && !!currentTrack;
 
   // The heavy layer is only mounted while ambient mode is actually showing (plus the fade-out
@@ -232,8 +193,8 @@ export function AmbientBackground() {
               </div>
 
               {/* Real Cover Image Layer (Fades in over generative mesh when artwork is available and successfully loaded) */}
-              {coverUrl && trackId !== undefined && (
-                <AmbientCoverImage key={`${trackId}-${coverUrl}`} coverUrl={coverUrl} trackId={trackId} />
+              {trackId !== undefined && (
+                <AmbientCoverImage key={trackId} trackId={trackId} coverVersion={coverVersion} />
               )}
             </div>
 

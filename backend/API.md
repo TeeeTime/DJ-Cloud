@@ -262,7 +262,8 @@ Response `200`:
       "addedAt": "2026-08-28T23:11:12.605Z",
       "status": "READY",
       "artists": ["Artist One", "Artist Two"],
-      "genres": ["Tech House", "Deep House"]
+      "genres": ["Tech House", "Deep House"],
+      "coverVersion": 0
     }
   ],
   "page": 0,
@@ -282,6 +283,10 @@ associations use the ids returned by the artist endpoints below, not names — s
 `genres` is the same idea, for a track's up to 3 genres — a flat list of genre names, edited via
 `genreIds` using the ids returned by the genre endpoints below — see `PUT /api/tracks/{id}`.
 
+`coverVersion` changes (to a larger number) every time the track's cover art is replaced or removed via
+`PUT`/`DELETE /api/tracks/{id}/cover`; `0` means it was never changed since upload. Pass it as `?v=` to
+`GET /api/tracks/{id}/cover` so the image can be cached — see there.
+
 ---
 
 ## `GET /api/tracks/{id}`
@@ -289,6 +294,24 @@ associations use the ids returned by the artist endpoints below, not names — s
 **Public.** Fetch a single track.
 
 Response `200`: same shape as one `content` entry above. `404` if no track has that id.
+
+---
+
+## `GET /api/tracks/batch`
+
+**Public.** Current state of several tracks at once — meant for re-checking just the tracks that are still
+`QUEUED`/`PROCESSING` instead of re-fetching a whole listing.
+
+Query params:
+
+| param | notes                                                        |
+|-------|---------------------------------------------------------------|
+| `ids` | required, comma-separated track ids (at most 200)            |
+
+Response `200`: a JSON array of track objects, same shape as one `content` entry of `GET /api/tracks`,
+in no particular order. Ids that don't exist (e.g. deleted in the meantime) are left out, not an error.
+
+`400` if `ids` is missing or has more than 200 entries.
 
 ---
 
@@ -313,7 +336,8 @@ Response `200`:
       "artists": ["Artist One"],
       "addedAt": "2026-08-29T14:03:11.123Z",
       "isNew": true,
-      "status": "READY"
+      "status": "READY",
+      "coverVersion": 0
     }
   ],
   "newCount": 12
@@ -325,6 +349,8 @@ Response `200`:
 
 `status` is the same `TrackStatus` enum as `GET /api/tracks` (`QUEUED`, `PROCESSING`, `READY`, `FAILED`) —
 a recently-added track can be any of these, since it may still be going through analysis.
+
+`coverVersion` is the same as in `GET /api/tracks`.
 
 `newCount` is the *total* number of new tracks, independent of `limit` — it can exceed `tracks.length` when
 there are more new tracks than fit in the response; every entry in `tracks` is still guaranteed to be one
@@ -387,15 +413,26 @@ included on every entry so every client can render the same track names, regardl
 `?token=...` in place of the `Authorization` header, since `<img>` tags can't set one either.
 
 Reads the embedded cover art straight out of the track's audio file (ID3 `APIC`/similar tag) and streams
-it back. Nothing is cached, resized, or persisted separately — every call re-reads the tag from the file
-on disk. There's no fallback image; a frontend should show its own placeholder on `404`.
+it back. There's no separate cover storage. There's no fallback image; a frontend should show its own
+placeholder on `404`.
 
-Response `200`: the raw image bytes, `Content-Type` taken from the tag itself (typically `image/jpeg` or
-`image/png`).
+Query params (both optional):
+
+| param  | notes                                                                                              |
+|--------|------------------------------------------------------------------------------------------------------|
+| `size` | one of `64`, `128`, `512`. Downscales the image to fit within `size`×`size` (aspect ratio kept), re-encoded as JPEG. Images already that small, or in a format the server can't decode, are returned as-is. Resized results are cached in server memory. `400` on any other value. |
+| `v`    | the track's `coverVersion` (see `GET /api/tracks`). Makes the response cacheable for good: `Cache-Control: private, max-age=31536000, immutable`. A changed cover gets a new version, so clients just request the new URL. |
+
+Without `v` the response is `Cache-Control: private, no-cache`, and without `size` the original bytes are
+re-read from the file on every call.
+
+Response `200`: the image bytes, `Content-Type` `image/jpeg` when resized, otherwise taken from the tag
+itself (typically `image/jpeg` or `image/png`).
 
 `401` if neither a valid `Authorization` header nor a valid, unexpired media token query param is present.
 
-`404` if the track doesn't exist, has no file on disk, or the file has no embedded artwork.
+`404` if the track doesn't exist, has no file on disk, or the file has no embedded artwork. When `v` is
+given, a "no artwork" `404` is cacheable for a day (`private, max-age=86400`).
 
 ---
 
@@ -563,7 +600,10 @@ original audio file's artwork tag, replacing whatever was embedded before.
 Request: `multipart/form-data` with a single part named `file` — a `.jpg`/`.jpeg` or `.png` image
 (checked by `Content-Type`; max 200MB, same global limit as track uploads).
 
-Response: `204 No Content`.
+Response `200`: the track's new `coverVersion` (see `GET /api/tracks`):
+```json
+{ "coverVersion": 1763481600000 }
+```
 
 Errors:
 - `404` if the track doesn't exist, or has no audio file on disk.
@@ -580,7 +620,8 @@ rather than replacing it — same underlying tag write as `PUT /{id}/cover` abov
 artwork field instead of setting a new one. Idempotent: a track with no cover art already is
 unaffected, no error.
 
-Response: `204 No Content`.
+Response `200`: the track's new `coverVersion`, same shape as `PUT /{id}/cover` above. (Bumped even if
+there was no cover to remove.)
 
 Errors:
 - `404` if the track doesn't exist, or has no audio file on disk.

@@ -118,6 +118,8 @@ export interface TrackResponse {
   status: TrackStatus;
   artists: string[];
   genres: string[];
+  /** Changes whenever the cover art is replaced/removed — part of the (cacheable) cover URL. */
+  coverVersion: number;
 }
 
 export type DuplicateReason = "EXACT_FILE" | "TITLE_AND_ARTIST";
@@ -134,7 +136,15 @@ export interface RecentTrackResponse {
   addedAt: string;
   isNew: boolean;
   status: TrackStatus;
+  coverVersion: number;
 }
+
+export interface CoverVersionResponse {
+  coverVersion: number;
+}
+
+/** The only cover sizes the backend serves (see GET /api/tracks/{id}/cover in backend/API.md). */
+export type CoverSize = 64 | 128 | 512;
 
 export interface RecentTracksResponse {
   tracks: RecentTrackResponse[];
@@ -306,6 +316,9 @@ export const tracksApi = {
 
   get: (id: number) => request<TrackResponse>(`/api/tracks/${id}`, { method: "GET" }),
 
+  byIds: (ids: number[]) =>
+    request<TrackResponse[]>(`/api/tracks/batch?ids=${ids.join(",")}`, { method: "GET" }),
+
   upload: (file: File, token: string, confirmDuplicate = false) => {
     const formData = new FormData();
     // Explicit filename: Chromium otherwise sends a folder-dropped file's relative path
@@ -325,18 +338,21 @@ export const tracksApi = {
   updateCover: (id: number, file: File, token: string) => {
     const formData = new FormData();
     formData.append("file", file);
-    return request<void>(`/api/tracks/${id}/cover`, { method: "PUT", body: formData }, token);
+    return request<CoverVersionResponse>(`/api/tracks/${id}/cover`, { method: "PUT", body: formData }, token);
   },
 
   removeCover: (id: number, token: string) =>
-    request<void>(`/api/tracks/${id}/cover`, { method: "DELETE" }, token),
+    request<CoverVersionResponse>(`/api/tracks/${id}/cover`, { method: "DELETE" }, token),
 
   delete: (id: number, token: string) =>
     request<void>(`/api/tracks/${id}`, { method: "DELETE" }, token),
 
   audioUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/audio`,
 
-  coverUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/cover`,
+  /** Stable per (track, size, cover version) so the browser can cache it — fetched with an
+   * Authorization header by lib/cover-cache.ts, never put into an <img> directly. */
+  coverUrl: (id: number, size: CoverSize, version: number) =>
+    `${API_BASE_URL}/api/tracks/${id}/cover?size=${size}&v=${version}`,
 
   downloadUrl: (id: number) => `${API_BASE_URL}/api/tracks/${id}/download`,
 
