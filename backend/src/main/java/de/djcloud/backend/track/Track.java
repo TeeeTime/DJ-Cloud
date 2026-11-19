@@ -64,6 +64,16 @@ public class Track {
     @Enumerated(EnumType.STRING)
     private TrackStatus status;
 
+    /**
+     * Bumped (to the current epoch millis) whenever the embedded cover art is replaced or removed via
+     * {@code PUT/DELETE /api/tracks/{id}/cover}. Clients put it into the cover URL ({@code ?v=}), which
+     * lets {@code GET /{id}/cover} be cached as immutable: a changed cover simply gets a new URL.
+     * {@code 0} means "never changed since upload". {@code @ColumnDefault("0")} for the same SQLite
+     * {@code ALTER TABLE ... ADD COLUMN} reason as {@link #sizeBytes}.
+     */
+    @ColumnDefault("0")
+    private long coverVersion;
+
     @ManyToMany
     @JoinTable(
             name = "track_artist",

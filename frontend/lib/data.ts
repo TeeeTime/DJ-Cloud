@@ -20,8 +20,9 @@ export type Track = {
   // Not modeled by the backend yet — kept optional so existing filter UI keeps compiling.
   genre?: string;
   audioUrl: string;
-  // May 404 — not every track has embedded artwork. Consumers should fall back gracefully.
-  coverUrl: string;
+  // Not every track has embedded artwork — load it via useCover (lib/cover-cache.ts), which reports
+  // "no cover" as null so consumers can fall back gracefully.
+  coverVersion: number;
 };
 
 // A track is only actually streamable once its analysis pipeline finishes successfully —
@@ -68,20 +69,6 @@ export async function resolveTrack(id: number, knownTracks: Track[]): Promise<Tr
   }
 }
 
-const coverVersions = new Map<number, number>();
-
-/** Called right after a cover upload/removal succeeds, so every coverUrl built afterward for this
- * track gets a different query string — otherwise the URL never changes and <img> never re-fetches. */
-export function bumpCoverVersion(id: number) {
-  coverVersions.set(id, Date.now());
-}
-
-export function buildCoverUrl(id: number): string {
-  const version = coverVersions.get(id);
-  const url = version === undefined ? tracksApi.coverUrl(id) : `${tracksApi.coverUrl(id)}?v=${version}`;
-  return appendMediaToken(url);
-}
-
 export function mapTrackResponse(t: TrackResponse): Track {
   return {
     id: t.id,
@@ -98,7 +85,7 @@ export function mapTrackResponse(t: TrackResponse): Track {
     duration: formatDuration(t.durationSeconds),
     durationSeconds: t.durationSeconds,
     audioUrl: appendMediaToken(tracksApi.audioUrl(t.id)),
-    coverUrl: buildCoverUrl(t.id),
+    coverVersion: t.coverVersion ?? 0,
   };
 }
 

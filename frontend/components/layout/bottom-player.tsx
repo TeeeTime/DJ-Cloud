@@ -8,11 +8,9 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { QueueStatusWidget } from "@/components/layout/queue-status";
 import { usePlayer } from "@/components/providers/player-provider";
-import { isPlayableStatus, buildCoverUrl } from "@/lib/data";
+import { isPlayableStatus } from "@/lib/data";
+import { useCover } from "@/lib/cover-cache";
 import { usePathname } from "next/navigation";
-import { authApi } from "@/lib/api";
-import { setMediaToken } from "@/lib/media-token";
-import { useAuth } from "@/components/providers/auth-provider";
 
 const VOLUME_STORAGE_KEY = "djcloud_volume";
 
@@ -27,41 +25,10 @@ function loadStoredVolume(): number {
   }
 }
 
-function TrackCover({ src, trackId, isPlaying, scratching }: { src: string; trackId: number; isPlaying: boolean; scratching: boolean }) {
-  const { token: authToken } = useAuth();
-  const [error, setError] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [retriedSrc, setRetriedSrc] = useState<string | null>(null);
-  const [hasRetried, setHasRetried] = useState(false);
-
-  // A cover that previously 404'd must be re-attempted once `src` actually changes (e.g. after
-  // editing the cover) — otherwise this instance stays stuck on the fallback icon forever.
-  const [prevSrc, setPrevSrc] = useState(src);
-  if (src !== prevSrc) {
-    setPrevSrc(src);
-    setError(false);
-    setLoaded(false);
-    setRetriedSrc(null);
-    setHasRetried(false);
-  }
-
-  // The media token embedded in `src` can be stale — e.g. this rendered before the initial
-  // media-token fetch resolved, or a long-idle session's token has since expired. Mint a fresh one
-  // and retry once before giving up and showing the fallback icon.
-  const handleError = async () => {
-    if (hasRetried || !authToken) {
-      setError(true);
-      return;
-    }
-    setHasRetried(true);
-    try {
-      const { token } = await authApi.mediaToken(authToken);
-      setMediaToken(token);
-      setRetriedSrc(buildCoverUrl(trackId));
-    } catch {
-      setError(true);
-    }
-  };
+function TrackCover({ trackId, coverVersion, isPlaying, scratching }: { trackId: number; coverVersion: number; isPlaying: boolean; scratching: boolean }) {
+  // Displayed at 56px — 128 keeps it sharp on high-DPI screens (and shares the cache with Overview).
+  const src = useCover(trackId, coverVersion, 128);
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
 
   // The fallback icon is always the base layer, not just an on-error state — that way there's
   // never a gap (pending, stuck, or otherwise not-yet-resolved) where neither the icon nor the
@@ -73,13 +40,13 @@ function TrackCover({ src, trackId, isPlaying, scratching }: { src: string; trac
       ) : (
         <Music2 className="w-5 h-5 text-zinc-600" />
       )}
-      {!error && (
+      {src && (
         <img
-          src={retriedSrc ?? src}
+          src={src}
           alt=""
-          onLoad={() => setLoaded(true)}
-          onError={() => (retriedSrc ? setError(true) : handleError())}
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${loaded ? "opacity-100" : "opacity-0"}`}
+          decoding="async"
+          onLoad={() => setLoadedSrc(src)}
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${loadedSrc === src ? "opacity-100" : "opacity-0"}`}
         />
       )}
     </>
@@ -310,7 +277,7 @@ export function BottomPlayer() {
           {isPlaying && !scratching && (
             <div className="absolute inset-0 bg-white/5 animate-pulse pointer-events-none"></div>
           )}
-          <TrackCover key={currentTrack.id} src={currentTrack.coverUrl} trackId={currentTrack.id} isPlaying={isPlaying} scratching={scratching} />
+          <TrackCover key={currentTrack.id} trackId={currentTrack.id} coverVersion={currentTrack.coverVersion} isPlaying={isPlaying} scratching={scratching} />
         </div>
 
         <div className="flex flex-col truncate">

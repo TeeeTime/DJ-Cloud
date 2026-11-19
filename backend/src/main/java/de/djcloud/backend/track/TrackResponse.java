@@ -6,7 +6,7 @@ import java.util.List;
 
 public record TrackResponse(Long id, String title, int durationSeconds, String key, int bpm, String fileFormat,
                              long sizeBytes, LocalDate dateAdded, Instant addedAt, TrackStatus status,
-                             List<String> artists, List<String> genres) {
+                             List<String> artists, List<String> genres, long coverVersion) {
 
     public static TrackResponse fromEntity(Track track) {
         List<String> artistNames = track.getArtists().stream()
@@ -19,6 +19,6 @@ public record TrackResponse(Long id, String title, int durationSeconds, String k
 
         return new TrackResponse(track.getId(), track.getTitle(), track.getDurationSeconds(), track.getKey(),
                 track.getBpm(), track.getFileFormat(), track.getSizeBytes(), track.getDateAdded(),
-                track.getAddedAt(), track.getStatus(), artistNames, genreNames);
+                track.getAddedAt(), track.getStatus(), artistNames, genreNames, track.getCoverVersion());
     }
 }

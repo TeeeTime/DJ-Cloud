@@ -5,9 +5,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.core.io.UrlResource;
 import org.springframework.core.io.support.ResourceRegion;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpRange;
@@ -48,6 +50,7 @@ public class TrackController {
     private final AudioMetadataReader audioMetadataReader;
     private final TrackAnalysisQueue trackAnalysisQueue;
     private final AuthService authService;
+    private final CoverThumbnails coverThumbnails;
 
     @GetMapping
     public PageResponse<TrackResponse> getTracks(@RequestParam(defaultValue = "0") int page,
@@ -73,6 +76,16 @@ public class TrackController {
     public RecentTracksResponse getRecentTracks(Authentication authentication, @RequestParam(defaultValue = "20") int limit) {
         Instant lastSeen = authService.getLastSeenRecentlyAddedAt((AppUserDetails) authentication.getPrincipal());
         return trackService.findRecent(limit, lastSeen);
+    }
+
+    /**
+     * Current state of several tracks at once — lets a client re-check just the tracks still being
+     * analyzed instead of re-fetching a whole listing. Declared before {@code /{id}} for readability;
+     * Spring prefers the literal path either way.
+     */
+    @GetMapping("/batch")
+    public List<TrackResponse> getTracksByIds(@RequestParam List<Long> ids) {
+        return trackService.findByIds(ids);
     }
 
     @GetMapping("/{id}")
@@ -149,32 +162,72 @@ public class TrackController {
 
     /**
      * Reads the embedded cover art directly out of the audio file's tag and streams it back — no
-     * separate cover image is ever stored; this just re-reads the source file on each request.
+     * separate cover image is ever stored. With {@code ?size=} the image is downscaled to fit (see
+     * {@link CoverThumbnails}, which also caches those results in memory); without it, the original
+     * bytes are re-read from the file on each request.
+     *
+     * <p>{@code ?v=} is the track's {@code coverVersion}; when present the response is marked as
+     * immutable for browsers, since a changed cover always gets a new version and thus a new URL.
      *
      * <p>Requires authentication, same as {@code getAudio} above — including the media-token query
      * param, since {@code <img>} tags can't set an {@code Authorization} header either.
      */
     @GetMapping("/{id}/cover")
-    public ResponseEntity<byte[]> getCover(@PathVariable Long id) {
-        Track track = trackService.findEntity(id);
-        if (track.getFileName() == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No cover art available for this track");
+    public ResponseEntity<byte[]> getCover(@PathVariable Long id, @RequestParam(required = false) Integer size,
+            @RequestParam(name = "v", required = false) Long version) {
+        if (size != null && !CoverThumbnails.ALLOWED_SIZES.contains(size)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Unsupported cover size — allowed: " + CoverThumbnails.ALLOWED_SIZES);
         }
 
+        Track track = trackService.findEntity(id);
+
+        // A versioned URL never changes content (a changed cover gets a new version, see
+        // Track#coverVersion), so browsers may keep it for good. Unversioned requests (older
+        // clients) must revalidate every time, since the cover behind them can change.
+        CacheControl cacheControl = version != null
+                ? CacheControl.maxAge(365, TimeUnit.DAYS).cachePrivate().immutable()
+                : CacheControl.noCache().cachePrivate();
+
+        if (size != null) {
+            CoverArt cached = coverThumbnails.cached(track.getId(), track.getCoverVersion(), size);
+            if (cached != null) {
+                return coverResponse(cached, cacheControl);
+            }
+        }
+
+        CoverArt cover = readCover(track);
+        if (cover == null) {
+            // Cacheable too (a cover added later bumps the version, so the client asks a new URL),
+            // but only for a day: a file that was briefly unreadable mustn't hide its cover forever.
+            CacheControl notFoundCache = version != null
+                    ? CacheControl.maxAge(1, TimeUnit.DAYS).cachePrivate()
+                    : CacheControl.noCache().cachePrivate();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).cacheControl(notFoundCache).build();
+        }
+
+        if (size != null) {
+            cover = coverThumbnails.resize(track.getId(), track.getCoverVersion(), size, cover);
+        }
+        return coverResponse(cover, cacheControl);
+    }
+
+    private CoverArt readCover(Track track) {
+        if (track.getFileName() == null) {
+            return null;
+        }
         File file = trackStorageService.resolve(track.getFileName());
         if (!file.exists()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No cover art available for this track");
+            return null;
         }
+        return audioMetadataReader.readArtwork(file);
+    }
 
-        CoverArt cover = audioMetadataReader.readArtwork(file);
-        if (cover == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No cover art available for this track");
-        }
-
+    private static ResponseEntity<byte[]> coverResponse(CoverArt cover, CacheControl cacheControl) {
         MediaType mediaType = cover.mimeType() != null ? MediaType.parseMediaType(cover.mimeType()) : MediaType.IMAGE_JPEG;
-
         return ResponseEntity.ok()
                 .contentType(mediaType)
+                .cacheControl(cacheControl)
                 .body(cover.data());
     }
 
@@ -234,16 +287,14 @@ public class TrackController {
      * `GET /{id}/cover`) — this writes straight into the original audio file's artwork tag.
      */
     @PutMapping(value = "/{id}/cover", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void updateCover(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
-        trackService.updateCover(id, file);
+    public CoverVersionResponse updateCover(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+        return new CoverVersionResponse(trackService.updateCover(id, file));
     }
 
     /** Clears the track's embedded cover art entirely. There's no separate cover storage to delete. */
     @DeleteMapping("/{id}/cover")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void removeCover(@PathVariable Long id) {
-        trackService.removeCover(id);
+    public CoverVersionResponse removeCover(@PathVariable Long id) {
+        return new CoverVersionResponse(trackService.removeCover(id));
     }
 
     @DeleteMapping("/{id}")

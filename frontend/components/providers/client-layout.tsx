@@ -57,26 +57,31 @@ function PlayerLayout({ children }: { children: React.ReactNode }) {
         .ambient-surface-header,
         .ambient-surface-main,
         .ambient-surface-card {
-          transition: background-color 700ms ease, border-color 700ms ease, backdrop-filter 700ms ease;
+          transition: background-color 700ms ease, border-color 700ms ease;
         }
 
-        /* When ambient mode is active, make surfaces translucent to reveal the ambient glow */
+        /* When ambient mode is active, make surfaces translucent to reveal the ambient glow.
+           Deliberately no backdrop-filter here: the backdrop is the constantly-moving ambient
+           layer, so every blurred surface would have to be re-blurred on every frame — and
+           since that layer is already heavily blurred, blurring it again changes almost nothing
+           visually. Nothing scrolls underneath these surfaces either (each view's scroll
+           container is a sibling of its header, not behind it). */
         .ambient-active .ambient-surface-page {
           background-color: transparent !important;
         }
         .ambient-active .ambient-surface-sidebar {
           background-color: rgba(0, 0, 0, 0.55) !important;
-          backdrop-filter: blur(24px) !important;
+          backdrop-filter: none !important;
           border-color: rgba(39, 39, 42, 0.5) !important;
         }
         .ambient-active .ambient-surface-player {
           background-color: rgba(0, 0, 0, 0.75) !important;
-          backdrop-filter: blur(24px) !important;
+          backdrop-filter: none !important;
           border-color: rgba(39, 39, 42, 0.6) !important;
         }
         .ambient-active .ambient-surface-header {
           background-color: rgba(0, 0, 0, 0.35) !important;
-          backdrop-filter: blur(20px) !important;
+          backdrop-filter: none !important;
           border-color: rgba(39, 39, 42, 0.5) !important;
         }
         .ambient-active .ambient-surface-main {
@@ -84,13 +89,13 @@ function PlayerLayout({ children }: { children: React.ReactNode }) {
         }
         .ambient-active .ambient-surface-card {
           background-color: rgba(0, 0, 0, 0.35) !important;
-          backdrop-filter: blur(12px) !important;
+          backdrop-filter: none !important;
           border-color: rgba(39, 39, 42, 0.45) !important;
         }
         .ambient-active [data-slot="card"] {
           background-color: rgba(0, 0, 0, 0.35) !important;
-          backdrop-filter: blur(12px) !important;
-          transition: background-color 700ms ease, backdrop-filter 700ms ease;
+          backdrop-filter: none !important;
+          transition: background-color 700ms ease;
         }
       `}} />
       

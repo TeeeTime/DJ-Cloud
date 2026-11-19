@@ -99,6 +99,11 @@ public class SecurityConfig {
         // exposing it, browser JS can't read it cross-origin and a fetch-based download would fall
         // back to a client-guessed name instead of the one the backend computed.
         configuration.setExposedHeaders(List.of("Content-Disposition"));
+        // Lets browsers reuse a passed CORS preflight for an hour instead of Chrome's 5s default.
+        // Every request carrying an Authorization header needs one, so without this, cover images
+        // already sitting in the browser cache (see GET /api/tracks/{id}/cover) and frequent polls
+        // like /api/tracks/queue would still each cost an extra OPTIONS round trip.
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
